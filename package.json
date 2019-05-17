@@ -1,0 +1,26 @@
+{
+  "bundleDependencies": false,
+  "dependencies": {
+    "alasql": "^0.4.11"
+  },
+  "deprecated": false,
+  "description": "A Node-RED block to send and receive messages between and across instances.",
+  "homepage": "https://github.com/Gippsman2017/node-red-contrib-redlink#readme",
+  "keywords": [
+    "node-red",
+    "RED-link",
+    "alaSQL"
+  ],
+  "licence": "Apache V2.0",
+  "name": "node-red-contrib-redlink",
+  "node-red": {
+    "nodes": {
+      "redlink": "redlink.js"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Gippsman2017/node-red-contrib-redlink.git"
+  },
+  "version": "0.0.01"
+}

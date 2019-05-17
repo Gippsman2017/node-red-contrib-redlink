@@ -1,0 +1,58 @@
+<script type="text/x-red" data-template-name="redlink">
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Database </label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-address"><i class="icon-tag"></i> Listen Address </label>
+        <input type="text" id="node-input-address" placeholder="Address" style="width:150px; height:28px;">
+        <label for="node-input-port"><i class="icon-tag"></i> Listen Port </label>
+        <input type="text" id="node-input-port" placeholder="Port" style="width:60px; height:28px;"> 
+    </div>
+
+    <div class="form-row" style="position: relative; margin-bottom: 0px;">
+        <label for="node-input-template"><i class="fa fa-file-code-o"></i>
+        DNServer_Internal_and_Exported_Functions_Specified_Here</span></label>
+        <input type="hidden" id="node-input-functions" autofocus="autofocus">
+    </div>
+
+    <div class="form-row node-text-editor-row">
+        <div style="height:360px;" class="node-text-editor" id="node-input-functions-editor"></div>
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="redlink"></script>
+
+<script type="text/javascript">
+    RED.nodes.registerType('redlink', {
+        category : 'advanced',
+        color    : "#db6c79",
+        inputs   : 1,
+        outputs  : 3,
+        defaults : {
+            address      : {value: '127.0.0.1'},
+            port         : {value: 53},
+            name         : {value: 'REDLink'},
+            functions    : {value: 'Put the basic functions in Here from the "info tab"'}
+        },
+        icon: "file.png",
+        label: function () {
+            return this.name || "";
+        },
+        labelStyle: function () {
+            return this.name ? "node_label_italic" : "";
+        },
+        oneditprepare: function () {
+            this.editor = RED.editor.createEditor({
+                id: "node-input-functions-editor",
+                mode: "ace/mode/sql",
+                value: $("#node-input-functions").val()
+            });
+        },
+        oneditsave: function () {
+            $("#node-input-functions").val(this.editor.getValue())
+            delete this.editor;
+        }
+    });
+</script>
