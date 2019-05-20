@@ -10,13 +10,19 @@ Redlink does not use a traditional messaging system, it actually creates a hiera
 
 Major benefits that this approach provides:
 
-.It allows a "Consumer" pull method of communication instead of a pub/sub push method for its transport system.
-.It allows each consumer to consume messages purely on its ability to process them and not have the producers force high workloads on consumers.
-.It allows scale out using container instances to instantiate many consumers dynamically as the load increases.
-.Producers do not have to know or care how message routing is provided, they simply have to have a link to another parent / peer that can route for them.
-.Producers are provided with a number of timers on each message to allow them:
-.To handle Consumers not processing the work
-.Alternate services to work around busy consumers
+	It allows a "Consumer" pull method of communication instead of a pub/sub push method for its transport system.
+
+	It allows each consumer to consume messages purely on its ability to process them and not have the producers force high workloads on consumers.
+
+	It allows scale out using container instances to instantiate many consumers dynamically as the load increases.
+
+	Producers do not have to know or care how message routing is provided, they simply have to have a link to another parent / peer that can route for them.
+
+Producers are provided with a number of timers on each message to allow them:
+
+To handle Consumers not processing the work
+
+Alternate services to work around busy consumers
 .Expected end-to-end transaction times, allowing the producers to have an expectation of completeion.
 .Priority message processing.
 .Messages are stored in AlaSQL either ram or on disk.
