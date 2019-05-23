@@ -11,7 +11,7 @@ var   upstream   = '';    // hold the upstream dns server address
 var   upport     = 53;    // hold the upstream dns server port 
 var   alasql     = require('alasql');
 
-function redLink(config) {
+function RedLinkConfig(config) {
 
    RED.nodes.createNode(this,config);
 
@@ -127,5 +127,28 @@ function redLink(config) {
    }) //udpServer.on
 } // function
 //------------------------------------------------------- Register this Node --------------------------------
-    RED.nodes.registerType("redlink", redLink);
-}    
+    RED.nodes.registerType("redlink config", RedLinkConfig);
+
+    function RedLinkConsumer(config) {
+
+        RED.nodes.createNode(this, config);
+
+        var node = this;
+    }
+    RED.nodes.registerType("redlink consumer", RedLinkConsumer);
+    function RedLinkProducer(config) {
+
+        RED.nodes.createNode(this, config);
+
+        var node = this;
+    }
+    RED.nodes.registerType("redlink producer", RedLinkProducer);
+    function RedLinkReply(config) {
+
+        RED.nodes.createNode(this, config);
+
+        var node = this;
+    }
+    RED.nodes.registerType("redlink reply", RedLinkReply);
+
+};
