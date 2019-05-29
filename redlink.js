@@ -1,12 +1,8 @@
 module.exports = function (RED) {
 
     "use strict";
+    const alasql = require('alasql');
     const httpsServer = require('./https-server.js');
-    var alasql = require('alasql');
-    var queryString = require('querystring');
-    const express = require('express');
-    const app = express();
-
     function RedLinkStore(config) {
         RED.nodes.createNode(this, config);
         this.listenAddress = config.listenAddress;
@@ -25,33 +21,7 @@ module.exports = function (RED) {
         }
         console.log('\n\n\n\nthis.listenPort:', this.listenPort);
         if (this.listenPort) {
-            this.listenServer = httpsServer.startServer(+this.listenPort, (req, res) => {
-                /*
-                                notify request is of form:
-                                {
-                                    type: 'notify',
-                                    service: 'abc',
-                                    producerIp:'192.168.3.3',
-                                    produccerPort:'8000',
-
-                                }
-                                //todo register request
-                */
-                if (req.url.indexOf('?') >= 0) {
-                    const reqParams = queryString.parse(req.url.replace(/^.*\?/, ''));
-                    if (reqParams.type === 'notify') {
-                        const notifyInsertSql = 'INSERT INTO notify VALUES ("' + this.name + '","' + reqParams.service + '","' + reqParams.producerIp + '",' + reqParams.producerPort + ')';
-                        console.log('notifyInsertSql:', notifyInsertSql);
-                        console.log('Current database 2:', alasql.useid);
-                        alasql(notifyInsertSql);
-                        const allNotifies = alasql('SELECT * FROM notify');
-                        console.log('allNotifies inside da store is:', allNotifies);
-                    }
-                    console.log(reqParams);
-                }
-                res.writeHead(200);
-                res.end("hello world\n"); //TODO send ACK/NAK
-            });
+            this.listenServer = httpsServer.startServer(+this.listenPort);
             if (this.listenServer) {
                 this.on('close', function (removed, done) {
                     this.listenServer.close(() => {
@@ -61,9 +31,18 @@ module.exports = function (RED) {
             }
             console.log('started server at port:', this.listenPort);
         }
-
+        const app = httpsServer.getExpressApp();
+        app.get('/notify', (req, res) =>{ //todo validation on params
+            const notifyInsertSql = 'INSERT INTO notify VALUES ("' + this.name + '","' + req.query.service + '","' + req.query.producerIp + '",' + req.query.producerPort + ')';
+            console.log('notifyInsertSql:', notifyInsertSql);
+            console.log('Current database 2:', alasql.useid);
+            alasql(notifyInsertSql);
+            const allNotifies = alasql('SELECT * FROM notify');
+            console.log('allNotifies inside da store is:', allNotifies);
+            res.send('hello world'); //TODO this will be a NAK/ACK
+        });
         this.on("input", msg => {
-            //todo msg can be one of register or notify
+            //todo what messages should we allow? register and notify are handled via endpoints
         });
     } // function
 //------------------------------------------------------- Register this Node --------------------------------
@@ -124,7 +103,7 @@ module.exports = function (RED) {
         ]);
     });
     RED.httpAdmin.put("/store-names", function (req, res) {
-    })
+    });
     RED.httpAdmin.get("/consumers", function (req, res) {
         //TODO get from alasql
         res.json([
