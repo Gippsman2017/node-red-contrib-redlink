@@ -1,12 +1,3 @@
-<script type="text/javascript">
-    //common validation functions
-    const validateIpAddress = function (ipAddress) { //from https://www.w3resource.com/javascript/form/ip-address-validation.php
-        return (/^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(ipAddress))
-    };
-    const validatePositiveNumber = function (port) {
-        return RED.validators.number(port) && (port >= 0);
-    };
-</script>
 <script type="text/x-red" data-template-name="redlink store">
     <div class="form-row">
         <label for="node-input-name"><i class="icon-tag"></i> Store Name </label>
@@ -39,16 +30,18 @@
     <div class="form-row node-text-editor-row">
         <div style="height:360px;" class="node-text-editor" id="node-input-functions-editor"></div>
     </div>
-
-
-
-
-
 </script>
 
 <script type="text/x-red" data-help-name="redlink store"></script>
 
 <script type="text/javascript">
+    const validateIpAddress = function (ipAddress) { //from https://www.w3resource.com/javascript/form/ip-address-validation.php
+        return (/^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(ipAddress))
+    };
+    const validatePositiveNumber = function (port) {
+        return RED.validators.number(port) && (port >= 0);
+    };
+
     RED.nodes.registerType('redlink store', {
         category: 'redlink',
         color: "#db6c79",
@@ -56,16 +49,16 @@
         outputs: 1, //debug
         defaults: {
             listenAddress: {
-                value: '127.0.0.1', required: true/*, validate: validateIpAddress*/
+                value: '127.0.0.1', required: true, validate: validateIpAddress
             },
             listenPort: {
-                value: 443, required: true/*, validate: validatePositiveNumber*/
+                value: 443, required: true, validate: validatePositiveNumber
             },
             peerAddress: {
-                value: '0.0.0.0', required: true/*, validate: validateIpAddress*/
+                value: '0.0.0.0', required: true, validate: validateIpAddress
             },
             peerPort: {
-                value: 443, required: true/*, validate: validatePositiveNumber*/
+                value: 443, required: true, validate: validatePositiveNumber
             },
             name: {value: 'Store Name', required: true},
             functions: {value: 'Put the basic functions in Here from the "info tab"'},
@@ -87,7 +80,7 @@
             });
         },
         oneditsave: function () {
-            $("#node-input-functions").val(this.editor.getValue())
+            $("#node-input-functions").val(this.editor.getValue());
             delete this.editor;
             //TODO do a put on store name
         }
