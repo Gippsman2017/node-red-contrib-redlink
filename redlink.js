@@ -32,8 +32,9 @@ module.exports = function (RED) {
             console.log('started server at port:', this.listenPort);
         }
         const app = httpsServer.getExpressApp();
-        app.get('/notify', (req, res) =>{ //todo validation on params
-            const notifyInsertSql = 'INSERT INTO notify VALUES ("' + this.name + '","' + req.query.service + '","' + req.query.producerIp + '",' + req.query.producerPort + ')';
+        app.post('/notify', (req, res) =>{ //todo validation on params
+            console.log("req.body:", req.body);
+            const notifyInsertSql = 'INSERT INTO notify VALUES ("' + this.name + '","' + req.body.service + '","' + req.body.producerIp + '",' + req.body.producerPort + ')';
             console.log('notifyInsertSql:', notifyInsertSql);
             console.log('Current database 2:', alasql.useid);
             alasql(notifyInsertSql);

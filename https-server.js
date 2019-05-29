@@ -1,9 +1,13 @@
+const express = require('express');
 const https = require('https');
+const bodyParser = require('body-parser');
 const selfsigned = require('selfsigned');
+
+const app = express();
+app.use(bodyParser.json());
 const attrs = [{name: 'commonName', value: 'wombat.abcd.nbnco.com.au'}];
 const pems = selfsigned.generate(attrs, {days: 3650});
-const express = require('express');
-const app = express();
+
 let server;
 module.exports.startServer = function (port) {
     try {
