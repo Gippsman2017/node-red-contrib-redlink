@@ -1,9 +1,7 @@
 {
   "bundleDependencies": false,
   "dependencies": {
-    "alasql": "^0.4.11",
-    "express": "^4.17.1",
-    "selfsigned": "^1.10.4"
+    "alasql": "^0.4.11"
   },
   "deprecated": false,
   "description": "A Node-RED block to send and receive messages between and across instances.",

@@ -1,14 +1,23 @@
-<script type="text/x-red" data-template-name="redlink config">
+<script type="text/javascript">
+    //common validation functions
+    const validateIpAddress = function (ipAddress) { //from https://www.w3resource.com/javascript/form/ip-address-validation.php
+        return (/^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(ipAddress))
+    };
+    const validatePositiveNumber = function (port) {
+        return RED.validators.number(port) && (port >= 0);
+    };
+</script>
+<script type="text/x-red" data-template-name="redlink store">
     <div class="form-row">
-        <label for="node-input-name"><i class="icon-tag"></i> Database </label>
-        <input type="text" id="node-input-name" placeholder="Name">
+        <label for="node-input-name"><i class="icon-tag"></i> Store Name </label>
+        <input type="text" id="node-input-name" placeholder="Store Name">
     </div>
 
     <div class="form-row">
-        <label for="node-input-address"><i class="icon-tag"></i> Listen Address </label>
-        <input type="text" id="node-input-address" placeholder="Address" style="width:150px; height:28px;">
-        <label for="node-input-port"><i class="icon-tag"></i> Listen Port </label>
-        <input type="text" id="node-input-port" placeholder="Port" style="width:60px; height:28px;"> 
+        <label for="node-input-listenAddress"><i class="icon-tag"></i> Listen Address </label>
+        <input type="text" id="node-input-listenAddress" placeholder="Address" style="width:150px; height:28px;">
+        <label for="node-input-listenPort"><i class="icon-tag"></i> Listen Port </label>
+        <input type="text" id="node-input-listenPort" placeholder="Port" style="width:60px; height:28px;">
     </div>
 
     <div class="form-row">
@@ -17,7 +26,10 @@
         <label for="node-input-peerPort"><i class="icon-tag"></i> Peer Port </label>
         <input type="text" id="node-input-peerPort" placeholder="Peer Port" style="width:60px; height:28px;">
     </div>
-
+    <div class="form-row">
+        <label for="node-input-notifyInterval"><i class="fa fa-hourglass-1"></i> Notify Interval (s)</label>
+        <input type="text" id="node-input-notifyInterval" placeholder="Notify Interval in sec">
+    </div>
     <div class="form-row" style="position: relative; margin-bottom: 0px;">
         <label for="node-input-template"><i class="fa fa-file-code-o"></i>
         DNServer_Internal_and_Exported_Functions_Specified_Here</span></label>
@@ -28,23 +40,36 @@
         <div style="height:360px;" class="node-text-editor" id="node-input-functions-editor"></div>
     </div>
 
+
+
+
+
 </script>
 
-<script type="text/x-red" data-help-name="redlink config"></script>
+<script type="text/x-red" data-help-name="redlink store"></script>
 
 <script type="text/javascript">
-    RED.nodes.registerType('redlink config', {
+    RED.nodes.registerType('redlink store', {
         category: 'redlink',
         color: "#db6c79",
         inputs: 0,
-        outputs: 0,
+        outputs: 1, //debug
         defaults: {
-            address: {value: '127.0.0.1'},
-            port: {value: 53},
-            peerAddress: {value: '0.0.0.0'},
-            peerPort: {value: '00'},
-            name: {value: 'REDLink config'},
-            functions: {value: 'Put the basic functions in Here from the "info tab"'}
+            listenAddress: {
+                value: '127.0.0.1', required: true/*, validate: validateIpAddress*/
+            },
+            listenPort: {
+                value: 443, required: true/*, validate: validatePositiveNumber*/
+            },
+            peerAddress: {
+                value: '0.0.0.0', required: true/*, validate: validateIpAddress*/
+            },
+            peerPort: {
+                value: 443, required: true/*, validate: validatePositiveNumber*/
+            },
+            name: {value: 'Store Name', required: true},
+            functions: {value: 'Put the basic functions in Here from the "info tab"'},
+            notifyInterval: {value: 15, required: true/*, validate: validatePositiveNumber*/}
         },
         icon: "file.png",
         label: function () {
@@ -54,6 +79,7 @@
             return this.name ? "node_label_italic" : "";
         },
         oneditprepare: function () {
+            //TODO get all store names in this instance; then validate current store name on change to avoid duplicates
             this.editor = RED.editor.createEditor({
                 id: "node-input-functions-editor",
                 mode: "ace/mode/sql",
@@ -63,15 +89,38 @@
         oneditsave: function () {
             $("#node-input-functions").val(this.editor.getValue())
             delete this.editor;
+            //TODO do a put on store name
         }
     });
 </script>
 
 <script type="text/x-red" data-template-name="redlink producer">
     <div class="form-row">
-        <label for="node-input-producerName"><i class="icon-tag"></i> Producer name </label>
-        <input type="text" id="node-input-producerName" placeholder="Producer name">
+        <label for="node-input-name"><i class="icon-tag"></i> Name </label>
+        <input type="text" id="node-input-name" placeholder="name">
     </div>
+    <div class="form-row" id="producer-store-div">
+        <label for="node-input-producerStoreName"><i class="fa fa-ellipsis-v"></i> Store Name</label>
+        <select id="node-input-producerStoreName">
+        </select>
+    </div>
+    <div class="form-row" id="producer-consumer-div">
+        <label for="node-input-producerConsumer"><i class="fa fa-ellipsis-v"></i> Destination Service</label>
+        <select id="node-input-producerConsumer">
+        </select>
+    </div>
+    <div class="form-row">
+        <label for="node-input-producerTTL"><i class="fa fa-times"></i> TTL</label>
+        <input type="text" id="node-input-producerTTL" placeholder="TTL">
+    </div>
+    <div class="form-row">
+        <label for="node-input-producerETT"><i class="fa fa-times"></i> ETT</label>
+        <input type="text" id="node-input-producerETT" placeholder="ETT">
+    </div>
+
+
+
+
 </script>
 
 <script type="text/javascript">
@@ -79,14 +128,13 @@
         category: 'redlink',
         color: "#db6c79",
         inputs: 1,
-        outputs: 3,
+        outputs: 2,
         defaults: {
-            address: {value: '127.0.0.1'},
-            port: {value: 53},
-            peerAddress: {value: '0.0.0.0'},
-            peerPort: {value: '00'},
             name: {value: 'REDLink producer'},
-            functions: {value: 'Put the basic functions in Here from the "info tab"'}
+            producerStoreName: {value: '', required: true},
+            producerConsumer: {value: '', required: true},
+            producerTTL: {value: 15, required: true},
+            producerETT: {value: 5 * 60, required: true}
         },
         icon: "file.png",
         label: function () {
@@ -94,30 +142,64 @@
         },
         labelStyle: function () {
             return this.name ? "node_label_italic" : "";
+        },
+
+        oneditprepare: function () {
+            const selectedStore = this.producerStoreName;
+            console.log('selectedStore:', selectedStore);
+            let storesElement = $("#node-input-producerStoreName");
+            $.getJSON('store-names', function (stores) {
+                console.log('\n\n\n\nstores from get call:', stores);
+                $.each(stores, function (index, obj) {
+                    console.log('index:', index, ' obj:', obj);
+                    storesElement.append($('<option>', {
+                        value: obj,
+                        text: obj,
+                        selected: selectedStore === obj
+                    }));
+                });
+            });
+            const selectedConsumer = this.producerConsumer;
+            console.log('selectedStore:', selectedStore);
+            let consumerElement = $("#node-input-producerConsumer");
+            $.getJSON('consumers', function (stores) {
+                console.log('\n\n\n\nstores from get call:', stores);
+                $.each(stores, function (index, obj) {
+                    console.log('index:', index, ' obj:', obj);
+                    consumerElement.append($('<option>', {
+                        value: obj,
+                        text: obj,
+                        selected: selectedConsumer === obj
+                    }));
+                });
+            });
         }
     });
 </script>
 
 <script type="text/x-red" data-template-name="redlink consumer">
     <div class="form-row">
-        <label for="node-input-serviceName"><i class="icon-tag"></i> Consumer/Service name </label>
-        <input type="text" id="node-input-serviceName" placeholder="Service name">
+        <label for="node-input-name"><i class="icon-tag"></i> Service name </label>
+        <input type="text" id="node-input-name" placeholder="Service name">
     </div>
+    <div class="form-row" id="consumer-store-div">
+        <label for="node-input-consumerStoreName"><i class="fa fa-ellipsis-v"></i> Store Name</label>
+        <select id="node-input-consumerStoreName">
+        </select>
+    </div>
+
+
 </script>
 
 <script type="text/javascript">
     RED.nodes.registerType('redlink consumer', {
         category: 'redlink',
         color: "#db6c79",
-        inputs: 0,
+        inputs: 1,
         outputs: 2,
         defaults: {
-            address: {value: '127.0.0.1'},
-            port: {value: 53},
-            peerAddress: {value: '0.0.0.0'},
-            peerPort: {value: '00'},
-            name: {value: 'REDLink consumer'},
-            functions: {value: 'Put the basic functions in Here from the "info tab"'}
+            name: {value: 'REDLink consumer', required: true},
+            consumerStoreName: {value: '', required: true},
         },
         icon: "file.png",
         label: function () {
@@ -125,15 +207,39 @@
         },
         labelStyle: function () {
             return this.name ? "node_label_italic" : "";
+        },
+        oneditprepare: function () {
+            const selectedStore = this.consumerStoreName;
+            console.log('selectedStore:', selectedStore);
+            let storesElement = $("#node-input-consumerStoreName");
+            $.getJSON('store-names', function (stores) {
+                console.log('\n\n\n\nstores from get call:', stores);
+                $.each(stores, function (index, obj) {
+                    console.log('index:', index, ' obj:', obj);
+                    storesElement.append($('<option>', {
+                        value: obj,
+                        text: obj,
+                        selected: selectedStore === obj
+                    }));
+                });
+            });
         }
     });
 </script>
 
 <script type="text/x-red" data-template-name="redlink reply">
     <div class="form-row">
-        <label for="node-input-replyName"><i class="icon-tag"></i> Name </label>
-        <input type="text" id="node-input-replyName" placeholder="Name">
+        <label for="node-input-name"><i class="icon-tag"></i> Name </label>
+        <input type="text" id="node-input-name" placeholder="Name">
     </div>
+    <div class="form-row" id="reply-store-div">
+        <label for="node-input-replyStoreName"><i class="fa fa-ellipsis-v"></i> Store Name</label>
+        <select id="node-input-replyStoreName">
+        </select>
+    </div>
+
+
+
 </script>
 
 <script type="text/javascript">
@@ -143,12 +249,8 @@
         inputs: 1,
         outputs: 2,
         defaults: {
-            address: {value: '127.0.0.1'},
-            port: {value: 53},
-            peerAddress: {value: '0.0.0.0'},
-            peerPort: {value: '00'},
-            name: {value: 'REDLink reply'},
-            functions: {value: 'Put the basic functions in Here from the "info tab"'}
+            name: {value: ''},
+            replyStoreName: {value: '', required: true},
         },
         icon: "file.png",
         label: function () {
@@ -156,6 +258,22 @@
         },
         labelStyle: function () {
             return this.name ? "node_label_italic" : "";
+        },
+        oneditprepare: function () {
+            const selectedStore = this.replyStoreName;
+            console.log('selectedStore:', selectedStore);
+            let storesElement = $("#node-input-replyStoreName");
+            $.getJSON('store-names', function (stores) {
+                console.log('\n\n\n\nstores from get call:', stores);
+                $.each(stores, function (index, obj) {
+                    console.log('index:', index, ' obj:', obj);
+                    storesElement.append($('<option>', {
+                        value: obj,
+                        text: obj,
+                        selected: selectedStore === obj
+                    }));
+                });
+            });
         }
     });
 </script>
