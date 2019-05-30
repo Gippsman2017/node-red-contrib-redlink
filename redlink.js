@@ -3,6 +3,13 @@ module.exports = function (RED) {
     "use strict";
     const alasql = require('alasql');
     const httpsServer = require('./https-server.js');
+    const base64Helper = require('./base64-helper');
+    alasql('DROP TABLE IF EXISTS notify');
+    alasql('DROP TABLE IF EXISTS inMessages');
+    alasql('CREATE TABLE notify (storeName STRING, serviceName STRING, producerIp STRING, producerPort INT )');
+    alasql('CREATE TABLE inMessages (msgId STRING, storeName STRING, serviceName STRING, message STRING)'); //TODO alasql supports json but could not get it to work- see https://github.com/agershun/alasql/wiki/JSON
+    //for now going to stringify and parse instead
+
     function RedLinkStore(config) {
         RED.nodes.createNode(this, config);
         this.listenAddress = config.listenAddress;
@@ -12,10 +19,35 @@ module.exports = function (RED) {
         this.name = config.name;
         this.notifyInterval = config.notifyInterval;
         this.functions = config.functions;
-        //todo for testing only... remove this!!!
+
         try {
             // alasql('DROP TABLE notify');
-            alasql('CREATE TABLE notify (storeName STRING, serviceName STRING, producerIp STRING, producerPort INT )');
+            const nodeId = config.id.replace('.', '');
+            const triggerFunctionName = 'onNewMessage' + nodeId;
+            console.log('triggerFunctionName:', triggerFunctionName);
+            alasql.fn[triggerFunctionName] = () => {
+                //check if the input message is for this store
+                //inMessages (msgId STRING, storeName STRING, serviceName STRING, message STRING)'
+                const newMessagesSql = 'SELECT * from inMessages WHERE storeName="' + this.name +  '"';
+                console.log('newMessagesSql in consumer:', newMessagesSql);
+                var newMessages = alasql(newMessagesSql);
+                console.log('newMessages for this consumer:', newMessages);
+                if(newMessages[0]){ //insert into notify
+                    //TODO add a check- insert into notify only if we have matching consumers here- else send to downstream store (if we have a record that it knows about the consumer)
+                    const notifyInsertSql = 'INSERT INTO notify VALUES ("' + this.name + '","' + newMessages[0].serviceName + '","' + this.listenAddress + '",' + this.listenPort + ')';
+                    console.log('going to insert notify new message:', notifyInsertSql);
+                    alasql(notifyInsertSql);
+                }
+                // this.send([newMessages[0], null]);
+            };
+            const triggerSql = 'CREATE TRIGGER ' + nodeId +
+                ' AFTER INSERT ON inMessages CALL ' + triggerFunctionName + '()';
+            console.log('the sql statement for adding trigger in store is:', triggerSql);
+            try {
+                alasql(triggerSql);
+            } catch (e1) {
+                console.log('here- problem creating trigger in redlink store...', e1);
+            }
         } catch (e) {
             console.log(e);
         }
@@ -77,17 +109,27 @@ module.exports = function (RED) {
         console.log('producer config:', JSON.stringify(config, null, 2));
 
         RED.nodes.createNode(this, config);
-
+        this.producerStoreName = config.producerStoreName;
+        this.producerConsumer = config.producerConsumer;
         var node = this;
+        node.on("input", msg=>{
+            msg.msgid = RED.util.generateId();
+            const stringify = JSON.stringify(msg);
+            const encodedMessage = base64Helper.encode(msg);
+            console.log('the input message is:', stringify);
+            const msgInsertSql = 'INSERT INTO inMessages VALUES ("' + msg.msgid + '","' + this.producerStoreName + '","' + this.producerConsumer + '","' + encodedMessage + '")';
+            console.log('in the consumer going to execute sql to insert into inmesasges: ', msgInsertSql);
+            alasql(msgInsertSql);
+            const allRows = alasql('select * from inMessages');
+            console.log('after inserting input message the inMessages table is:', allRows[0]);
+        })
     }
 
     RED.nodes.registerType("redlink producer", RedLinkProducer);
 
     function RedLinkReply(config) {
-
         RED.nodes.createNode(this, config);
         console.log('reply config:', JSON.stringify(config, null, 2));
-
         var node = this;
     }
 
@@ -108,10 +150,8 @@ module.exports = function (RED) {
     RED.httpAdmin.get("/consumers", function (req, res) {
         //TODO get from alasql
         res.json([
-            'consumer-1',
-            'consumer-2',
-            'consumer-3',
-            'consumer-4'
+            'wombat1',
+            'wombat2',
         ]);
     });
 };
