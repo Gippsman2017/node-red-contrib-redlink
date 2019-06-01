@@ -7,8 +7,7 @@ module.exports = function (RED) {
     alasql('DROP TABLE IF EXISTS notify');
     alasql('DROP TABLE IF EXISTS inMessages');
     alasql('CREATE TABLE notify (storeName STRING, serviceName STRING, producerIp STRING, producerPort INT )');
-    alasql('CREATE TABLE inMessages (msgId STRING, storeName STRING, serviceName STRING, message STRING)'); //TODO alasql supports json but could not get it to work- see https://github.com/agershun/alasql/wiki/JSON
-    //for now going to stringify and parse instead
+    alasql('CREATE TABLE inMessages (msgId STRING, storeName STRING, serviceName STRING, message STRING)');
 
     function RedLinkStore(config) {
         RED.nodes.createNode(this, config);
@@ -32,9 +31,9 @@ module.exports = function (RED) {
                 console.log('newMessagesSql in consumer:', newMessagesSql);
                 var newMessages = alasql(newMessagesSql);
                 console.log('newMessages for this consumer:', newMessages);
-                if(newMessages[0]){ //insert into notify
+                if(newMessages[newMessages.length -1]){ //insert the last message into notify
                     //TODO add a check- insert into notify only if we have matching consumers here- else send to downstream store (if we have a record that it knows about the consumer)
-                    const notifyInsertSql = 'INSERT INTO notify VALUES ("' + this.name + '","' + newMessages[0].serviceName + '","' + this.listenAddress + '",' + this.listenPort + ')';
+                    const notifyInsertSql = 'INSERT INTO notify VALUES ("' + this.name + '","' + newMessages[newMessages.length -1].serviceName + '","' + this.listenAddress + '",' + this.listenPort + ')';
                     console.log('going to insert notify new message:', notifyInsertSql);
                     alasql(notifyInsertSql);
                 }
@@ -96,10 +95,17 @@ module.exports = function (RED) {
             console.log('notifies for this consumer:', notifies);
             this.send([notifies[0], null]);
         };
-        const triggerSql = 'CREATE TRIGGER ' + nodeId +
+        try {
+            const dropTriggerSql = 'DROP TRIGGER ' + triggerFunctionName;
+            console.log('going to drop notify trigger in consumer' + this.name + 'store name:', this.consumerStoreName, 'the sql is:', dropTriggerSql);
+            console.log('when dropping notify trigger in consumer alasql returns:', alasql(dropTriggerSql));
+        } catch (e) {
+            console.log('error removing trigger in consumer...');
+        }
+        const createTriggerSql = 'CREATE TRIGGER ' + nodeId +
             ' AFTER INSERT ON notify CALL ' + triggerFunctionName + '()';
-        console.log('the sql statement for adding trigger in consumer is:', triggerSql);
-        alasql(triggerSql);
+        console.log('the sql statement for adding trigger in consumer is:', createTriggerSql);
+        alasql(createTriggerSql);
         console.log('registered trigger for service ', this.name, ' in store ', this.consumerStoreName);
     }
 
