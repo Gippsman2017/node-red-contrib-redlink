@@ -11,10 +11,12 @@ module.exports = function (RED) {
     alasql('DROP TABLE IF EXISTS inMessages');
     alasql('DROP TABLE IF EXISTS currentStoreConsumers');
     alasql('DROP TABLE IF EXISTS southStoreConsumers');
+    alasql('DROP TABLE IF EXISTS stores');
     alasql('CREATE TABLE notify (storeName STRING, serviceName STRING, producerIp STRING, producerPort INT )');
     alasql('CREATE TABLE inMessages (msgId STRING, storeName STRING, serviceName STRING, message STRING)');
     alasql('CREATE TABLE currentStoreConsumers (storeName STRING, serviceName STRING)'); //can have multiple consumers with same name registered to the same store
     alasql('CREATE TABLE southStoreConsumers (currentStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)');
+    alasql('CREATE TABLE stores (storeName STRING)'); //todo other fields like listenip/port, north store?
     console.log('created tables...');
 
     function RedLinkStore(config) {
@@ -27,6 +29,9 @@ module.exports = function (RED) {
         this.notifyInterval = config.notifyInterval;
         this.functions = config.functions;
         const node = this;
+        const insertStoreSql = 'INSERT INTO stores("'+node.name+'")';
+        console.log('in store constructor inserting store name ', node.name,' in stores table');
+        alasql(insertStoreSql);
 
         function notifyNorth() {
 //TODO send the current consumer list plus south consumers to north/parent store
@@ -121,7 +126,7 @@ module.exports = function (RED) {
         if (this.listenPort) {
             this.listenServer = httpsServer.startServer(+this.listenPort);
             if (this.listenServer) {
-                this.on('close', function (removed, done) {
+                this.on('close', (removed, done)=> {
                     this.listenServer.close(() => {
                         done();
                     });
@@ -173,6 +178,14 @@ module.exports = function (RED) {
             }
             //todo what messages should we allow? register and notify are handled via endpoints
         });
+
+        this.on('close', (removed, done)=> {
+            const removeStoreSql = 'DELETE FROM stores WHERE storeName="' + node.name + '"';
+            console.log('removing store name from table stoers in store close...', node.name);
+            alasql(removeStoreSql);
+            done();
+        });
+
     } // function
 //------------------------------------------------------- Register this Node --------------------------------
     RED.nodes.registerType("redlink store", RedLinkStore);
@@ -212,8 +225,11 @@ module.exports = function (RED) {
         this.on("close", () => {
             //todo deregister this consumer
             console.log('in ')
-            const insertIntoConsumerSql = 'INSERT INTO currentStoreConsumers ' + this.consumerStoreName + ' ' + this.name; //currentStoreConsumers (storeName STRING, serviceName STRING)'); //can have multiple consumers with same name registered to the same store
+/*
+            const deleteConsumerSql = 'DELETE FROM currentStoreConsumers ' + this.consumerStoreName + ' ' + this.name; //currentStoreConsumers (storeName STRING, serviceName STRING)'); //can have multiple consumers with same name registered to the same store
             // alasql(insertIntoConsumerSql);
+            const dropNotifyTriggerSql = 'DROP TRIGGER '
+*/
         });
     }
 
@@ -250,15 +266,14 @@ module.exports = function (RED) {
 
     //express routes
     RED.httpAdmin.get("/store-names", function (req, res) {
-        //TODO get from alasql
-        res.json([
-            'store-1',
-            'store-2',
-            'store-3',
-            'store-4'
-        ]);
-    });
-    RED.httpAdmin.put("/store-names", function (req, res) {
+        const storesSql = 'SELECT DISTINCT storeName FROM stores';
+        const stores = alasql(storesSql);
+        console.log('\n\n\n\n\n\n\nin RED.httpAdmin.get("/store-names", stores are:', stores);
+        let returnStores = [];
+        stores.forEach(store=>{
+            returnStores.push(store.storeName);
+        });
+        res.json(returnStores);
     });
     RED.httpAdmin.get("/consumers", function (req, res) {
         //TODO get from alasql
