@@ -19,7 +19,6 @@ module.exports = function (RED) {
 
     function RedLinkStore(config) {
         RED.nodes.createNode(this, config);
-        console.log('\n\n\n\n redstore config is:', JSON.stringify(config, null, 2));
         this.listenAddress = config.listenAddress;
         this.listenPort = config.listenPort;
         this.peerAddress = config.peerAddress;
@@ -32,14 +31,13 @@ module.exports = function (RED) {
         function notifyNorth() {
 //TODO send the current consumer list plus south consumers to north/parent store
             //first get distinct current consumers
+            console.log('\nin notifyNorth function of ', node.name);
             const currentConsumersSql = 'SELECT DISTINCT serviceName FROM currentStoreConsumers WHERE storeName="' + node.name + '"';
-            console.log('in store trigger for new consumers currentConsumersSql:', currentConsumersSql);
             const currentConsumers = alasql(currentConsumersSql);
-            console.log('in register consumer trigger of ', node.name, ' current consumers are:', currentConsumers);
-            const southConsumersSql = 'SELECT DISTINCT southConsumerName FROM southStoreConsumers WHERE storeName="' + node.name + '"';//southStoreConsumers (currentStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)')
-            console.log('in store trigger for new consumers southConsumersSql:', southConsumersSql);
+            console.log('current consumers are:', currentConsumers);
+            const southConsumersSql = 'SELECT DISTINCT southConsumerName FROM southStoreConsumers WHERE currentStoreName="' + node.name + '"';//southStoreConsumers (currentStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)')
             const southConsumers = alasql(southConsumersSql);
-            console.log('in register consumer trigger of ', node.name, ' south consumers are:', southConsumers);
+            console.log(' south consumers are:', southConsumers);
             const allConsumers = currentConsumers.concat(southConsumers); //todo filter this for unique consumers
             const body = {
                 consumers: allConsumers,
@@ -87,6 +85,7 @@ module.exports = function (RED) {
                 // this.send([newMessages[0], null]);
             };
             alasql.fn[registerConsumerTriggerName] = () => {
+                console.log('going to call notifyNorth in consumer trigger of store ', node.name);
                 notifyNorth();
             };
 
@@ -119,7 +118,6 @@ module.exports = function (RED) {
         } catch (e) {
             console.log(e);
         }
-        console.log('\n\n\n\nthis.listenPort:', this.listenPort);
         if (this.listenPort) {
             this.listenServer = httpsServer.startServer(+this.listenPort);
             if (this.listenServer) {
@@ -142,8 +140,7 @@ module.exports = function (RED) {
             res.send('hello world'); //TODO this will be a NAK/ACK
         });
         app.post('/consumer', (req, res) => { //todo validation on params
-            console.log('\n\nin register consumer route of north store ', node.name);
-            console.log('\n\n\n\n!@#$% the host for this  is:', req.headers.host);
+            console.log('\n\nin register consumer route of store ', node.name);
             console.log("req.body:", req.body);
             const southStoreName = req.body.southStoreName;
             const southStoreAddress = req.body.southStoreAddress;
@@ -154,11 +151,7 @@ module.exports = function (RED) {
                 console.log('inserting into southStoreConsumers sql:', insertSouthConsumersSql);
                 alasql(insertSouthConsumersSql);
             });
-            console.log('\n\ngoing to notify north from  register consumer route of north store ', node.name);
-            if(node.name === 'store-2'){ //todo remove- debug only
-                console.log('all south consumers:');
-                alasql('select * from southStoreConsumers');
-            }
+            console.log('\n\ngoing to notify north from  consumer route of store ', node.name);
             notifyNorth();
             //southStoreConsumers:(currentStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)');
             //store in table- the consumer name
@@ -186,12 +179,11 @@ module.exports = function (RED) {
 
     function RedLinkConsumer(config) {
         RED.nodes.createNode(this, config);
-        console.log('\n\n\n\n redstore consumer is:', JSON.stringify(config, null, 2));
         this.name = config.name;
         this.consumerStoreName = config.consumerStoreName;
         const nodeId = 'a' + config.id.replace('.', '');
         const triggerFunctionName = 'onNotify' + nodeId;
-        console.log('triggerFunctionName:', triggerFunctionName);
+        console.log('in constructor of :', this.consumerStoreName);
         alasql.fn[triggerFunctionName] = () => {
             //check if the notify is for this consumer name with the registered store name
             const notifiesSql = 'SELECT * from notify WHERE storeName="' + this.consumerStoreName + '" AND serviceName="' + this.name + '"';
@@ -211,23 +203,23 @@ module.exports = function (RED) {
             ' AFTER INSERT ON notify CALL ' + triggerFunctionName + '()';
         console.log('the sql statement for adding trigger in consumer is:', createTriggerSql);
         alasql(createTriggerSql);
-        console.log('registered trigger for service ', this.name, ' in store ', this.consumerStoreName);
+        console.log('registered notify trigger for service ', this.name, ' in store ', this.consumerStoreName);
         const insertIntoConsumerSql = 'INSERT INTO currentStoreConsumers ("' + this.consumerStoreName + '","' + this.name + '")'; //currentStoreConsumers (storeName STRING, serviceName STRING)'); //can have multiple consumers with same name registered to the same store
         console.log('in consumer constructor sql to insert into currentStoreConsumer is:', insertIntoConsumerSql);
         alasql(insertIntoConsumerSql);
-        console.log('inserted service name ', this.name, ' with store ', this.consumerStoreName);
+        console.log('inserted consumer ', this.name, ' for store ', this.consumerStoreName);
 
         this.on("close", () => {
+            //todo deregister this consumer
             console.log('in ')
             const insertIntoConsumerSql = 'INSERT INTO currentStoreConsumers ' + this.consumerStoreName + ' ' + this.name; //currentStoreConsumers (storeName STRING, serviceName STRING)'); //can have multiple consumers with same name registered to the same store
-            alasql(insertIntoConsumerSql);
+            // alasql(insertIntoConsumerSql);
         });
     }
 
     RED.nodes.registerType("redlink consumer", RedLinkConsumer);
 
     function RedLinkProducer(config) {
-        console.log('producer config:', JSON.stringify(config, null, 2));
 
         RED.nodes.createNode(this, config);
         this.producerStoreName = config.producerStoreName;
