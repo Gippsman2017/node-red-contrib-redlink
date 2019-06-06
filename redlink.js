@@ -151,7 +151,7 @@ module.exports = function (RED) {
             const southStoreAddress = req.body.southStoreAddress;
             const southStorePort = req.body.southStorePort;
             req.body.consumers.forEach(consumer => {
-                const consumerName = consumer.serviceName;
+                const consumerName = consumer.serviceName || consumer.southConsumerName;
                 const insertSouthConsumersSql = 'INSERT INTO southStoreConsumers("'+node.name+'","'+consumerName+'","'+southStoreName+'","'+southStoreAddress+'",'+southStorePort+')';
                 console.log('inserting into southStoreConsumers sql:', insertSouthConsumersSql);
                 alasql(insertSouthConsumersSql);
@@ -194,10 +194,10 @@ module.exports = function (RED) {
         RED.nodes.createNode(this, config);
         this.name = config.name;
         this.consumerStoreName = config.consumerStoreName;
-        const nodeId = 'a' + config.id.replace('.', '');
-        const triggerFunctionName = 'onNotify' + nodeId;
+        const msgNotifyTriggerId = 'a' + config.id.replace('.', '');
+        const newMsgNotifyTrigger = 'onNotify' + msgNotifyTriggerId;
         console.log('in constructor of :', this.consumerStoreName);
-        alasql.fn[triggerFunctionName] = () => {
+        alasql.fn[newMsgNotifyTrigger] = () => {
             //check if the notify is for this consumer name with the registered store name
             const notifiesSql = 'SELECT * from notify WHERE storeName="' + this.consumerStoreName + '" AND serviceName="' + this.name + '"';
             console.log('notifiesSql in consumer:', notifiesSql);
@@ -206,14 +206,14 @@ module.exports = function (RED) {
             this.send([notifies[0], null]);
         };
         try {
-            const dropTriggerSql = 'DROP TRIGGER ' + nodeId;
+            const dropTriggerSql = 'DROP TRIGGER ' + msgNotifyTriggerId;
             console.log('going to drop notify trigger in consumer' + this.name + 'store name:', this.consumerStoreName, 'the sql is:', dropTriggerSql);
             console.log('when dropping notify trigger in consumer alasql returns:', alasql(dropTriggerSql));
         } catch (e) {
             console.log('error removing trigger in consumer...');
         }
-        const createTriggerSql = 'CREATE TRIGGER ' + nodeId +
-            ' AFTER INSERT ON notify CALL ' + triggerFunctionName + '()';
+        const createTriggerSql = 'CREATE TRIGGER ' + msgNotifyTriggerId +
+            ' AFTER INSERT ON notify CALL ' + newMsgNotifyTrigger + '()';
         console.log('the sql statement for adding trigger in consumer is:', createTriggerSql);
         alasql(createTriggerSql);
         console.log('registered notify trigger for service ', this.name, ' in store ', this.consumerStoreName);
@@ -222,14 +222,16 @@ module.exports = function (RED) {
         alasql(insertIntoConsumerSql);
         console.log('inserted consumer ', this.name, ' for store ', this.consumerStoreName);
 
-        this.on("close", () => {
+        this.on('close', (removed, done)=> {
             //todo deregister this consumer
-            console.log('in ')
-/*
-            const deleteConsumerSql = 'DELETE FROM currentStoreConsumers ' + this.consumerStoreName + ' ' + this.name; //currentStoreConsumers (storeName STRING, serviceName STRING)'); //can have multiple consumers with same name registered to the same store
-            // alasql(insertIntoConsumerSql);
-            const dropNotifyTriggerSql = 'DROP TRIGGER '
-*/
+            console.log('in close of consumer...');
+            const dropNotifyTriggerSql = 'DROP TRIGGER '+msgNotifyTriggerId;
+            alasql(dropNotifyTriggerSql);
+            console.log('dropped notify trigger...');
+            const deleteConsumerSql = 'DELETE FROM currentStoreConsumers WHERE storeName="' + this.consumerStoreName + + '"' +  'AND serviceName="' + this.name + '"';
+            alasql(deleteConsumerSql); //can have multiple consumers with same name registered to the same store
+            console.log('removed consumer from local store...');
+            done();
         });
     }
 
