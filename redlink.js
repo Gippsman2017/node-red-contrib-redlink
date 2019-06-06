@@ -29,8 +29,8 @@ module.exports = function (RED) {
         this.notifyInterval = config.notifyInterval;
         this.functions = config.functions;
         const node = this;
-        const insertStoreSql = 'INSERT INTO stores("'+node.name+'")';
-        console.log('in store constructor inserting store name ', node.name,' in stores table');
+        const insertStoreSql = 'INSERT INTO stores("' + node.name + '")';
+        console.log('in store constructor inserting store name ', node.name, ' in stores table');
         alasql(insertStoreSql);
 
         function notifyNorth() {
@@ -126,7 +126,7 @@ module.exports = function (RED) {
         if (this.listenPort) {
             this.listenServer = httpsServer.startServer(+this.listenPort);
             if (this.listenServer) {
-                this.on('close', (removed, done)=> {
+                this.on('close', (removed, done) => {
                     this.listenServer.close(() => {
                         done();
                     });
@@ -152,7 +152,7 @@ module.exports = function (RED) {
             const southStorePort = req.body.southStorePort;
             req.body.consumers.forEach(consumer => {
                 const consumerName = consumer.serviceName || consumer.southConsumerName;
-                const insertSouthConsumersSql = 'INSERT INTO southStoreConsumers("'+node.name+'","'+consumerName+'","'+southStoreName+'","'+southStoreAddress+'",'+southStorePort+')';
+                const insertSouthConsumersSql = 'INSERT INTO southStoreConsumers("' + node.name + '","' + consumerName + '","' + southStoreName + '","' + southStoreAddress + '",' + southStorePort + ')';
                 console.log('inserting into southStoreConsumers sql:', insertSouthConsumersSql);
                 alasql(insertSouthConsumersSql);
             });
@@ -179,7 +179,7 @@ module.exports = function (RED) {
             //todo what messages should we allow? register and notify are handled via endpoints
         });
 
-        this.on('close', (removed, done)=> {
+        this.on('close', (removed, done) => {
             const removeStoreSql = 'DELETE FROM stores WHERE storeName="' + node.name + '"';
             console.log('removing store name from table stoers in store close...', node.name);
             alasql(removeStoreSql);
@@ -222,13 +222,13 @@ module.exports = function (RED) {
         alasql(insertIntoConsumerSql);
         console.log('inserted consumer ', this.name, ' for store ', this.consumerStoreName);
 
-        this.on('close', (removed, done)=> {
+        this.on('close', (removed, done) => {
             //todo deregister this consumer
             console.log('in close of consumer...');
-            const dropNotifyTriggerSql = 'DROP TRIGGER '+msgNotifyTriggerId;
+            const dropNotifyTriggerSql = 'DROP TRIGGER ' + msgNotifyTriggerId;
             alasql(dropNotifyTriggerSql);
             console.log('dropped notify trigger...');
-            const deleteConsumerSql = 'DELETE FROM currentStoreConsumers WHERE storeName="' + this.consumerStoreName + + '"' +  'AND serviceName="' + this.name + '"';
+            const deleteConsumerSql = 'DELETE FROM currentStoreConsumers WHERE storeName="' + this.consumerStoreName + +'"' + 'AND serviceName="' + this.name + '"';
             alasql(deleteConsumerSql); //can have multiple consumers with same name registered to the same store
             console.log('removed consumer from local store...');
             done();
@@ -272,7 +272,7 @@ module.exports = function (RED) {
         const stores = alasql(storesSql);
         console.log('\n\n\n\n\n\n\nin RED.httpAdmin.get("/store-names", stores are:', stores);
         let returnStores = [];
-        stores.forEach(store=>{
+        stores.forEach(store => {
             returnStores.push(store.storeName);
         });
         res.json(returnStores);
