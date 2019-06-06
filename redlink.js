@@ -68,11 +68,11 @@ module.exports = function (RED) {
             }
         }
 
+        // alasql('DROP TABLE notify');
+        const nodeId = config.id.replace('.', '');
+        const newMsgTriggerName = 'onNewMessage' + nodeId;
+        const registerConsumerTriggerName = 'registerConsumer' + nodeId;
         try {
-            // alasql('DROP TABLE notify');
-            const nodeId = config.id.replace('.', '');
-            const newMsgTriggerName = 'onNewMessage' + nodeId;
-            const registerConsumerTriggerName = 'registerConsumer' + nodeId;
             console.log('newMsgTriggerName:', newMsgTriggerName);
             alasql.fn[newMsgTriggerName] = () => {
                 //check if the input message is for this store
@@ -93,21 +93,6 @@ module.exports = function (RED) {
                 console.log('going to call notifyNorth in consumer trigger of store ', node.name);
                 notifyNorth();
             };
-
-            try {
-                const dropNewMsgTriggerSql = 'DROP TRIGGER ' + newMsgTriggerName;
-                console.log('going to drop inMessages trigger in store ' + node.name + ' the sql is:', dropNewMsgTriggerSql);
-                alasql(dropNewMsgTriggerSql);
-            } catch (e) {
-                console.log('error removing inMessages trigger in store...');
-            }
-            try {
-                const dropRegisterConsumerSql = 'DROP TRIGGER ' + registerConsumerTriggerName;
-                console.log('going to drop registerConsumer trigger in store ' + node.name + ' the sql is:', dropRegisterConsumerSql);
-                alasql(dropRegisterConsumerSql);
-            } catch (e) {
-                console.log('error removing registerConsumer trigger in store...');
-            }
 
             const createNewMsgTriggerSql = 'CREATE TRIGGER ' + newMsgTriggerName +
                 ' AFTER INSERT ON inMessages CALL ' + newMsgTriggerName + '()';
@@ -150,6 +135,10 @@ module.exports = function (RED) {
             const southStoreName = req.body.southStoreName;
             const southStoreAddress = req.body.southStoreAddress;
             const southStorePort = req.body.southStorePort;
+            //delete entries from table before adding them back
+            console.log('dropping entries from southConsumers for store name: ', node.name);
+            const deleteSouthConsumersSql = 'DELETE FROM southStoreConsumers WHERE currentStoreName="' + node.name + '"';
+            alasql(deleteSouthConsumersSql);
             req.body.consumers.forEach(consumer => {
                 const consumerName = consumer.serviceName || consumer.southConsumerName;
                 const insertSouthConsumersSql = 'INSERT INTO southStoreConsumers("' + node.name + '","' + consumerName + '","' + southStoreName + '","' + southStoreAddress + '",' + southStorePort + ')';
@@ -179,10 +168,20 @@ module.exports = function (RED) {
             //todo what messages should we allow? register and notify are handled via endpoints
         });
 
-        this.on('close', (removed, done) => {
+        this.on('close', (removed, done) => { //todo remove triggers
+            console.log('!@#$%^&*(   removed is:', removed);
+            console.log('on close of store:', node.name, ' going to remove newMsg trigger, register consumer trigger, store name from tables store');
             const removeStoreSql = 'DELETE FROM stores WHERE storeName="' + node.name + '"';
-            console.log('removing store name from table stoers in store close...', node.name);
+            console.log('removing store name from table stores in store close...', node.name);
             alasql(removeStoreSql);
+            const removeConsumersSql = 'DELETE FROM currentStoreConsumers WHERE storeName="' + node.name + '"';
+            console.log('removing all consumers for store name...', node.name);
+            alasql(removeConsumersSql);
+            //also delete all associated consumers for this store name
+            const dropTriggerNewMsg = 'DROP TRIGGER ' + newMsgTriggerName;
+            alasql(dropTriggerNewMsg);
+            const dropTriggerRegisterConsumer = 'DROP TRIGGER ' + registerConsumerTriggerName;
+            alasql(dropTriggerRegisterConsumer);
             done();
         });
 
@@ -196,7 +195,7 @@ module.exports = function (RED) {
         this.consumerStoreName = config.consumerStoreName;
         const msgNotifyTriggerId = 'a' + config.id.replace('.', '');
         const newMsgNotifyTrigger = 'onNotify' + msgNotifyTriggerId;
-        console.log('in constructor of :', this.consumerStoreName);
+        console.log('in constructor of consumer:', this.name);
         alasql.fn[newMsgNotifyTrigger] = () => {
             //check if the notify is for this consumer name with the registered store name
             const notifiesSql = 'SELECT * from notify WHERE storeName="' + this.consumerStoreName + '" AND serviceName="' + this.name + '"';
@@ -205,13 +204,6 @@ module.exports = function (RED) {
             console.log('notifies for this consumer:', notifies);
             this.send([notifies[0], null]);
         };
-        try {
-            const dropTriggerSql = 'DROP TRIGGER ' + msgNotifyTriggerId;
-            console.log('going to drop notify trigger in consumer' + this.name + 'store name:', this.consumerStoreName, 'the sql is:', dropTriggerSql);
-            console.log('when dropping notify trigger in consumer alasql returns:', alasql(dropTriggerSql));
-        } catch (e) {
-            console.log('error removing trigger in consumer...');
-        }
         const createTriggerSql = 'CREATE TRIGGER ' + msgNotifyTriggerId +
             ' AFTER INSERT ON notify CALL ' + newMsgNotifyTrigger + '()';
         console.log('the sql statement for adding trigger in consumer is:', createTriggerSql);
