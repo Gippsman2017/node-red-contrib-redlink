@@ -216,13 +216,21 @@ module.exports = function (RED) {
 
         this.on('close', (removed, done) => {
             //todo deregister this consumer
-            console.log('in close of consumer...');
+            console.log('in close of consumer...', this.name);
             const dropNotifyTriggerSql = 'DROP TRIGGER ' + msgNotifyTriggerId;
             alasql(dropNotifyTriggerSql);
             console.log('dropped notify trigger...');
             const deleteConsumerSql = 'DELETE FROM currentStoreConsumers WHERE storeName="' + this.consumerStoreName + +'"' + 'AND serviceName="' + this.name + '"';
             alasql(deleteConsumerSql); //can have multiple consumers with same name registered to the same store
             console.log('removed consumer from local store...');
+            //TODO use the getCurrentAndSouthConsumers function
+            const currentConsumersSql = 'SELECT * FROM currentStoreConsumers';
+            const currentConsumers = alasql(currentConsumersSql);
+            console.log('all current consumers are:', currentConsumers);
+            const southConsumersSql = 'SELECT * FROM southStoreConsumers';
+            const southConsumers = alasql(southConsumersSql);
+            console.log(' south consumers are:', southConsumers);
+            console.log();
             done();
         });
     }
@@ -270,10 +278,31 @@ module.exports = function (RED) {
         res.json(returnStores);
     });
     RED.httpAdmin.get("/consumers", function (req, res) {
-        //TODO get from alasql
-        res.json([
-            'wombat1',
-            'wombat2',
-        ]);
+        const producerName = req.query.producer;
+        const store = req.query.store;
+        let responseJson = getCurrentAndSouthConsumers(store);
+        if (!store) { //shouldnt happen- nothing we can do
+            console.log('no store selected for producer- not populating consumers ');
+        }
+        res.json(responseJson);
     });
+
+    function getCurrentAndSouthConsumers(storeName) {
+        if(!storeName){
+            return {};
+        }
+        const currentConsumersSql = 'SELECT DISTINCT serviceName FROM currentStoreConsumers WHERE storeName="' + storeName + '"';
+        const currentConsumers = alasql(currentConsumersSql);
+        console.log('current consumers are:', currentConsumers);
+        const southConsumersSql = 'SELECT DISTINCT southConsumerName FROM southStoreConsumers WHERE currentStoreName="' + storeName + '"';//southStoreConsumers (currentStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)')
+        const southConsumers = alasql(southConsumersSql);
+        console.log(' south consumers are:', southConsumers);
+        const allConsumers = currentConsumers.concat(southConsumers); //todo filter this for unique consumers
+        console.log('in get allconsumers going to return', JSON.stringify(allConsumers, null, 2));
+        let consumersArray = [];
+        allConsumers.forEach(consumer=>{
+            consumersArray.push(consumer.serviceName || consumer.southConsumerName);
+        });
+        return consumersArray;
+    }
 };

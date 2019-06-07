@@ -155,15 +155,22 @@
             const selectedConsumer = this.producerConsumer;
             console.log('selectedStore:', selectedStore);
             let consumerElement = $("#node-input-producerConsumer");
-            $.getJSON('consumers', function (stores) {
-                console.log('\n\n\n\nstores from get call:', stores);
-                $.each(stores, function (index, obj) {
-                    console.log('index:', index, ' obj:', obj);
-                    consumerElement.append($('<option>', {
-                        value: obj,
-                        text: obj,
-                        selected: selectedConsumer === obj
-                    }));
+
+            $( "#node-input-producerStoreName" ).change(() =>{
+                consumerElement.find('option').remove().end();
+                console.log( "Handler for .change() called." );
+                // console.log('value of node-input-producerStoreName:', );
+                const storeName = $("#node-input-producerStoreName").children("option:selected").val() || selectedStore;
+                $.getJSON('consumers', {"producer":this.name,"store": storeName}, stores => {
+                    console.log('\n\n\n\nstores from get call:', stores);
+                    $.each(stores, function (index, obj) {
+                        console.log('index:', index, ' obj:', obj);
+                        consumerElement.append($('<option>', {
+                            value: obj,
+                            text: obj,
+                            selected: selectedConsumer === obj
+                        }));
+                    });
                 });
             });
         }
