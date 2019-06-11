@@ -46,16 +46,19 @@ module.exports = function (RED) {
             const allConsumers = localConsumers.concat(southConsumers); //todo filter this for unique consumers
             const body = {
                 consumers: allConsumers,
+                notifyType: 'consumerRegistration',
                 southStoreName: node.name,
                 southStoreAddress: node.listenAddress,
                 southStorePort: node.listenPort
             };
             if (node.peerAddress !== '0.0.0.0') {
-                console.log('going to post to:', 'https://' + node.peerAddress + ':' + node.peerPort + '/consumer');
+                console.log('going to post to:', 'https://' + node.peerAddress + ':' + node.peerPort + '/notify');
+//                console.log('going to post to:', 'https://' + node.peerAddress + ':' + node.peerPort + '/consumer');
                 console.log('the body being posted is:', JSON.stringify(body, null, 2));
                 const options = {
                     method: 'POST',
-                    url: 'https://' + node.peerAddress + ':' + node.peerPort + '/consumer',
+//                    url: 'https://' + node.peerAddress + ':' + node.peerPort + '/consumer',
+                    url: 'https://' + node.peerAddress + ':' + node.peerPort + '/notify',
                     body,
                     json: true
                 };
@@ -121,14 +124,46 @@ module.exports = function (RED) {
         }
         const app = httpsServer.getExpressApp();
         app.post('/notify', (req, res) => { //todo validation on params
-            console.log("req.body:", req.body);
-            const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.producerIp + '",' + req.body.producerPort + ')';
-            console.log('notifyInsertSql:', notifyInsertSql);
-            alasql(notifyInsertSql);
-            const allNotifies = alasql('SELECT * FROM notify');
-            console.log('allNotifies inside da store is:', allNotifies);
-            res.send('hello world'); //TODO this will be a NAK/ACK
-        });
+            const notifyType = req.body.notifyType;
+            switch (notifyType) {
+                case 'consumerRegistration' :
+                    console.log('CONSUMER REGISTRATION');
+                    console.log('\n------------------------------------------------------------------------------\nin register consumer route of store ', node.name);
+                    console.log("req.body:", req.body);
+                    const southStoreName    = req.body.southStoreName;
+                    const southStoreAddress = req.body.southStoreAddress;
+                    const southStorePort    = req.body.southStorePort;
+                    //delete entries from table before adding them back
+                    console.log('\n**************************************\ndropping entries from southConsumers for store name: ', node.name);
+                    //************************ Fixed Store issues for south bound multiple stores
+                    const deleteSouthConsumersSql = 'DELETE FROM southStoreConsumers WHERE localStoreName="' + node.name + '" and southStoreName="'+ southStoreName + '"';
+                    alasql(deleteSouthConsumersSql);
+                    req.body.consumers.forEach(consumer => {
+                        const consumerName = consumer.serviceName || consumer.southConsumerName;
+                        const insertSouthConsumersSql = 'INSERT INTO southStoreConsumers("' + node.name + '","' + consumerName + '","' + southStoreName + '","' + southStoreAddress + '",' + southStorePort + ')';
+                        console.log('\n---------------------------------------------------\ninserting into southStoreConsumers sql:', insertSouthConsumersSql);
+                        alasql(insertSouthConsumersSql);
+                    });
+                    console.log('\n\ngoing to notify north from  consumer route of store ', node.name);
+                    notifyNorth();
+                    //southStoreConsumers:(localStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)');
+                    //store in table- the consumer name
+                    res.send('hello world'); //TODO this will be a NAK/ACK
+                    break;
+
+                case 'producerNotification' :
+                    console.log('PRODUCER NOTIFICATION');
+                    console.log("req.body:", req.body);
+                    const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.producerIp + '",' + req.body.producerPort + ')';
+                    console.log('notifyInsertSql:', notifyInsertSql);
+                    alasql(notifyInsertSql);
+                    const allNotifies = alasql('SELECT * FROM notify');
+                    console.log('allNotifies inside da store is:', allNotifies);
+                    res.send('hello world'); //TODO this will be a NAK/ACK
+                    break;
+            } //case
+        }); // notify
+
         app.post('/consumer', (req, res) => { //todo validation on params
             console.log('\n\nin register consumer route of store ', node.name);
             console.log("req.body:", req.body);
