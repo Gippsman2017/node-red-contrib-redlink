@@ -9,13 +9,13 @@ module.exports = function (RED) {
 
     alasql('DROP TABLE IF EXISTS notify');
     alasql('DROP TABLE IF EXISTS inMessages');
-    alasql('DROP TABLE IF EXISTS currentStoreConsumers');
+    alasql('DROP TABLE IF EXISTS localStoreConsumers');
     alasql('DROP TABLE IF EXISTS southStoreConsumers');
     alasql('DROP TABLE IF EXISTS stores');
     alasql('CREATE TABLE notify (storeName STRING, serviceName STRING, producerIp STRING, producerPort INT )');
     alasql('CREATE TABLE inMessages (msgId STRING, storeName STRING, serviceName STRING, message STRING)');
-    alasql('CREATE TABLE currentStoreConsumers (storeName STRING, serviceName STRING)'); //can have multiple consumers with same name registered to the same store
-    alasql('CREATE TABLE southStoreConsumers (currentStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)');
+    alasql('CREATE TABLE localStoreConsumers (storeName STRING, serviceName STRING)'); //can have multiple consumers with same name registered to the same store
+    alasql('CREATE TABLE southStoreConsumers (localStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)');
     alasql('CREATE TABLE stores (storeName STRING)'); //todo other fields like listenip/port, north store?
     console.log('created tables...');
 
@@ -34,16 +34,16 @@ module.exports = function (RED) {
         alasql(insertStoreSql);
 
         function notifyNorth() {
-//TODO send the current consumer list plus south consumers to north/parent store
-            //first get distinct current consumers
+//TODO send the local consumer list plus south consumers to north/parent store
+            //first get distinct local consumers
             console.log('\nin notifyNorth function of ', node.name);
-            const currentConsumersSql = 'SELECT DISTINCT serviceName FROM currentStoreConsumers WHERE storeName="' + node.name + '"';
-            const currentConsumers = alasql(currentConsumersSql);
-            console.log('current consumers are:', currentConsumers);
-            const southConsumersSql = 'SELECT DISTINCT southConsumerName FROM southStoreConsumers WHERE currentStoreName="' + node.name + '"';//southStoreConsumers (currentStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)')
+            const localConsumersSql = 'SELECT DISTINCT serviceName FROM localStoreConsumers WHERE storeName="' + node.name + '"';
+            const localConsumers = alasql(localConsumersSql);
+            console.log('local consumers are:', localConsumers);
+            const southConsumersSql = 'SELECT DISTINCT southConsumerName FROM southStoreConsumers WHERE localStoreName="' + node.name + '"';//southStoreConsumers (localStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)')
             const southConsumers = alasql(southConsumersSql);
             console.log(' south consumers are:', southConsumers);
-            const allConsumers = currentConsumers.concat(southConsumers); //todo filter this for unique consumers
+            const allConsumers = localConsumers.concat(southConsumers); //todo filter this for unique consumers
             const body = {
                 consumers: allConsumers,
                 southStoreName: node.name,
@@ -97,7 +97,7 @@ module.exports = function (RED) {
             const createNewMsgTriggerSql = 'CREATE TRIGGER ' + newMsgTriggerName +
                 ' AFTER INSERT ON inMessages CALL ' + newMsgTriggerName + '()';
             const createRegisterConsumerSql = 'CREATE TRIGGER ' + registerConsumerTriggerName +
-                ' AFTER INSERT ON currentStoreConsumers CALL ' + registerConsumerTriggerName + '()';
+                ' AFTER INSERT ON localStoreConsumers CALL ' + registerConsumerTriggerName + '()';
             console.log('the sql statement for adding triggers in store is:', createNewMsgTriggerSql, '\n', createRegisterConsumerSql);
             try {
                 alasql(createNewMsgTriggerSql);
@@ -137,7 +137,7 @@ module.exports = function (RED) {
             const southStorePort = req.body.southStorePort;
             //delete entries from table before adding them back
             console.log('dropping entries from southConsumers for store name: ', node.name);
-            const deleteSouthConsumersSql = 'DELETE FROM southStoreConsumers WHERE currentStoreName="' + node.name + '"';
+            const deleteSouthConsumersSql = 'DELETE FROM southStoreConsumers WHERE localStoreName="' + node.name + '" and southStoreName="'+ southStoreName + '"';
             alasql(deleteSouthConsumersSql);
             req.body.consumers.forEach(consumer => {
                 const consumerName = consumer.serviceName || consumer.southConsumerName;
@@ -147,36 +147,38 @@ module.exports = function (RED) {
             });
             console.log('\n\ngoing to notify north from  consumer route of store ', node.name);
             notifyNorth();
-            //southStoreConsumers:(currentStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)');
+            //southStoreConsumers:(localStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)');
             //store in table- the consumer name
             res.send('hello world'); //TODO this will be a NAK/ACK
         });
         this.on("input", msg => {
             if (msg && msg.cmd === 'listConsumers') {
-                const currentConsumersSql = 'SELECT DISTINCT serviceName FROM currentStoreConsumers WHERE storeName="' + node.name + '"';
-                console.log('onInputMsg currentConsumersSql:', currentConsumersSql);
-                const currentConsumers = alasql(currentConsumersSql);
-                console.log('onInputMsg of ', node.name, ' current consumers are:', currentConsumers);
-                const southConsumersSql = 'SELECT DISTINCT southConsumerName FROM southStoreConsumers WHERE currentStoreName="' + node.name + '"';//southStoreConsumers (currentStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)')
+                const localConsumersSql = 'SELECT DISTINCT serviceName FROM localStoreConsumers WHERE storeName="' + node.name + '"';
+                console.log('onInputMsg localConsumersSql:', localConsumersSql);
+                const localConsumers = alasql(localConsumersSql);
+                console.log('onInputMsg of ', node.name, ' local consumers are:', localConsumers);
+                const southConsumersSql = 'SELECT DISTINCT southConsumerName FROM southStoreConsumers WHERE localStoreName="' + node.name + '"';//southStoreConsumers (localStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)')
                 console.log('onInputMsg southConsumersSql:', southConsumersSql);
                 const distinctSouthConsumers = alasql(southConsumersSql);
                 console.log('onInputMsg of ', node.name, ' distinct south consumers are:', distinctSouthConsumers);
                 // const allSouthConsumersforAllStoresSql = 'SELECT * FROM southStoreConsumers'; /*WHERE storeName="' + node.name + '"*/
                 // console.log('\n\nallSouthConsumersforAllStoresSql:',alasql(allSouthConsumersforAllStoresSql));
-                this.send({currentConsumers, southConsumers: distinctSouthConsumers});
+                this.send({localConsumers, southConsumers: distinctSouthConsumers});
             }
             //todo what messages should we allow? register and notify are handled via endpoints
         });
 
         this.on('close', (removed, done) => { //todo remove triggers
-            console.log('!@#$%^&*(   removed is:', removed);
             console.log('on close of store:', node.name, ' going to remove newMsg trigger, register consumer trigger, store name from tables store');
             const removeStoreSql = 'DELETE FROM stores WHERE storeName="' + node.name + '"';
             console.log('removing store name from table stores in store close...', node.name);
             alasql(removeStoreSql);
-            const removeConsumersSql = 'DELETE FROM currentStoreConsumers WHERE storeName="' + node.name + '"';
-            console.log('removing all consumers for store name...', node.name);
-            alasql(removeConsumersSql);
+            const removeDirectConsumersSql = 'DELETE FROM localStoreConsumers WHERE storeName="' + node.name + '"';
+            console.log('removing direct consumers for store name...', node.name);
+            alasql(removeDirectConsumersSql);
+            const removeSouthConsumersSql = 'DELETE FROM southStoreConsumers WHERE storeName="' + node.name + '"';
+            console.log('removing south consumers for store name...', node.name);
+            alasql(removeSouthConsumersSql);
             //also delete all associated consumers for this store name
             const dropTriggerNewMsg = 'DROP TRIGGER ' + newMsgTriggerName;
             alasql(dropTriggerNewMsg);
@@ -209,8 +211,8 @@ module.exports = function (RED) {
         console.log('the sql statement for adding trigger in consumer is:', createTriggerSql);
         alasql(createTriggerSql);
         console.log('registered notify trigger for service ', this.name, ' in store ', this.consumerStoreName);
-        const insertIntoConsumerSql = 'INSERT INTO currentStoreConsumers ("' + this.consumerStoreName + '","' + this.name + '")'; //currentStoreConsumers (storeName STRING, serviceName STRING)'); //can have multiple consumers with same name registered to the same store
-        console.log('in consumer constructor sql to insert into currentStoreConsumer is:', insertIntoConsumerSql);
+        const insertIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + this.consumerStoreName + '","' + this.name + '")'; //localStoreConsumers (storeName STRING, serviceName STRING)'); //can have multiple consumers with same name registered to the same store
+        console.log('in consumer constructor sql to insert into localStoreConsumer is:', insertIntoConsumerSql);
         alasql(insertIntoConsumerSql);
         console.log('inserted consumer ', this.name, ' for store ', this.consumerStoreName);
 
@@ -220,13 +222,13 @@ module.exports = function (RED) {
             const dropNotifyTriggerSql = 'DROP TRIGGER ' + msgNotifyTriggerId;
             alasql(dropNotifyTriggerSql);
             console.log('dropped notify trigger...');
-            const deleteConsumerSql = 'DELETE FROM currentStoreConsumers WHERE storeName="' + this.consumerStoreName + +'"' + 'AND serviceName="' + this.name + '"';
+            const deleteConsumerSql = 'DELETE FROM localStoreConsumers WHERE storeName="' + this.consumerStoreName + +'"' + 'AND serviceName="' + this.name + '"';
             alasql(deleteConsumerSql); //can have multiple consumers with same name registered to the same store
             console.log('removed consumer from local store...');
-            //TODO use the getCurrentAndSouthConsumers function
-            const currentConsumersSql = 'SELECT * FROM currentStoreConsumers';
-            const currentConsumers = alasql(currentConsumersSql);
-            console.log('all current consumers are:', currentConsumers);
+            //TODO use the getlocalAndSouthConsumers function
+            const localConsumersSql = 'SELECT * FROM localStoreConsumers';
+            const localConsumers = alasql(localConsumersSql);
+            console.log('all local consumers are:', localConsumers);
             const southConsumersSql = 'SELECT * FROM southStoreConsumers';
             const southConsumers = alasql(southConsumersSql);
             console.log(' south consumers are:', southConsumers);
@@ -280,24 +282,24 @@ module.exports = function (RED) {
     RED.httpAdmin.get("/consumers", function (req, res) {
         const producerName = req.query.producer;
         const store = req.query.store;
-        let responseJson = getCurrentAndSouthConsumers(store);
+        let responseJson = getlocalAndSouthConsumers(store);
         if (!store) { //shouldnt happen- nothing we can do
             console.log('no store selected for producer- not populating consumers ');
         }
         res.json(responseJson);
     });
 
-    function getCurrentAndSouthConsumers(storeName) {
+    function getlocalAndSouthConsumers(storeName) {
         if(!storeName){
             return {};
         }
-        const currentConsumersSql = 'SELECT DISTINCT serviceName FROM currentStoreConsumers WHERE storeName="' + storeName + '"';
-        const currentConsumers = alasql(currentConsumersSql);
-        console.log('current consumers are:', currentConsumers);
-        const southConsumersSql = 'SELECT DISTINCT southConsumerName FROM southStoreConsumers WHERE currentStoreName="' + storeName + '"';//southStoreConsumers (currentStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)')
+        const localConsumersSql = 'SELECT DISTINCT serviceName FROM localStoreConsumers WHERE storeName="' + storeName + '"';
+        const localConsumers = alasql(localConsumersSql);
+        console.log('local consumers are:', localConsumers);
+        const southConsumersSql = 'SELECT DISTINCT southConsumerName FROM southStoreConsumers WHERE localStoreName="' + storeName + '"';//southStoreConsumers (localStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)')
         const southConsumers = alasql(southConsumersSql);
         console.log(' south consumers are:', southConsumers);
-        const allConsumers = currentConsumers.concat(southConsumers); //todo filter this for unique consumers
+        const allConsumers = localConsumers.concat(southConsumers); //todo filter this for unique consumers
         console.log('in get allconsumers going to return', JSON.stringify(allConsumers, null, 2));
         let consumersArray = [];
         allConsumers.forEach(consumer=>{
