@@ -136,13 +136,21 @@ module.exports = function (RED) {
                     //delete entries from table before adding them back
                     console.log('\n**************************************\ndropping entries from southConsumers for store name: ', node.name);
                     //************************ Fixed Store issues for south bound multiple stores
-                    const deleteSouthConsumersSql = 'DELETE FROM southStoreConsumers WHERE localStoreName="' + node.name + '" and southStoreName="'+ southStoreName + '"';
-                    alasql(deleteSouthConsumersSql);
+                    // const deleteSouthConsumersSql = 'DELETE FROM southStoreConsumers WHERE localStoreName="' + node.name + '" and southStoreName="'+ southStoreName + '"';
+                    // alasql(deleteSouthConsumersSql);
                     req.body.consumers.forEach(consumer => {
                         const consumerName = consumer.serviceName || consumer.southConsumerName;
-                        const insertSouthConsumersSql = 'INSERT INTO southStoreConsumers("' + node.name + '","' + consumerName + '","' + southStoreName + '","' + southStoreAddress + '",' + southStorePort + ')';
-                        console.log('\n---------------------------------------------------\ninserting into southStoreConsumers sql:', insertSouthConsumersSql);
-                        alasql(insertSouthConsumersSql);
+                        const existingSouthConsumerSql = 'SELECT * FROM southStoreConsumers WHERE localStoreName="' + node.name + '" AND southConsumerName="'+ consumerName +'"';
+                        console.log('existingSouthConsumerSql:', existingSouthConsumerSql);
+                        const existingSouthConsumer = alasql(existingSouthConsumerSql);
+                        console.log('existingSouthConsumer:',existingSouthConsumer);
+                        if(!existingSouthConsumer || existingSouthConsumer.length === 0){
+                            const insertSouthConsumersSql = 'INSERT INTO southStoreConsumers("' + node.name + '","' + consumerName + '","' + southStoreName + '","' + southStoreAddress + '",' + southStorePort + ')';
+                            console.log('\n---------------------------------------------------\ninserting into southStoreConsumers sql:', insertSouthConsumersSql);
+                            alasql(insertSouthConsumersSql);
+                        }else{
+                            console.log('not ínserting into south consumers as existingSouthConsumer is:', existingSouthConsumer);
+                        }
                     });
                     console.log('\n\ngoing to notify north from  consumer route of store ', node.name);
                     notifyNorth();
@@ -150,7 +158,6 @@ module.exports = function (RED) {
                     //store in table- the consumer name
                     res.send('hello world'); //TODO this will be a NAK/ACK
                     break;
-
                 case 'producerNotification' :
                     console.log('PRODUCER NOTIFICATION');
                     console.log("req.body:", req.body);
@@ -211,7 +218,7 @@ module.exports = function (RED) {
             const removeDirectConsumersSql = 'DELETE FROM localStoreConsumers WHERE storeName="' + node.name + '"';
             console.log('removing direct consumers for store name...', node.name);
             alasql(removeDirectConsumersSql);
-            const removeSouthConsumersSql = 'DELETE FROM southStoreConsumers WHERE storeName="' + node.name + '"';
+            const removeSouthConsumersSql = 'DELETE FROM southStoreConsumers WHERE southStoreName="' + node.name + '"';
             console.log('removing south consumers for store name...', node.name);
             alasql(removeSouthConsumersSql);
             //also delete all associated consumers for this store name
