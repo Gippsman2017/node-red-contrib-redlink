@@ -16,6 +16,7 @@ module.exports = function (RED) {
     alasql('CREATE TABLE inMessages (msgId STRING, storeName STRING, serviceName STRING, message STRING)');
     alasql('CREATE TABLE localStoreConsumers (storeName STRING, serviceName STRING)'); //can have multiple consumers with same name registered to the same store
     alasql('CREATE TABLE southStoreConsumers (localStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)');
+    alasql('CREATE TABLE northStoreConsumers (localStoreName STRING, northConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)');
     alasql('CREATE TABLE stores (storeName STRING)'); //todo other fields like listenip/port, north store?
     console.log('created tables...');
 
@@ -28,10 +29,18 @@ module.exports = function (RED) {
         this.name = config.name;
         this.notifyInterval = config.notifyInterval;
         this.functions = config.functions;
+        this.northPeers = config.headers;
+        console.log('headers:', this.northPeers);
         const node = this;
         const insertStoreSql = 'INSERT INTO stores("' + node.name + '")';
         console.log('in store constructor inserting store name ', node.name, ' in stores table');
-        alasql(insertStoreSql);
+        alasql(insertStoreSql); //todo move this to success handler of get store name request above
+        // Insert my own store name as a special service, it allows the stores to learn about each other with notifies without having a local consumer registered
+/*
+TODO add this back if needed- may not be needed if we store this in the stores table
+        const insertMeIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.name + '","#' + node.name + '")';
+        alasql(insertMeIntoConsumerSql);
+*/
 
         function notifyNorth() {
 //TODO send the local consumer list plus south consumers to north/parent store
@@ -130,9 +139,9 @@ module.exports = function (RED) {
                     console.log('CONSUMER REGISTRATION');
                     console.log('\n------------------------------------------------------------------------------\nin register consumer route of store ', node.name);
                     console.log("req.body:", req.body);
-                    const southStoreName    = req.body.southStoreName;
+                    const southStoreName = req.body.southStoreName;
                     const southStoreAddress = req.body.southStoreAddress;
-                    const southStorePort    = req.body.southStorePort;
+                    const southStorePort = req.body.southStorePort;
                     //delete entries from table before adding them back
                     console.log('\n**************************************\ndropping entries from southConsumers for store name: ', node.name);
                     //************************ Fixed Store issues for south bound multiple stores
@@ -140,15 +149,15 @@ module.exports = function (RED) {
                     // alasql(deleteSouthConsumersSql);
                     req.body.consumers.forEach(consumer => {
                         const consumerName = consumer.serviceName || consumer.southConsumerName;
-                        const existingSouthConsumerSql = 'SELECT * FROM southStoreConsumers WHERE localStoreName="' + node.name + '" AND southConsumerName="'+ consumerName +'"';
+                        const existingSouthConsumerSql = 'SELECT * FROM southStoreConsumers WHERE localStoreName="' + node.name + '" AND southConsumerName="' + consumerName + '"';
                         console.log('existingSouthConsumerSql:', existingSouthConsumerSql);
                         const existingSouthConsumer = alasql(existingSouthConsumerSql);
-                        console.log('existingSouthConsumer:',existingSouthConsumer);
-                        if(!existingSouthConsumer || existingSouthConsumer.length === 0){
+                        console.log('existingSouthConsumer:', existingSouthConsumer);
+                        if (!existingSouthConsumer || existingSouthConsumer.length === 0) {
                             const insertSouthConsumersSql = 'INSERT INTO southStoreConsumers("' + node.name + '","' + consumerName + '","' + southStoreName + '","' + southStoreAddress + '",' + southStorePort + ')';
                             console.log('\n---------------------------------------------------\ninserting into southStoreConsumers sql:', insertSouthConsumersSql);
                             alasql(insertSouthConsumersSql);
-                        }else{
+                        } else {
                             console.log('not ínserting into south consumers as existingSouthConsumer is:', existingSouthConsumer);
                         }
                     });
@@ -179,7 +188,7 @@ module.exports = function (RED) {
             const southStorePort = req.body.southStorePort;
             //delete entries from table before adding them back
             console.log('dropping entries from southConsumers for store name: ', node.name);
-            const deleteSouthConsumersSql = 'DELETE FROM southStoreConsumers WHERE localStoreName="' + node.name + '" and southStoreName="'+ southStoreName + '"';
+            const deleteSouthConsumersSql = 'DELETE FROM southStoreConsumers WHERE localStoreName="' + node.name + '" and southStoreName="' + southStoreName + '"';
             alasql(deleteSouthConsumersSql);
             req.body.consumers.forEach(consumer => {
                 const consumerName = consumer.serviceName || consumer.southConsumerName;
@@ -332,7 +341,7 @@ module.exports = function (RED) {
     });
 
     function getlocalAndSouthConsumers(storeName) {
-        if(!storeName){
+        if (!storeName) {
             return {};
         }
         const localConsumersSql = 'SELECT DISTINCT serviceName FROM localStoreConsumers WHERE storeName="' + storeName + '"';
@@ -344,7 +353,7 @@ module.exports = function (RED) {
         const allConsumers = localConsumers.concat(southConsumers); //todo filter this for unique consumers
         console.log('in get allconsumers going to return', JSON.stringify(allConsumers, null, 2));
         let consumersArray = [];
-        allConsumers.forEach(consumer=>{
+        allConsumers.forEach(consumer => {
             consumersArray.push(consumer.serviceName || consumer.southConsumerName);
         });
         return consumersArray;

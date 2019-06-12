@@ -11,12 +11,11 @@
         <input type="text" id="node-input-listenPort" placeholder="Port" style="width:60px; height:28px;">
     </div>
 
-    <div class="form-row">
-        <label for="node-input-peerAddress"><i class="icon-tag"></i> Peer Address </label>
-        <input type="text" id="node-input-peerAddress" placeholder="Peer Address" style="width:150px; height:28px;">
-        <label for="node-input-peerPort"><i class="icon-tag"></i> Peer Port </label>
-        <input type="text" id="node-input-peerPort" placeholder="Peer Port" style="width:60px; height:28px;">
+    <div class="form-row node-input-headers-container-row">
+        <label><i class="icon-tag"></i> North Peers (IP and Port)</label><br>
+        <ol id="node-input-headers-container"></ol>
     </div>
+
     <div class="form-row">
         <label for="node-input-notifyInterval"><i class="fa fa-hourglass-1"></i> Notify Interval (s)</label>
         <input type="text" id="node-input-notifyInterval" placeholder="Notify Interval in sec">
@@ -27,9 +26,6 @@
         <input type="hidden" id="node-input-functions" autofocus="autofocus">
     </div>
 
-    <div class="form-row node-text-editor-row">
-        <div style="height:360px;" class="node-text-editor" id="node-input-functions-editor"></div>
-    </div>
 </script>
 
 <script type="text/x-red" data-help-name="redlink store"></script>
@@ -41,6 +37,20 @@
     const validatePositiveNumber = function (port) {
         return RED.validators.number(port) && (port >= 0);
     };
+
+    var headerTypes = [
+        {value:"other",label:RED._("node-red:httpin.label.other"),icon:"red/images/typedInput/az.png"}
+    ]
+    var contentTypes = [
+        {value:"application/json",label:"application/json",hasValue: false},
+        {value:"application/xml",label:"application/xml",hasValue: false},
+        {value:"text/css",label:"text/css",hasValue: false},
+        {value:"text/html",label:"text/html",hasValue: false},
+        {value:"text/plain",label:"text/plain",hasValue: false},
+        {value:"image/gif",label:"image/gif",hasValue: false},
+        {value:"image/png",label:"image/png",hasValue: false},
+        {value:"other",label:RED._("node-red:httpin.label.other"),icon:"red/images/typedInput/09.png"}
+    ];
 
     RED.nodes.registerType('redlink store', {
         category: 'redlink',
@@ -60,8 +70,8 @@
             peerPort: {
                 value: 443, required: true, validate: validatePositiveNumber
             },
+            headers: {value:{}},
             name: {value: 'Store Name', required: true},
-            functions: {value: 'Put the basic functions in Here from the "info tab"'},
             notifyInterval: {value: 15, required: true/*, validate: validatePositiveNumber*/}
         },
         icon: "file.png",
@@ -73,17 +83,137 @@
         },
         oneditprepare: function () {
             //TODO get all store names in this instance; then validate current store name on change to avoid duplicates
-            this.editor = RED.editor.createEditor({
-                id: "node-input-functions-editor",
-                mode: "ace/mode/sql",
-                value: $("#node-input-functions").val()
+            function resizeRule(rule) {
+                var newWidth = rule.width();
+                rule.find('.red-ui-typedInput').typedInput("width", (newWidth - 15) / 2);
+            }
+
+            var headerList = $("#node-input-headers-container").css('min-height', '150px').css('min-width', '450px').editableList({
+                addItem: function (container, i, header) {
+                    var row = $('<div/>').css({
+                        overflow: 'hidden',
+                        whiteSpace: 'nowrap'
+                    }).appendTo(container);
+
+                    var propertyName = $('<input/>', {class: "node-input-header-name", type: "text"})
+                        .appendTo(row)
+                        .typedInput({types: headerTypes});
+
+                    var propertyValue = $('<input/>', {
+                        class: "node-input-header-value",
+                        type: "text",
+                        style: "margin-left: 10px"
+                    })
+                        .appendTo(row)
+                        .typedInput({
+                            types:
+                                header.h === 'content-type' ? contentTypes : [{
+                                    value: "other",
+                                    label: "other",
+                                    icon: "red/images/typedInput/09.png"
+                                }]
+                        });
+
+                    var matchedType = headerTypes.filter(function (ht) {
+                        return ht.value === header.h
+                    });
+                    if (matchedType.length === 0) {
+                        propertyName.typedInput('type', 'other');
+                        propertyName.typedInput('value', header.h);
+                        propertyValue.typedInput('value', header.v);
+                    } else {
+                        propertyName.typedInput('type', header.h);
+
+                        if (header.h === "content-type") {
+                            matchedType = contentTypes.filter(function (ct) {
+                                return ct.value === header.v;
+                            });
+                            if (matchedType.length === 0) {
+                                propertyValue.typedInput('type', 'other');
+                                propertyValue.typedInput('value', header.v);
+                            } else {
+                                propertyValue.typedInput('type', header.v);
+                            }
+                        } else {
+                            propertyValue.typedInput('value', header.v);
+                        }
+                    }
+
+                    matchedType = headerTypes.filter(function (ht) {
+                        return ht.value === header.h
+                    });
+                    if (matchedType.length === 0) {
+                        propertyName.typedInput('type', 'other');
+                        propertyName.typedInput('value', header.h);
+                    } else {
+                        propertyName.typedInput('type', header.h);
+                    }
+
+                    propertyName.on('change', function (event) {
+                        var type = propertyName.typedInput('type');
+                        if (type === 'content-type') {
+                            propertyValue.typedInput('types', contentTypes);
+                        } else {
+                            propertyValue.typedInput('types', [{
+                                value: "other",
+                                label: "other",
+                                icon: "red/images/typedInput/09.png"
+                            }]);
+                        }
+                    });
+
+
+                    resizeRule(container);
+                },
+                resizeItem: resizeRule,
+                removable: true
             });
+
+            if (this.headers) {
+                for (var key in this.headers) {
+                    if (this.headers.hasOwnProperty(key)) {
+                        headerList.editableList('addItem', {h: key, v: this.headers[key]});
+                    }
+                }
+            }
+
         },
         oneditsave: function () {
-            $("#node-input-functions").val(this.editor.getValue());
-            delete this.editor;
-            //TODO do a put on store name
+            var headers = $("#node-input-headers-container").editableList('items');
+            var node = this;
+            node.headers = {};
+            headers.each(function (i) {
+                var header = $(this);
+                var keyType = header.find(".node-input-header-name").typedInput('type');
+                var keyValue = header.find(".node-input-header-name").typedInput('value');
+                var valueType = header.find(".node-input-header-value").typedInput('type');
+                var valueValue = header.find(".node-input-header-value").typedInput('value');
+                var key = keyType;
+                var value = valueType;
+                if (keyType === 'other') {
+                    key = keyValue;
+                }
+                if (valueType === 'other') {
+                    value = valueValue;
+                }
+                if (key !== '') {
+                    node.headers[key] = value;
+                }
+            });
+
+        },
+        oneditresize: function (size) {
+            var rows = $("#dialog-form>div:not(.node-input-headers-container-row)");
+            var height = size.height;
+            for (var i = 0; i < rows.size(); i++) {
+                height -= $(rows[i]).outerHeight(true);
+            }
+            var editorRow = $("#dialog-form>div.node-input-headers-container-row");
+            height -= (parseInt(editorRow.css("marginTop")) + parseInt(editorRow.css("marginBottom")));
+
+            $("#node-input-headers-container").editableList('height', height);
         }
+
     });
 </script>
 
@@ -110,6 +240,7 @@
         <label for="node-input-producerETT"><i class="fa fa-times"></i> ETT</label>
         <input type="text" id="node-input-producerETT" placeholder="ETT">
     </div>
+
 
 
 
@@ -156,12 +287,12 @@
             console.log('selectedStore:', selectedStore);
             let consumerElement = $("#node-input-producerConsumer");
 
-            $( "#node-input-producerStoreName" ).change(() =>{
+            $("#node-input-producerStoreName").change(() => {
                 consumerElement.find('option').remove().end();
-                console.log( "Handler for .change() called." );
+                console.log("Handler for .change() called.");
                 // console.log('value of node-input-producerStoreName:', );
                 const storeName = $("#node-input-producerStoreName").children("option:selected").val() || selectedStore;
-                $.getJSON('consumers', {"producer":this.name,"store": storeName}, stores => {
+                $.getJSON('consumers', {"producer": this.name, "store": storeName}, stores => {
                     console.log('\n\n\n\nstores from get call:', stores);
                     $.each(stores, function (index, obj) {
                         console.log('index:', index, ' obj:', obj);
@@ -187,6 +318,7 @@
         <select id="node-input-consumerStoreName">
         </select>
     </div>
+
 
 
 </script>
@@ -237,6 +369,7 @@
         <select id="node-input-replyStoreName">
         </select>
     </div>
+
 
 
 
