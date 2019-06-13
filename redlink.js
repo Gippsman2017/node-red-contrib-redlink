@@ -36,11 +36,9 @@ module.exports = function (RED) {
         console.log('in store constructor inserting store name ', node.name, ' in stores table');
         alasql(insertStoreSql); //todo move this to success handler of get store name request above
         // Insert my own store name as a special service, it allows the stores to learn about each other with notifies without having a local consumer registered
-/*
-TODO add this back if needed- may not be needed if we store this in the stores table
+// TODO add this back if needed- may not be needed if we store this in the stores table
         const insertMeIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.name + '","#' + node.name + '")';
         alasql(insertMeIntoConsumerSql);
-*/
 
         function notifyNorth() {
 //TODO send the local consumer list plus south consumers to north/parent store
@@ -121,7 +119,11 @@ TODO add this back if needed- may not be needed if we store this in the stores t
             console.log(e);
         }
         if (this.listenPort) {
-            this.listenServer = httpsServer.startServer(+this.listenPort);
+            try {
+                this.listenServer = httpsServer.startServer(+this.listenPort);
+            } catch (e) {
+                console.log('error starting listen server on ', this.listenPort, e);
+            }
             if (this.listenServer) {
                 this.on('close', (removed, done) => {
                     this.listenServer.close(() => {
