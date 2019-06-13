@@ -170,34 +170,40 @@
             });
 
             if (this.headers) {
-                for (var key in this.headers) {
+                this.headers.forEach((header)=>{
+                    const ip = header.ip;
+                    const port = header.port;
+                    headerList.editableList('addItem', {h: ip, v: port});
+                });
+                /*for (var key in this.headers) {
                     if (this.headers.hasOwnProperty(key)) {
                         headerList.editableList('addItem', {h: key, v: this.headers[key]});
                     }
-                }
+                }*/
             }
 
         },
         oneditsave: function () {
             var headers = $("#node-input-headers-container").editableList('items');
             var node = this;
-            node.headers = {};
+            node.headers = [];
             headers.each(function (i) {
                 var header = $(this);
                 var keyType = header.find(".node-input-header-name").typedInput('type');
-                var keyValue = header.find(".node-input-header-name").typedInput('value');
+                var ip = header.find(".node-input-header-name").typedInput('value');
                 var valueType = header.find(".node-input-header-value").typedInput('type');
-                var valueValue = header.find(".node-input-header-value").typedInput('value');
+                var port = header.find(".node-input-header-value").typedInput('value');
                 var key = keyType;
                 var value = valueType;
                 if (keyType === 'other') {
-                    key = keyValue;
+                    key = ip;
                 }
                 if (valueType === 'other') {
-                    value = valueValue;
+                    value = port;
                 }
                 if (key !== '') {
-                    node.headers[key] = value;
+                    node.headers.push({ip, port})
+                    // node.headers[key] = value;
                 }
             });
 
