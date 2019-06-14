@@ -30,17 +30,20 @@ module.exports = function (RED) {
         this.notifyInterval = config.notifyInterval;
         this.functions = config.functions;
         this.northPeers = config.headers;
-        console.log('headers:', this.northPeers);
+        this.southPeers = null; //todo each store should notify its north peer once when it comes up- thats how southPeers will be populated
+        console.log('northPeers:', this.northPeers);
         const node = this;
         const insertStoreSql = 'INSERT INTO stores("' + node.name + '")';
         console.log('in store constructor inserting store name ', node.name, ' in stores table');
         alasql(insertStoreSql); //todo move this to success handler of get store name request above
         // Insert my own store name as a special service, it allows the stores to learn about each other with notifies without having a local consumer registered
 // TODO add this back if needed- may not be needed if we store this in the stores table
+/*
         const insertMeIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.name + '","#' + node.name + '")';
         alasql(insertMeIntoConsumerSql);
+*/
 
-        function notifyNorth() {
+        function notify(ip, port) { //todo this should take ip and port
 //TODO send the local consumer list plus south consumers to north/parent store
             //first get distinct local consumers
             console.log('\nin notifyNorth function of ', node.name);
@@ -51,6 +54,7 @@ module.exports = function (RED) {
             const southConsumers = alasql(southConsumersSql);
             console.log(' south consumers are:', southConsumers);
             const allConsumers = localConsumers.concat(southConsumers); //todo filter this for unique consumers
+            //todo also append northConsumers
             const body = {
                 consumers: allConsumers,
                 notifyType: 'consumerRegistration',
@@ -58,14 +62,12 @@ module.exports = function (RED) {
                 southStoreAddress: node.listenAddress,
                 southStorePort: node.listenPort
             };
-            if (node.peerAddress !== '0.0.0.0') {
-                console.log('going to post to:', 'https://' + node.peerAddress + ':' + node.peerPort + '/notify');
-//                console.log('going to post to:', 'https://' + node.peerAddress + ':' + node.peerPort + '/consumer');
+            if (ip !== '0.0.0.0') {
+                console.log('going to post to:', 'https://' + ip + ':' + port + '/notify');
                 console.log('the body being posted is:', JSON.stringify(body, null, 2));
                 const options = {
                     method: 'POST',
-//                    url: 'https://' + node.peerAddress + ':' + node.peerPort + '/consumer',
-                    url: 'https://' + node.peerAddress + ':' + node.peerPort + '/notify',
+                    url: 'https://' + ip + ':' + port + '/notify', //todo add specifier for north or south; also add id (to prevent cyclic notifs)
                     body,
                     json: true
                 };
@@ -76,6 +78,18 @@ module.exports = function (RED) {
             } else {
                 console.log('not posting as peerAddress is not set- this store is probably groot');
             }
+        }
+
+        function notifyNorth() {
+            node.northPeers.forEach(peer=>{
+                notify(peer.ip, peer.port);
+            });
+        }
+
+        function notifySouth(){ //todo call this whenever notify north is called
+            node.southPeers.forEach(peer=>{
+                notify(peer.ip, peer.port);
+            });
         }
 
         // alasql('DROP TABLE notify');
@@ -165,6 +179,7 @@ module.exports = function (RED) {
                     });
                     console.log('\n\ngoing to notify north from  consumer route of store ', node.name);
                     notifyNorth();
+
                     //southStoreConsumers:(localStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)');
                     //store in table- the consumer name
                     res.send('hello world'); //TODO this will be a NAK/ACK
