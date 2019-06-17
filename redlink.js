@@ -43,8 +43,17 @@ module.exports = function (RED) {
         alasql(insertMeIntoConsumerSql);
 */
 
-        function notify(ip, port) { //todo this should take ip and port
+        function notify(ip, port, ipTrail) { //todo add northips
 //TODO send the local consumer list plus south consumers to north/parent store
+            if(!ipTrail){
+                ipTrail = [];
+            }
+            if(ipTrail.includes(ip+':'+port)){ //loop in notifications- dont send it
+                console.log('not notifying as ip:port ', ip+':'+port, ' is present in ipTrail:', ipTrail);
+                return;
+            }else{
+                ipTrail.push(ip+':'+port);
+            }
             //first get distinct local consumers
             console.log('\nin notifyNorth function of ', node.name);
             const localConsumersSql = 'SELECT DISTINCT serviceName FROM localStoreConsumers WHERE storeName="' + node.name + '"';
@@ -60,7 +69,8 @@ module.exports = function (RED) {
                 notifyType: 'consumerRegistration',
                 southStoreName: node.name,
                 southStoreAddress: node.listenAddress,
-                southStorePort: node.listenPort
+                southStorePort: node.listenPort,
+                southIps: ipTrail
             };
             if (ip !== '0.0.0.0') {
                 console.log('going to post to:', 'https://' + ip + ':' + port + '/notify');
@@ -80,9 +90,9 @@ module.exports = function (RED) {
             }
         }
 
-        function notifyNorth() {
+        function notifyNorth(southIps) {
             node.northPeers.forEach(peer=>{
-                notify(peer.ip, peer.port);
+                notify(peer.ip, peer.port, southIps);
             });
         }
 
@@ -152,12 +162,14 @@ module.exports = function (RED) {
             const notifyType = req.body.notifyType;
             switch (notifyType) {
                 case 'consumerRegistration' :
-                    console.log('CONSUMER REGISTRATION');
+                    console.log('CONSUMER REGISTRATION route');
                     console.log('\n------------------------------------------------------------------------------\nin register consumer route of store ', node.name);
                     console.log("req.body:", req.body);
                     const southStoreName = req.body.southStoreName;
                     const southStoreAddress = req.body.southStoreAddress;
                     const southStorePort = req.body.southStorePort;
+                    const southIps = req.body.southIps;
+                    console.log('the southIps trail is:', southIps);
                     //delete entries from table before adding them back
                     console.log('\n**************************************\ndropping entries from southConsumers for store name: ', node.name);
                     //************************ Fixed Store issues for south bound multiple stores
@@ -177,9 +189,10 @@ module.exports = function (RED) {
                             console.log('not ínserting into south consumers as existingSouthConsumer is:', existingSouthConsumer);
                         }
                     });
-                    console.log('\n\ngoing to notify north from  consumer route of store ', node.name);
-                    notifyNorth();
 
+                    console.log('\n\ngoing to notify north from  consumer route of store ', node.name);
+                    notifyNorth(southIps);
+                    //TODO add notifySouth
                     //southStoreConsumers:(localStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)');
                     //store in table- the consumer name
                     res.send('hello world'); //TODO this will be a NAK/ACK
