@@ -29,8 +29,8 @@ module.exports = function (RED) {
         this.name = config.name;
         this.notifyInterval = config.notifyInterval;
         this.functions = config.functions;
-        this.northPeers = config.headers;
-        this.southPeers = null; //todo each store should notify its north peer once when it comes up- thats how southPeers will be populated
+        this.northPeers = config.headers; //todo validation in ui to prevent multiple norths with same ip:port
+        this.southPeers = []; //todo each store should notify its north peer once when it comes up- that's how southPeers will be populated
         console.log('northPeers:', this.northPeers);
         const node = this;
         const insertStoreSql = 'INSERT INTO stores("' + node.name + '")';
@@ -38,21 +38,21 @@ module.exports = function (RED) {
         alasql(insertStoreSql); //todo move this to success handler of get store name request above
         // Insert my own store name as a special service, it allows the stores to learn about each other with notifies without having a local consumer registered
 // TODO add this back if needed- may not be needed if we store this in the stores table
-/*
-        const insertMeIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.name + '","#' + node.name + '")';
-        alasql(insertMeIntoConsumerSql);
-*/
+        /*
+                const insertMeIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.name + '","#' + node.name + '")';
+                alasql(insertMeIntoConsumerSql);
+        */
 
-        function notify(ip, port, ipTrail) { //todo add northips
-//TODO send the local consumer list plus south consumers to north/parent store
-            if(!ipTrail){
+        function notifyPeerStoreOfConsumers(ip, port, ipTrail) {
+            //todo add northips //TODO send the local consumer list plus south consumers to north/parent store
+            if (!ipTrail) {
                 ipTrail = [];
             }
-            if(ipTrail.includes(ip+':'+port)){ //loop in notifications- dont send it
-                console.log('not notifying as ip:port ', ip+':'+port, ' is present in ipTrail:', ipTrail);
+            if (ipTrail.includes(ip + ':' + port)) { //loop in notifications- dont send it
+                console.log('not notifying as ip:port ', ip + ':' + port, ' is present in ipTrail:', ipTrail);
                 return;
-            }else{
-                ipTrail.push(ip+':'+port);
+            } else {
+                ipTrail.push(ip + ':' + port);
             }
             //first get distinct local consumers
             console.log('\nin notifyNorth function of ', node.name);
@@ -64,15 +64,15 @@ module.exports = function (RED) {
             console.log(' south consumers are:', southConsumers);
             const allConsumers = localConsumers.concat(southConsumers); //todo filter this for unique consumers
             //todo also append northConsumers
-            const body = {
-                consumers: allConsumers,
-                notifyType: 'consumerRegistration',
-                southStoreName: node.name,
-                southStoreAddress: node.listenAddress,
-                southStorePort: node.listenPort,
-                southIps: ipTrail
-            };
-            if (ip !== '0.0.0.0') {
+            if (ip && ip !== '0.0.0.0') {
+                const body = {
+                    consumers: allConsumers,
+                    notifyType: 'consumerRegistration',
+                    southStoreName: node.name,
+                    southStoreAddress: node.listenAddress,
+                    southStorePort: node.listenPort,
+                    southIps: ipTrail
+                };
                 console.log('going to post to:', 'https://' + ip + ':' + port + '/notify');
                 console.log('the body being posted is:', JSON.stringify(body, null, 2));
                 const options = {
@@ -82,7 +82,10 @@ module.exports = function (RED) {
                     json: true
                 };
                 request(options, function (error, response, body) {
-                    if (error) throw new Error(error);
+                    if (error) {
+                        console.log('\n\n\n\n\n\n\n\n########\ngoing to throw error for request:', options);
+                        throw new Error(error);
+                    }
                     console.log(body);
                 });
             } else {
@@ -90,15 +93,17 @@ module.exports = function (RED) {
             }
         }
 
-        function notifyNorth(southIps) {
-            node.northPeers.forEach(peer=>{
-                notify(peer.ip, peer.port, southIps);
+        function notifyNorthStoreOfConsumers(southIps) {
+            node.northPeers.forEach(peer => {
+                console.log('north: going to call notifyPeerStoreOfConsumers peer:', peer, 'southIps:', southIps);
+                notifyPeerStoreOfConsumers(peer.ip, peer.port, southIps);
             });
         }
 
-        function notifySouth(){ //todo call this whenever notify north is called
-            node.southPeers.forEach(peer=>{
-                notify(peer.ip, peer.port);
+        function notifySouthStoreOfConsumers(northIps) { //todo call this whenever notify north is called
+            node.southPeers.forEach(peer => {
+                console.log('south: going to call notifyPeerStoreOfConsumers peer:', peer, 'southIps:', northIps);
+                notifyPeerStoreOfConsumers(peer.ip, peer.port, northIps);
             });
         }
 
@@ -125,7 +130,8 @@ module.exports = function (RED) {
             };
             alasql.fn[registerConsumerTriggerName] = () => {
                 console.log('going to call notifyNorth in consumer trigger of store ', node.name);
-                notifyNorth();
+                notifyNorthStoreOfConsumers();
+                notifySouthStoreOfConsumers();
             };
 
             const createNewMsgTriggerSql = 'CREATE TRIGGER ' + newMsgTriggerName +
@@ -168,6 +174,15 @@ module.exports = function (RED) {
                     const southStoreName = req.body.southStoreName;
                     const southStoreAddress = req.body.southStoreAddress;
                     const southStorePort = req.body.southStorePort;
+
+                    //register this as a south store if it is not already in list
+
+                    if (southStoreAddress && southStorePort) {
+                        if (!node.southPeers.includes(southStoreAddress + ':' + southStorePort)) {
+                            node.southPeers.push(southStoreAddress + ':' + southStorePort);
+                        }
+                    }
+
                     const southIps = req.body.southIps;
                     console.log('the southIps trail is:', southIps);
                     //delete entries from table before adding them back
@@ -191,7 +206,8 @@ module.exports = function (RED) {
                     });
 
                     console.log('\n\ngoing to notify north from  consumer route of store ', node.name);
-                    notifyNorth(southIps);
+                    notifyNorthStoreOfConsumers(southIps);
+                    notifySouthStoreOfConsumers(southIps);
                     //TODO add notifySouth
                     //southStoreConsumers:(localStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)');
                     //store in table- the consumer name
@@ -227,7 +243,8 @@ module.exports = function (RED) {
                 alasql(insertSouthConsumersSql);
             });
             console.log('\n\ngoing to notify north from  consumer route of store ', node.name);
-            notifyNorth();
+            notifyNorthStoreOfConsumers();
+            notifySouthStoreOfConsumers()
             //southStoreConsumers:(localStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)');
             //store in table- the consumer name
             res.send('hello world'); //TODO this will be a NAK/ACK
