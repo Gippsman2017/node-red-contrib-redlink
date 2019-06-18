@@ -21,6 +21,10 @@ module.exports = function (RED) {
     console.log('created tables...');
 
     function RedLinkStore(config) {
+        const notifyDirections = {
+            NORTH: 'north',
+            SOUTH: 'south'
+        };
         RED.nodes.createNode(this, config);
         this.listenAddress = config.listenAddress;
         this.listenPort = config.listenPort;
@@ -43,7 +47,33 @@ module.exports = function (RED) {
                 alasql(insertMeIntoConsumerSql);
         */
 
-        function notifyPeerStoreOfConsumers(ip, port, ipTrail) {
+        function getConsumersOfType(consumerDirection) {
+            switch (consumerDirection) {
+                case notifyDirections.NORTH:
+                    const southConsumersSql = 'SELECT DISTINCT southConsumerName FROM southStoreConsumers WHERE localStoreName="' + node.name + '"';//southStoreConsumers (localStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)')
+                    return alasql(southConsumersSql);
+                case notifyDirections.SOUTH:
+                    const northConsumersSql = 'SELECT DISTINCT northConsumerName FROM northStoreConsumers WHERE localStoreName="' + node.name + '"';//northStoreConsumers (localStoreName STRING, northConsumerName STRING, northStoreName STRING, northStoreIp STRING, northStorePort INT)')
+                    return alasql(northConsumersSql);
+                default:
+                    throw new Error('consumerDirection must be specified');
+
+            }
+        }
+
+        function getBody(allConsumers, ipTrail, notifyDirection) {
+            return {
+                consumers: allConsumers,
+                notifyType: 'consumerRegistration',
+                storeName: node.name,
+                storeAddress: node.listenAddress,
+                storePort: node.listenPort,
+                ips: ipTrail,
+                notifyDirection
+            };
+        }
+
+        function notifyPeerStoreOfConsumers(ip, port, ipTrail, notifyDirection) {
             //todo add northips //TODO send the local consumer list plus south consumers to north/parent store
             if (!ipTrail) {
                 ipTrail = [];
@@ -59,20 +89,11 @@ module.exports = function (RED) {
             const localConsumersSql = 'SELECT DISTINCT serviceName FROM localStoreConsumers WHERE storeName="' + node.name + '"';
             const localConsumers = alasql(localConsumersSql);
             console.log('local consumers are:', localConsumers);
-            const southConsumersSql = 'SELECT DISTINCT southConsumerName FROM southStoreConsumers WHERE localStoreName="' + node.name + '"';//southStoreConsumers (localStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)')
-            const southConsumers = alasql(southConsumersSql);
-            console.log(' south consumers are:', southConsumers);
-            const allConsumers = localConsumers.concat(southConsumers); //todo filter this for unique consumers
-            //todo also append northConsumers
+            const consumers = getConsumersOfType(notifyDirection);
+            console.log(notifyDirection + '  consumers are:', consumers);
+            const allConsumers = localConsumers.concat(consumers); //todo filter this for unique consumers
             if (ip && ip !== '0.0.0.0') {
-                const body = {
-                    consumers: allConsumers,
-                    notifyType: 'consumerRegistration',
-                    southStoreName: node.name,
-                    southStoreAddress: node.listenAddress,
-                    southStorePort: node.listenPort,
-                    southIps: ipTrail
-                };
+                const body = getBody(allConsumers, ipTrail, notifyDirection);
                 console.log('going to post to:', 'https://' + ip + ':' + port + '/notify');
                 console.log('the body being posted is:', JSON.stringify(body, null, 2));
                 const options = {
@@ -83,8 +104,8 @@ module.exports = function (RED) {
                 };
                 request(options, function (error, response, body) {
                     if (error) {
-                        console.log('\n\n\n\n\n\n\n\n########\ngoing to throw error for request:', options);
-                        throw new Error(error);
+                        console.log('\n\n\n\n\n\n\n\n########\ngot error for request:', options);
+                        console.log(error); //todo retry???
                     }
                     console.log(body);
                 });
@@ -96,14 +117,15 @@ module.exports = function (RED) {
         function notifyNorthStoreOfConsumers(southIps) {
             node.northPeers.forEach(peer => {
                 console.log('north: going to call notifyPeerStoreOfConsumers peer:', peer, 'southIps:', southIps);
-                notifyPeerStoreOfConsumers(peer.ip, peer.port, southIps);
+                notifyPeerStoreOfConsumers(peer.ip, peer.port, southIps, notifyDirections.NORTH);
             });
         }
 
-        function notifySouthStoreOfConsumers(northIps) { //todo call this whenever notify north is called
+        function notifySouthStoreOfConsumers(northIps) {
+            console.log('in notifySouthStoreOfConsumers node.southPeers:', node.southPeers);
             node.southPeers.forEach(peer => {
-                console.log('south: going to call notifyPeerStoreOfConsumers peer:', peer, 'southIps:', northIps);
-                notifyPeerStoreOfConsumers(peer.ip, peer.port, northIps);
+                console.log('south: going to call notifyPeerStoreOfConsumers peer:', peer, 'northIps:', northIps);
+                notifyPeerStoreOfConsumers(peer.ip, peer.port, northIps, notifyDirections.SOUTH);
             });
         }
 
@@ -129,7 +151,7 @@ module.exports = function (RED) {
                 // this.send([newMessages[0], null]);
             };
             alasql.fn[registerConsumerTriggerName] = () => {
-                console.log('going to call notifyNorth in consumer trigger of store ', node.name);
+                console.log('going to call notifyNorth, notifySouth in consumer trigger of store ', node.name);
                 notifyNorthStoreOfConsumers();
                 notifySouthStoreOfConsumers();
             };
@@ -168,46 +190,74 @@ module.exports = function (RED) {
             const notifyType = req.body.notifyType;
             switch (notifyType) {
                 case 'consumerRegistration' :
+
+
+                    /*
+                                        consumers: allConsumers,
+                                            notifyType: 'consumerRegistration',
+                                        storeName: node.name,
+                                        storeAddress: node.listenAddress,
+                                        storePort: node.listenPort,
+                                        ips: ipTrail,
+                                        notifyDirection
+                    */
+
+
                     console.log('CONSUMER REGISTRATION route');
                     console.log('\n------------------------------------------------------------------------------\nin register consumer route of store ', node.name);
                     console.log("req.body:", req.body);
-                    const southStoreName = req.body.southStoreName;
-                    const southStoreAddress = req.body.southStoreAddress;
-                    const southStorePort = req.body.southStorePort;
-
+                    const storeName = req.body.storeName;
+                    const storeAddress = req.body.storeAddress;
+                    const storePort = req.body.storePort;
+                    const notifyDirection = req.body.notifyDirection;
                     //register this as a south store if it is not already in list
 
-                    if (southStoreAddress && southStorePort) {
-                        if (!node.southPeers.includes(southStoreAddress + ':' + southStorePort)) {
-                            node.southPeers.push(southStoreAddress + ':' + southStorePort);
+                    if (notifyDirection === notifyDirections.NORTH && storeAddress && storePort) {
+                        console.log('here !@#$% node.southPeers:', node.southPeers, ' storeAddress:', storeAddress, ' storePort:', storePort);
+                        if (!node.southPeers.includes(storeAddress + ':' + storePort)) {
+                            node.southPeers.push(storeAddress + ':' + storePort);
+                            //notify south peer once it has been added so that it is up to date
+                            notifyPeerStoreOfConsumers(storeAddress, storePort, [], notifyDirections.SOUTH);
                         }
                     }
 
-                    const southIps = req.body.southIps;
-                    console.log('the southIps trail is:', southIps);
-                    //delete entries from table before adding them back
-                    console.log('\n**************************************\ndropping entries from southConsumers for store name: ', node.name);
-                    //************************ Fixed Store issues for south bound multiple stores
-                    // const deleteSouthConsumersSql = 'DELETE FROM southStoreConsumers WHERE localStoreName="' + node.name + '" and southStoreName="'+ southStoreName + '"';
-                    // alasql(deleteSouthConsumersSql);
-                    req.body.consumers.forEach(consumer => {
-                        const consumerName = consumer.serviceName || consumer.southConsumerName;
-                        const existingSouthConsumerSql = 'SELECT * FROM southStoreConsumers WHERE localStoreName="' + node.name + '" AND southConsumerName="' + consumerName + '"';
-                        console.log('existingSouthConsumerSql:', existingSouthConsumerSql);
-                        const existingSouthConsumer = alasql(existingSouthConsumerSql);
-                        console.log('existingSouthConsumer:', existingSouthConsumer);
-                        if (!existingSouthConsumer || existingSouthConsumer.length === 0) {
-                            const insertSouthConsumersSql = 'INSERT INTO southStoreConsumers("' + node.name + '","' + consumerName + '","' + southStoreName + '","' + southStoreAddress + '",' + southStorePort + ')';
-                            console.log('\n---------------------------------------------------\ninserting into southStoreConsumers sql:', insertSouthConsumersSql);
-                            alasql(insertSouthConsumersSql);
-                        } else {
-                            console.log('not ínserting into south consumers as existingSouthConsumer is:', existingSouthConsumer);
-                        }
-                    });
+                    const ips = req.body.ips;
+                    console.log('the ips trail is:', ips);
+                    if (notifyDirection === notifyDirections.NORTH) {
+                        req.body.consumers.forEach(consumer => {
+                            const consumerName = consumer.serviceName || consumer.southConsumerName || consumer.northConsumerName;
+                            const existingSouthConsumerSql = 'SELECT * FROM southStoreConsumers WHERE localStoreName="' + node.name + '" AND southConsumerName="' + consumerName + '"';
+                            console.log('existingSouthConsumerSql:', existingSouthConsumerSql);
+                            const existingSouthConsumer = alasql(existingSouthConsumerSql);
+                            console.log('existingSouthConsumer:', existingSouthConsumer);
+                            if (!existingSouthConsumer || existingSouthConsumer.length === 0) {
+                                const insertSouthConsumersSql = 'INSERT INTO southStoreConsumers("' + node.name + '","' + consumerName + '","' + storeName + '","' + storeAddress + '",' + storePort + ')';
+                                console.log('\n---------------------------------------------------\ninserting into southStoreConsumers sql:', insertSouthConsumersSql);
+                                alasql(insertSouthConsumersSql);
+                            } else {
+                                console.log('not ínserting into south consumers as existingSouthConsumer is:', existingSouthConsumer);
+                            }
+                        });
+                        notifyNorthStoreOfConsumers(ips);
+                    } else if (notifyDirection === notifyDirections.SOUTH) {
+                        req.body.consumers.forEach(consumer => {
+                            const consumerName = consumer.serviceName || consumer.southConsumerName || consumer.northConsumerName;
+                            const existingNorthConsumerSql = 'SELECT * FROM northStoreConsumers WHERE localStoreName="' + node.name + '" AND northConsumerName="' + consumerName + '"';
+                            console.log('existingNorthConsumerSql:', existingNorthConsumerSql);
+                            const existingNorthConsumer = alasql(existingNorthConsumerSql);
+                            console.log('existingNorthConsumer:', existingNorthConsumer);
+                            if (!existingNorthConsumer || existingNorthConsumer.length === 0) {
+                                const insertNorthConsumersSql = 'INSERT INTO northStoreConsumers("' + node.name + '","' + consumerName + '","' + storeName + '","' + storeAddress + '",' + storePort + ')';
+                                console.log('\n---------------------------------------------------\ninserting into northStoreConsumers sql:', insertNorthConsumersSql);
+                                alasql(insertNorthConsumersSql);
+                            } else {
+                                console.log('not ínserting into north consumers as existingnorthConsumer is:', existingNorthConsumer);
+                            }
+                        });
+                        notifySouthStoreOfConsumers(ips);
+                    }
 
                     console.log('\n\ngoing to notify north from  consumer route of store ', node.name);
-                    notifyNorthStoreOfConsumers(southIps);
-                    notifySouthStoreOfConsumers(southIps);
                     //TODO add notifySouth
                     //southStoreConsumers:(localStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)');
                     //store in table- the consumer name
@@ -244,24 +294,37 @@ module.exports = function (RED) {
             });
             console.log('\n\ngoing to notify north from  consumer route of store ', node.name);
             notifyNorthStoreOfConsumers();
-            notifySouthStoreOfConsumers()
+            notifySouthStoreOfConsumers();
             //southStoreConsumers:(localStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)');
             //store in table- the consumer name
             res.send('hello world'); //TODO this will be a NAK/ACK
         });
+
+        function getAllConsumers() {
+            const localConsumersSql = 'SELECT DISTINCT serviceName FROM localStoreConsumers WHERE storeName="' + node.name + '"';
+            console.log('onInputMsg localConsumersSql:', localConsumersSql);
+            const localConsumers = alasql(localConsumersSql);
+            console.log('onInputMsg of ', node.name, ' local consumers are:', localConsumers);
+            const southConsumersSql = 'SELECT DISTINCT southConsumerName FROM southStoreConsumers WHERE localStoreName="' + node.name + '"';//southStoreConsumers (localStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)')
+            console.log('onInputMsg southConsumersSql:', southConsumersSql);
+            const distinctSouthConsumers = alasql(southConsumersSql);
+            const northConsumersSql = 'SELECT DISTINCT northConsumerName FROM northStoreConsumers WHERE localStoreName="' + node.name + '"';
+            console.log('onInputMsg northConsumersSql:', northConsumersSql);
+            const distinctNorthConsumers = alasql(northConsumersSql);
+            console.log('onInputMsg of ', node.name, ' distinct north consumers are:', distinctNorthConsumers);
+            // const allSouthConsumersforAllStoresSql = 'SELECT * FROM southStoreConsumers'; /*WHERE storeName="' + node.name + '"*/
+            // console.log('\n\nallSouthConsumersforAllStoresSql:',alasql(allSouthConsumersforAllStoresSql));
+            return {
+                localConsumers,
+                southConsumers: distinctSouthConsumers,
+                northConsumers: distinctNorthConsumers
+            };
+        }
+
         this.on("input", msg => {
             if (msg && msg.cmd === 'listConsumers') {
-                const localConsumersSql = 'SELECT DISTINCT serviceName FROM localStoreConsumers WHERE storeName="' + node.name + '"';
-                console.log('onInputMsg localConsumersSql:', localConsumersSql);
-                const localConsumers = alasql(localConsumersSql);
-                console.log('onInputMsg of ', node.name, ' local consumers are:', localConsumers);
-                const southConsumersSql = 'SELECT DISTINCT southConsumerName FROM southStoreConsumers WHERE localStoreName="' + node.name + '"';//southStoreConsumers (localStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)')
-                console.log('onInputMsg southConsumersSql:', southConsumersSql);
-                const distinctSouthConsumers = alasql(southConsumersSql);
-                console.log('onInputMsg of ', node.name, ' distinct south consumers are:', distinctSouthConsumers);
-                // const allSouthConsumersforAllStoresSql = 'SELECT * FROM southStoreConsumers'; /*WHERE storeName="' + node.name + '"*/
-                // console.log('\n\nallSouthConsumersforAllStoresSql:',alasql(allSouthConsumersforAllStoresSql));
-                this.send({localConsumers, southConsumers: distinctSouthConsumers});
+                const allConsumers = getAllConsumers();
+                this.send(allConsumers);
             }
             //todo what messages should we allow? register and notify are handled via endpoints
         });
@@ -323,7 +386,7 @@ module.exports = function (RED) {
             const deleteConsumerSql = 'DELETE FROM localStoreConsumers WHERE storeName="' + this.consumerStoreName + +'"' + 'AND serviceName="' + this.name + '"';
             alasql(deleteConsumerSql); //can have multiple consumers with same name registered to the same store
             console.log('removed consumer from local store...');
-            //TODO use the getlocalAndSouthConsumers function
+            //TODO use the getlocalNorthSouthConsumers function
             const localConsumersSql = 'SELECT * FROM localStoreConsumers';
             const localConsumers = alasql(localConsumersSql);
             console.log('all local consumers are:', localConsumers);
@@ -380,14 +443,14 @@ module.exports = function (RED) {
     RED.httpAdmin.get("/consumers", function (req, res) {
         const producerName = req.query.producer;
         const store = req.query.store;
-        let responseJson = getlocalAndSouthConsumers(store);
+        let responseJson = getlocalNorthSouthConsumers(store);
         if (!store) { //shouldnt happen- nothing we can do
             console.log('no store selected for producer- not populating consumers ');
         }
         res.json(responseJson);
     });
 
-    function getlocalAndSouthConsumers(storeName) {
+    function getlocalNorthSouthConsumers(storeName) {
         if (!storeName) {
             return {};
         }
@@ -396,12 +459,14 @@ module.exports = function (RED) {
         console.log('local consumers are:', localConsumers);
         const southConsumersSql = 'SELECT DISTINCT southConsumerName FROM southStoreConsumers WHERE localStoreName="' + storeName + '"';//southStoreConsumers (localStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)')
         const southConsumers = alasql(southConsumersSql);
-        console.log(' south consumers are:', southConsumers);
-        const allConsumers = localConsumers.concat(southConsumers); //todo filter this for unique consumers
+        const northConsumersSql = 'SELECT DISTINCT northConsumerName FROM northStoreConsumers WHERE localStoreName="' + storeName + '"';//southStoreConsumers (localStoreName STRING, southConsumerName STRING, southStoreName STRING, southStoreIp STRING, southStorePort INT)')
+        const northConsumers = alasql(northConsumersSql);
+        console.log(' south consumers are:', southConsumers, ' north consumers are:', northConsumers);
+        const allConsumers = localConsumers.concat(southConsumers).concat(northConsumers); //todo filter this for unique consumers
         console.log('in get allconsumers going to return', JSON.stringify(allConsumers, null, 2));
         let consumersArray = [];
         allConsumers.forEach(consumer => {
-            consumersArray.push(consumer.serviceName || consumer.southConsumerName);
+            consumersArray.push(consumer.serviceName || consumer.southConsumerName || consumer.northConsumerName);
         });
         return consumersArray;
     }
