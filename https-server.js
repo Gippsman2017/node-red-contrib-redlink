@@ -15,9 +15,12 @@ module.exports.startServer = function (port) {
         server = https.createServer({
             key: pems.private,
             cert: pems.cert
-        }, app);
+        }, app).listen(port).on( 'error', function (e) {
+            if (e.code === 'EADDRINUSE') {
+                console.log('Address in use');
+            }
+        });
         // server.maxConnections = 3;
-        server.listen(port);
         return server;
     } catch (e) {
         console.log(e); //todo error handling
