@@ -90,6 +90,12 @@
 
             var headerList = $("#node-input-headers-container").css('min-height', '150px').css('min-width', '450px').editableList({
                 addItem: function (container, i, header) {
+                    if(!header.h){
+                        header.h = '127.0.0.1';
+                    }
+                    if(!header.v){ //todo confirm with John
+                        header.v = '443';
+                    }
                     var row = $('<div/>').css({
                         overflow: 'hidden',
                         whiteSpace: 'nowrap'
