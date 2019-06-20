@@ -1,7 +1,62 @@
+<script type="text/javascript">
+    const outputNames = {
+        receive: 'Receive',
+        manual: 'Manual Notify',
+        failure: 'Failure',
+        stats: 'Stats',
+        debug: 'Debug'
+    };
+
+    function getOutputs(receive, manual, failure, stats, debug) {
+        const outputs = [];
+        if (receive) {
+            outputs.push(outputNames.receive);
+        }
+        if (manual) {
+            outputs.push(outputNames.manual);
+        }
+        if (failure) {
+            outputs.push(outputNames.failure);
+        }
+        if (stats) {
+            outputs.push(outputNames.stats);
+        }
+        if (debug) {
+            outputs.push(outputNames.debug);
+        }
+        return outputs;
+    }
+
+    function getRandomNumber() {
+        return Math.floor((0x99999 - 0x10000) * Math.random()).toString(16);
+    }
+
+    //see https://github.com/node-red/node-red/wiki/Design:-Editable-port-labels
+    function getNodeRedOutputObject(existingOutputs, newOutputs) {
+        console.log('existingOutputs:', existingOutputs, 'newOutputs:', newOutputs);
+        const nodeRedOutputObject = {};
+        //possible scenarios:
+        //1. output position remains the same
+        //2. output is reordered
+        //3. output removed
+        //4. output added
+        existingOutputs.forEach((existingOutput, index)=>{ // handle cases 1, 2, 3
+            nodeRedOutputObject[index] = newOutputs.indexOf(existingOutput);
+        });
+        newOutputs.forEach((newOutput, index)=> { // handle case 4
+            if(existingOutputs.indexOf(newOutput) === -1){ //newly added
+                nodeRedOutputObject[getRandomNumber()] = index;
+            }
+        });
+        return nodeRedOutputObject;
+    }
+</script>
+
 <script type="text/x-red" data-template-name="redlink store">
     <div class="form-row">
         <label for="node-input-name"><i class="icon-tag"></i> Store Name </label>
         <input type="text" id="node-input-name" placeholder="Store Name">
+
     </div>
 
     <div class="form-row">
@@ -233,6 +288,8 @@
     <div class="form-row">
         <label for="node-input-name"><i class="icon-tag"></i> Name </label>
         <input type="text" id="node-input-name" placeholder="name">
+                        <input type="hidden" id="node-input-outputs"/>
+
     </div>
     <div class="form-row" id="producer-store-div">
         <label for="node-input-producerStoreName"><i class="fa fa-ellipsis-v"></i> Store Name</label>
@@ -245,18 +302,65 @@
         </select>
     </div>
     <div class="form-row">
-        <label for="node-input-producerTTL"><i class="fa fa-times"></i> TTL</label>
-        <input type="text" id="node-input-producerTTL" placeholder="TTL">
+        <label style="width:100%; border-bottom:1px solid #eee;"><span>Advanced</span></label>
+    </div>
+        <div class="form-row">
+        <label for="node-input-showStats"><i class="fa fa-bar-chart"></i> Show Stats</label>
+        <input type="checkbox" id="node-input-showStats">
+        <div class="form-row" id="stats-frequency">
+            <label for="node-input-statsFrequency">Emit stats every </label>
+            <input type="text" id="node-input-statsFrequency" placeholder="1" style="text-align:end; width:40px !important"> second(s)
+        </div>
+        <label for="node-input-showDebug"><i class="fa fa-stack-exchange"></i> Show Debug</label>
+        <input type="checkbox" id="node-input-showDebug">
+    </div>
+    <div class="form-row">
+        <label style="width:100%; border-bottom:1px solid #eee;"><em><span>Send</span></em></label>
+    </div>
+    <div class="form-row">
+        <label for="node-input-priority"><i class="fa fa-arrow-up"></i> Priority</label>
+        <input type="text" id="node-input-priority" style="width:30px; height:25px;"/>&nbsp;<br/>
+    </div>
+    <div class="form-row">
+        <label for="node-input-timeout"><i class="fa fa-times"></i> Timeout</label>
+        <input type="text" id="node-input-timeout" placeholder="Timeout">
+    </div>
+    <div class="form-row">
+        <label for="node-input-sendOnly"><i class="fa fa-angle-double-right"></i> Send Only</label>
+        <input type="checkbox" id="node-input-sendOnly" placeholder="Send Only">
+    </div>
+    <div class="form-row">
+        <label style="width:100%; border-bottom:1px solid #eee;"><em><span>Receive</span></em></label>
+    </div>
+    <div class="form-row">
+        <label for="node-input-manualRead"><i class="fa fa-male"></i> Manual Read</label>
+        <input type="checkbox" id="node-input-manualRead" placeholder="Manual Read">
+    </div>
+    <div id="rate-limit-send-receive">
+        <div class="form-row">
+            <label><i class="fa fa-sliders"></i> Rate Limit Received Messages</label>
+            <select id="node-input-rateTypeSendReceive" style="width:270px !important">
+                <option value="none" data-i18n="delay.limitall">None</option>
+                <option value="rateLimit" data-i18n="delay.limittopic">Rate Limit</option>
+            </select>
+        </div>
+        <div class="form-row" id="rate-limit-details-send-receive">
+            <label for="node-input-rate-send-receive">Rate<i class="fa fa-clock-o"></i> <span data-i18n="delay.rate"></span></label>
+            <input type="text" id="node-input-rateSendReceive" placeholder="1" style="text-align:end; width:40px !important">
+            <label for="node-input-rateUnitsSendReceive">msg(s) per<span data-i18n="delay.msgper"></span></label>
+            <input type="text" id="node-input-nbRateUnitsSendReceive" placeholder="1" style="text-align:end; width:40px !important">
+            <select id="node-input-rateUnitsSendReceive" style="width:90px !important">
+              <option value="second" data-i18n="delay.label.units.second.singular">Seconds</option>
+              <option value="minute" data-i18n="delay.label.units.minute.singular">Minutes</option>
+              <option value="hour" data-i18n="delay.label.units.hour.singular">Hours</option>
+              <option value="day" data-i18n="delay.label.units.day.singular">Days</option>
+            </select>
+        </div>
     </div>
     <div class="form-row">
         <label for="node-input-producerETT"><i class="fa fa-times"></i> ETT</label>
         <input type="text" id="node-input-producerETT" placeholder="ETT">
     </div>
-
-
-
-
-
 </script>
 
 <script type="text/javascript">
@@ -270,7 +374,34 @@
             producerStoreName: {value: '', required: true},
             producerConsumer: {value: '', required: true},
             producerTTL: {value: 15, required: true},
-            producerETT: {value: 5 * 60, required: true}
+            producerETT: {value: 5 * 60, required: true},
+
+            priority: {value: 0},
+            timeout: {value: -1},//TODO check with John,
+            sendOnly: {value: false},
+            manualRead: {value: false},
+            rateTypeSendReceive: {value: "none"},
+            rateSendReceive: {value: 1},
+            rateUnitsSendReceive: {value: "second"},
+            nbRateUnitsSendReceive: {value: ''},
+            server: {value: "tcp://localhost:9660"},
+            topic: {value: ""},
+            cmd: {value: "send"},
+            private: {value: false},
+            ttl: {value: null},
+            tba: {value: null},
+            showStats: {value: false},
+            statsFrequency: {
+                value: 0, validate: function (v) {
+                    return RED.validators.number(v) && (v >= 0);
+                }
+            },
+            showDebug: {value: false},
+            outputs: {value: 2},
+        },
+        outputLabels: function (index) {
+            var labels = getOutputs(!this.sendOnly, this.manualRead, true, this.showStats, this.showDebug);
+            return labels[index];
         },
         icon: "file.png",
         label: function () {
@@ -279,10 +410,23 @@
         labelStyle: function () {
             return this.name ? "node_label_italic" : "";
         },
-
+        oneditsave: function(){
+            let newShowReceive = !$('#node-input-sendOnly').is(":checked");
+            let newManualRead = $('#node-input-manualRead').is(":checked");
+            let newShowStats = $('#node-input-showStats').is(":checked");
+            let newShowDebug = $('#node-input-showDebug').is(":checked");
+            console.log('going to call getoutputs for existing ports with receive: ', !this.sendOnly, 'manual:', this.manualRead, 'true(fail), stats:', this.showStats, 'showDebug:', this.showDebug);
+            const existingOutputs = getOutputs(!this.sendOnly, this.manualRead, true, this.showStats, this.showDebug);
+            console.log('going to call getoutputs for new with receive: ', newShowReceive, 'manual:', newManualRead, 'true(fail), stats:', newShowStats, 'showDebug:', newShowDebug);
+            const newOutputs = getOutputs(newShowReceive, newManualRead, true, newShowStats, newShowDebug);
+            var nodeRedOutputsObject = getNodeRedOutputObject(existingOutputs, newOutputs);
+            $("#node-input-outputs").val(JSON.stringify(nodeRedOutputsObject));
+            console.log('\n\n\n\n\n on editsave val of $("#node-input-outputs"):', $("#node-input-outputs").val());
+        },
         oneditprepare: function () {
             const selectedStore = this.producerStoreName;
             console.log('selectedStore:', selectedStore);
+
             let storesElement = $("#node-input-producerStoreName");
             $.getJSON('store-names', function (stores) {
                 console.log('\n\n\n\nstores from get call:', stores);
@@ -295,6 +439,14 @@
                     }));
                 });
             });
+            $('#node-input-rateTypeSendReceive').change(function () {
+                if (this.value === 'none') {
+                    $('#rate-limit-details-send-receive').hide();
+                } else if (this.value === 'rateLimit') {
+                    $('#rate-limit-details-send-receive').show();
+                }
+            });
+
             const selectedConsumer = this.producerConsumer;
             console.log('selectedStore:', selectedStore);
             let consumerElement = $("#node-input-producerConsumer");
@@ -316,6 +468,20 @@
                     });
                 });
             });
+            if (this.showStats) {
+                $('#stats-frequency').show();
+            } else {
+                $('#stats-frequency').hide();
+            }
+            $('#node-input-showStats').click(function () {
+                console.log('this.checked:', this.checked);
+                if (this.checked) {
+                    $('#stats-frequency').show();
+                } else {
+                    $('#stats-frequency').hide();
+                }
+            });
+
         }
     });
 </script>
