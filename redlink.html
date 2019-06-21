@@ -40,11 +40,11 @@
         //2. output is reordered
         //3. output removed
         //4. output added
-        existingOutputs.forEach((existingOutput, index)=>{ // handle cases 1, 2, 3
+        existingOutputs.forEach((existingOutput, index) => { // handle cases 1, 2, 3
             nodeRedOutputObject[index] = newOutputs.indexOf(existingOutput);
         });
-        newOutputs.forEach((newOutput, index)=> { // handle case 4
-            if(existingOutputs.indexOf(newOutput) === -1){ //newly added
+        newOutputs.forEach((newOutput, index) => { // handle case 4
+            if (existingOutputs.indexOf(newOutput) === -1) { //newly added
                 nodeRedOutputObject[getRandomNumber()] = index;
             }
         });
@@ -81,6 +81,7 @@
         <input type="hidden" id="node-input-functions" autofocus="autofocus">
     </div>
 
+
 </script>
 
 <script type="text/x-red" data-help-name="redlink store"></script>
@@ -93,18 +94,18 @@
         return RED.validators.number(port) && (port >= 0);
     };
 
-    var headerTypes = [
-        {value:"other",label:RED._("node-red:httpin.label.other"),icon:"red/images/typedInput/az.png"}
-    ]
-    var contentTypes = [
-        {value:"application/json",label:"application/json",hasValue: false},
-        {value:"application/xml",label:"application/xml",hasValue: false},
-        {value:"text/css",label:"text/css",hasValue: false},
-        {value:"text/html",label:"text/html",hasValue: false},
-        {value:"text/plain",label:"text/plain",hasValue: false},
-        {value:"image/gif",label:"image/gif",hasValue: false},
-        {value:"image/png",label:"image/png",hasValue: false},
-        {value:"other",label:RED._("node-red:httpin.label.other"),icon:"red/images/typedInput/09.png"}
+    var headerTypes = [ //TODO clean this up- copied from http-node most of these are not used
+        {value: "other", label: RED._("node-red:httpin.label.other"), icon: "red/images/typedInput/az.png"}
+    ];
+    var contentTypes = [ //TODO clean this up- copied from http-node most of these are not used
+        {value: "application/json", label: "application/json", hasValue: false},
+        {value: "application/xml", label: "application/xml", hasValue: false},
+        {value: "text/css", label: "text/css", hasValue: false},
+        {value: "text/html", label: "text/html", hasValue: false},
+        {value: "text/plain", label: "text/plain", hasValue: false},
+        {value: "image/gif", label: "image/gif", hasValue: false},
+        {value: "image/png", label: "image/png", hasValue: false},
+        {value: "other", label: RED._("node-red:httpin.label.other"), icon: "red/images/typedInput/09.png"}
     ];
 
     RED.nodes.registerType('redlink store', {
@@ -125,7 +126,7 @@
             peerPort: {
                 value: 443, required: true, validate: validatePositiveNumber
             },
-            headers: {value:{}},
+            headers: {value: {}},
             name: {value: 'Store Name', required: true},
             notifyInterval: {value: 15, required: true/*, validate: validatePositiveNumber*/}
         },
@@ -145,10 +146,10 @@
 
             var headerList = $("#node-input-headers-container").css('min-height', '150px').css('min-width', '450px').editableList({
                 addItem: function (container, i, header) {
-                    if(!header.h){
+                    if (!header.h) {
                         header.h = '127.0.0.1';
                     }
-                    if(!header.v){ //todo confirm with John
+                    if (!header.v) { //todo confirm with John
                         header.v = '443';
                     }
                     var row = $('<div/>').css({
@@ -231,7 +232,7 @@
             });
 
             if (this.headers) {
-                this.headers.forEach((header)=>{
+                this.headers.forEach((header) => {
                     const ip = header.ip;
                     const port = header.port;
                     headerList.editableList('addItem', {h: ip, v: port});
@@ -361,6 +362,7 @@
         <label for="node-input-producerETT"><i class="fa fa-times"></i> ETT</label>
         <input type="text" id="node-input-producerETT" placeholder="ETT">
     </div>
+
 </script>
 
 <script type="text/javascript">
@@ -410,7 +412,7 @@
         labelStyle: function () {
             return this.name ? "node_label_italic" : "";
         },
-        oneditsave: function(){
+        oneditsave: function () {
             let newShowReceive = !$('#node-input-sendOnly').is(":checked");
             let newManualRead = $('#node-input-manualRead').is(":checked");
             let newShowStats = $('#node-input-showStats').is(":checked");
@@ -426,12 +428,15 @@
         oneditprepare: function () {
             const selectedStore = this.producerStoreName;
             console.log('selectedStore:', selectedStore);
-
             let storesElement = $("#node-input-producerStoreName");
+            let selectionSet = false;
             $.getJSON('store-names', function (stores) {
                 console.log('\n\n\n\nstores from get call:', stores);
                 $.each(stores, function (index, obj) {
                     console.log('index:', index, ' obj:', obj);
+                    if (selectedStore === obj) {
+                        selectionSet = true;
+                    }
                     storesElement.append($('<option>', {
                         value: obj,
                         text: obj,
@@ -439,6 +444,14 @@
                     }));
                 });
             });
+            if (!selectionSet) {
+                console.log(' selection not set for stores in producer- going to select element at zero');
+                // $("#node-input-producerStoreName").prop("selectedIndex", 0);
+                $("#node-input-producerStoreName option:first").attr('selected','selected');
+                console.log('after settign selected to zero, the selected store in producer is:', $("#node-input-producerStoreName").children("option:selected").val());
+                repopulateConsumers();
+            }
+
             $('#node-input-rateTypeSendReceive').change(function () {
                 if (this.value === 'none') {
                     $('#rate-limit-details-send-receive').hide();
@@ -449,9 +462,10 @@
 
             const selectedConsumer = this.producerConsumer;
             console.log('selectedStore:', selectedStore);
-            let consumerElement = $("#node-input-producerConsumer");
 
-            $("#node-input-producerStoreName").change(() => {
+            function repopulateConsumers() {
+                console.log('in repopulateConsumers the selected producerStoreName is:', $("#node-input-producerStoreName").children("option:selected").val());
+                let consumerElement = $("#node-input-producerConsumer");
                 consumerElement.find('option').remove().end();
                 console.log("Handler for .change() called.");
                 // console.log('value of node-input-producerStoreName:', );
@@ -467,6 +481,10 @@
                         }));
                     });
                 });
+            }
+
+            $("#node-input-producerStoreName").change(() => {
+                repopulateConsumers();
             });
             if (this.showStats) {
                 $('#stats-frequency').show();
@@ -559,6 +577,7 @@
 
 
 
+
 </script>
 
 <script type="text/javascript">
@@ -627,6 +646,11 @@
                     $('#rate-limit-details-receive-send').show();
                 }
             });
+            if (this.rateTypeReceiveSend) {
+                $('#rate-limit-details-receive-send').show();
+            } else {
+                $('#rate-limit-details-receive-send').hide();
+            }
             if (this.showStatsReceiveSend) {
                 $('#stats-frequency-receive-send').show();
             } else {
@@ -641,7 +665,7 @@
             });
 
         },
-        oneditsave: function(){
+        oneditsave: function () {
             const newManualRead = $('#node-input-manualReadReceiveSend').is(":checked");
             const newShowStats = $('#node-input-showStatsReceiveSend').is(":checked");
             const newShowDebug = $('#node-input-showDebugReceiveSend').is(":checked");
@@ -666,6 +690,7 @@
         <select id="node-input-replyStoreName">
         </select>
     </div>
+
 
 
 
