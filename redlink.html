@@ -496,6 +496,66 @@
         <select id="node-input-consumerStoreName">
         </select>
     </div>
+    </div>
+    <hr align="middle"/>
+    <div class="form-row">
+        <label style="width:100%; border-bottom:1px solid #eee;"><span>Advanced</span></label>
+    </div>
+    <div class="form-row">
+        <label for="node-input-showStatsReceiveSend"><i class="fa fa-bar-chart"></i> Show Stats</label>
+        <input type="checkbox" id="node-input-showStatsReceiveSend">
+        <div class="form-row" id="stats-frequency-receive-send">
+            <label for="node-input-statsFrequencyReceiveSend">Emit stats every </label>
+            <input type="text" id="node-input-statsFrequencyReceiveSend" placeholder="1" style="text-align:end; width:40px !important"> second(s)
+        </div>
+        <label for="node-input-showDebugReceiveSend"><i class="fa fa-stack-exchange"></i> Show Debug</label>
+        <input type="checkbox" id="node-input-showDebugReceiveSend">
+    </div>
+    <div class="form-row">
+        <label style="width:100%; border-bottom:1px solid #eee;"><em><span>Receive</span></em></label>
+    </div>
+        <div class="form-row" id="inTransitLimitBlock">
+        <label for="node-input-intransit"><i class="fa fa-plane"></i> In Transit Limit</label>
+        <input type="text" id="node-input-intransit" placeholder="In Transit Limit">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-manualReadReceiveSend"><i class="fa fa-male"></i> Manual Read</label>
+        <input type="checkbox" id="node-input-manualReadReceiveSend" placeholder="Manual Read">
+    </div>
+
+    <div id="rate-limit-receive-send">
+        <div class="form-row">
+            <label><i class="fa fa-sliders"></i> Rate Limit Received Messages</label>
+            <select id="node-input-rateTypeReceiveSend" style="width:270px !important">
+                <option value="none" data-i18n="delay.limitall">None</option>
+                <option value="rateLimit" data-i18n="delay.limittopic">Rate Limit</option>
+            </select>
+        </div>
+        <div class="form-row" id="rate-limit-details-receive-send">
+            <label for="node-input-rate-receive-send">Rate<i class="fa fa-clock-o"></i> <span data-i18n="delay.rate"></span></label>
+            <input type="text" id="node-input-rateReceiveSend" placeholder="1" style="text-align:end; width:40px !important">
+            <label for="node-input-rateUnitsReceiveSend">msg(s) per<span data-i18n="delay.msgper"></span></label>
+            <input type="text" id="node-input-nbRateUnitsReceiveSend" placeholder="1" style="text-align:end; width:40px !important">
+            <select id="node-input-rateUnitsReceiveSend" style="width:90px !important">
+              <option value="second" data-i18n="delay.label.units.second.singular">Seconds</option>
+              <option value="minute" data-i18n="delay.label.units.minute.singular">Minutes</option>
+              <option value="hour" data-i18n="delay.label.units.hour.singular">Hours</option>
+              <option value="day" data-i18n="delay.label.units.day.singular">Days</option>
+            </select>
+        </div>
+    </div>
+    <div class="form-row">
+        <label style="width:100%; border-bottom:1px solid #eee;"><em><span>Send</span></em></label>
+    </div>
+    <div class="form-row">
+        <label for="node-input-priorityReceiveSend"><i class="fa fa-sort"></i> Priority</label>
+        <input type="text" id="node-input-priorityReceiveSend" style="width:30px; height:25px;"/>&nbsp;<br/>
+    </div>
+    <div class="form-row">
+        <label for="node-input-timeoutReceiveSend"><i class="fa fa-hourglass-1"></i> Timeout</label>
+        <input type="text" id="node-input-timeoutReceiveSend" placeholder="Timeout">
+    </div>
 
 
 
@@ -510,6 +570,33 @@
         defaults: {
             name: {value: 'REDLink consumer', required: true},
             consumerStoreName: {value: '', required: true},
+            priorityReceiveSend: {value: 0},
+            timeoutReceiveSend: {value: -1},//TODO check with John,
+            intransit: {
+                value: 1, validate: function (v) {
+                    return RED.validators.number(v) && (v >= 0);
+                }
+            },
+            manualReadReceiveSend: {value: false},
+            rateTypeReceiveSend: {value: "none"},
+            rateReceiveSend: {value: 1},
+            rateUnitsReceiveSend: {value: "second"},
+            nbRateUnitsReceiveSend: {value: ''},
+            server: {value: "tcp://localhost:9660"},
+            topicReceiveSend: {value: ""},
+            cmd: {value: "read"},
+            showStatsReceiveSend: {value: false},
+            statsFrequencyReceiveSend: {
+                value: 0, validate: function (v) {
+                    return RED.validators.number(v) && (v >= 0);
+                }
+            },
+            showDebugReceiveSend: {value: false},
+            outputs: {value: 2}
+        },
+        outputLabels: function (index) {
+            var labels = getOutputs(true, this.manualReadReceiveSend, true, this.showStatsReceiveSend, this.showDebugReceiveSend);
+            return labels[index];
         },
         icon: "file.png",
         label: function () {
@@ -533,6 +620,38 @@
                     }));
                 });
             });
+            $('#node-input-rateTypeReceiveSend').change(function () {
+                if (this.value == 'none') {
+                    $('#rate-limit-details-receive-send').hide();
+                } else if (this.value == 'rateLimit') {
+                    $('#rate-limit-details-receive-send').show();
+                }
+            });
+            if (this.showStatsReceiveSend) {
+                $('#stats-frequency-receive-send').show();
+            } else {
+                $('#stats-frequency-receive-send').hide();
+            }
+            $('#node-input-showStatsReceiveSend').click(function () {
+                if (this.checked) {
+                    $('#stats-frequency-receive-send').show();
+                } else {
+                    $('#stats-frequency-receive-send').hide();
+                }
+            });
+
+        },
+        oneditsave: function(){
+            const newManualRead = $('#node-input-manualReadReceiveSend').is(":checked");
+            const newShowStats = $('#node-input-showStatsReceiveSend').is(":checked");
+            const newShowDebug = $('#node-input-showDebugReceiveSend').is(":checked");
+            const existingOutputs = getOutputs(true, this.manualReadReceiveSend, true, this.showStatsReceiveSend, this.showDebugReceiveSend);
+            const newOutputs = getOutputs(true, newManualRead, true, newShowStats, newShowDebug);
+            var nodeRedOutputsObject = getNodeRedOutputObject(existingOutputs, newOutputs);
+            $("#node-input-outputs").val(JSON.stringify(nodeRedOutputsObject));
+            console.log('\n\n\n\n\n on editsave val of $("#node-input-outputs"):', $("#node-input-outputs").val());
+            console.log('this.outputLabels:', this.outputLabels);
+
         }
     });
 </script>
