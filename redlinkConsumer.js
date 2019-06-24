@@ -23,8 +23,11 @@ module.exports.RedLinkConsumer = function (config) {
         ' AFTER INSERT ON notify CALL ' + newMsgNotifyTrigger + '()';
     console.log('the sql statement for adding trigger in consumer is:', createTriggerSql);
     alasql(createTriggerSql);
-    console.log('registered notify trigger for service ', this.name, ' in store ', this.consumerStoreName);
-    const insertIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + this.consumerStoreName + '","' + this.name + '")'; //localStoreConsumers (storeName STRING, serviceName STRING)'); //can have multiple consumers with same name registered to the same store
+    console.log('registered notify trigger (',createTriggerSql,') for service ', this.name, ' in store ', this.consumerStoreName);
+
+    //localStoreConsumers (storeName STRING, serviceName STRING)'); 
+    //can have multiple consumers with same name registered to the same store
+    const insertIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + this.consumerStoreName + '","' + this.name + '")'; 
     console.log('in consumer constructor sql to insert into localStoreConsumer is:', insertIntoConsumerSql);
     alasql(insertIntoConsumerSql);
     console.log('inserted consumer ', this.name, ' for store ', this.consumerStoreName);
@@ -42,9 +45,9 @@ module.exports.RedLinkConsumer = function (config) {
         const localConsumersSql = 'SELECT * FROM localStoreConsumers';
         const localConsumers = alasql(localConsumersSql);
         console.log('all local consumers are:', localConsumers);
-        const southConsumersSql = 'SELECT * FROM southStoreConsumers';
-        const southConsumers = alasql(southConsumersSql);
-        console.log(' south consumers are:', southConsumers);
+        const globalConsumersSql = 'SELECT * FROM globalStoreConsumers';
+        const globalConsumers = alasql(globalConsumersSql);
+        console.log(' Global consumers are:', globalConsumers);
         console.log();
         done();
     });

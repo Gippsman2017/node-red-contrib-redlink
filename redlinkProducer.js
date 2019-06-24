@@ -1,4 +1,5 @@
 const alasql = require('alasql');
+
 let RED;
 module.exports.initRED = function (_RED) {
     RED = _RED;
@@ -7,7 +8,7 @@ module.exports.initRED = function (_RED) {
 module.exports.RedLinkProducer = function (config) {
     RED.nodes.createNode(this, config);
     this.producerStoreName = config.producerStoreName;
-    this.producerConsumer = config.producerConsumer;
+    this.producerConsumer  = config.producerConsumer;
     var node = this;
     node.on("input", msg => {
         msg.msgid = RED.util.generateId();
