@@ -22,9 +22,8 @@ module.exports = function (RED) {
         alasql('CREATE TABLE inMessages (msgId STRING, storeName STRING, serviceName STRING, message STRING)');
         alasql('CREATE TABLE localStoreConsumers (storeName STRING, serviceName STRING)'); //can have multiple consumers with same name registered to the same store
         alasql('CREATE TABLE globalStoreConsumers (localStoreName STRING, globalConsumerName STRING, globalStoreName STRING, globalStoreIp STRING, globalStorePort INT)');
-        alasql('CREATE TABLE stores (storeName STRING)'); //todo other fields like listenip/port, north store?
+        alasql('CREATE TABLE stores (storeName STRING, storeAddress STRING, storePort INT)'); //todo other fields like listenip/port, north store?
         console.log('created tables...');
-
     }
 
     function registerNodeRedTypes() {

@@ -27,15 +27,16 @@ module.exports.RedLinkStore = function (config) {
     // console.log('northPeers:', this.northPeers);
 
     const node = this;
-    const insertStoreSql = 'INSERT INTO stores("' + node.name + '")';
+    const insertStoreSql = 'INSERT INTO stores("' + node.name + '","' + node.listenAddress + '",' + node.listenPort + ')';
     console.log('Creating Store and inserting store name ', node.name, ' in stores table');
     alasql(insertStoreSql);
-
+    const allStoresSql = 'SELECT * FROM stores';
+    console.log('after inserting store',node.name, ' in constructor the contents fo the stores table is:', alasql(allStoresSql));
     // const insertMeIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.name + '","#' + node.name + '")';
     // alasql(insertMeIntoConsumerSql);
 
 
-    function getConsumersOfType(consumerDirection) {
+    function getConsumersOfType() {
         const globalConsumersSql = 'SELECT DISTINCT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '"';
         return alasql(globalConsumersSql);
 /*
@@ -71,7 +72,7 @@ module.exports.RedLinkStore = function (config) {
                 const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND globalConsumerName="' + consumer.globalConsumerName + '"';
                 const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
                 const insertGlobalConsumersSql = 'INSERT INTO globalStoreConsumers("' +
-                    node.name + '","' + consumer.globalConsumerName + '","' + consumer.globalStoreName + '","' + consumer.globalStoreIp + '",' + consumer.globalStorePort + ')'
+                    node.name + '","' + consumer.globalConsumerName + '","' + consumer.globalStoreName + '","' + consumer.globalStoreIp + '",' + consumer.globalStorePort + ')';
                 if (!existingGlobalConsumer || existingGlobalConsumer.length === 0) {
                     console.log('Inserting into globalStoreConsumers sql:', insertGlobalConsumersSql);
                     alasql(insertGlobalConsumersSql);
@@ -79,6 +80,32 @@ module.exports.RedLinkStore = function (config) {
                     console.log('NOT inserting ', insertGlobalConsumersSql, ' into global consumers as existingGlobalConsumer is:', existingGlobalConsumer);
                 }
             });
+        }
+        if (body.localConsumers) {
+            body.localConsumers.forEach(consumer => {
+
+                const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND globalConsumerName="' + consumer.serviceName + '" AND globalStoreName="' + consumer.storeName + '"';
+                const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
+                if (!existingGlobalConsumer || existingGlobalConsumer.length === 0) {
+                    //get store ip and port
+                    const storeDetailsSql = 'SELECT * FROM stores WHERE storeName="'+ consumer.storeName +'"';
+                    const storeDetails = alasql(storeDetailsSql);
+                    console.log('\n\n\n\n when inserting local consumers the store details:', storeDetails);
+                    if(storeDetails && storeDetails[0]){
+                        const storeAddress = storeDetails[0].storeAddress;
+                        const storePort = storeDetails[0].storePort;
+                        const insertGlobalConsumersSql = 'INSERT INTO globalStoreConsumers("' +
+                            node.name + '","' + consumer.serviceName + '","' + consumer.storeName + '","' + storeAddress + '",' + storePort + ')';
+                        console.log('Inserting into globalStoreConsumers sql:', insertGlobalConsumersSql);
+                        alasql(insertGlobalConsumersSql);
+                    } else{
+                        console.log('!!!!!!!!!! not inserting local consumers from response as store details for ', consumer.storeName, ' could nto be found' );
+                    }
+                } else {
+                    console.log('NOT inserting ', consumer, ' into global consumers as existingGlobalConsumer is:', existingGlobalConsumer);
+                }
+            });
+
         }
     }
 
@@ -107,7 +134,7 @@ module.exports.RedLinkStore = function (config) {
                 globalStorePort: node.listenPort
             });
         });
-        const consumers = getConsumersOfType(notifyDirection);
+        const consumers = getConsumersOfType();
         console.log('ALL CONSUMERS NOTIFY (', node.name, ') ,LOCAL Consumers ARE:', localConsumers, '-', notifyDirection + '-Consumers are at:', consumers, ',', ip, ',', port, ',', ipTrail);
         const allConsumers = qualifiedLocalconsumers.concat(consumers); //todo filter this for unique consumers
         console.log('allComsumers=', allConsumers);
@@ -265,7 +292,7 @@ module.exports.RedLinkStore = function (config) {
 
                 const localConsumersSql = 'SELECT DISTINCT * FROM localStoreConsumers WHERE storeName ="' + node.name + '"';
                 const localConsumers = alasql(localConsumersSql);
-                const consumers = getConsumersOfType(notifyDirection);
+                const consumers = getConsumersOfType();
                 res.send({globalConsumers: consumers, localConsumers: localConsumers}); //TODO send back a delta- dont send back consumers just been notified of...
                 break;
 
@@ -283,15 +310,12 @@ module.exports.RedLinkStore = function (config) {
     }); // notify
 
 
-    function getAllConsumers() {
+    function getAllVisibleConsumers() {
         const localConsumersSql = 'SELECT DISTINCT serviceName FROM localStoreConsumers WHERE storeName="' + node.name + '"';
-        const globalConsumersSql = 'SELECT DISTINCT * FROM globalStoreConsumers'; /*WHERE globalStoreName<>"' + node.name + '"*/
-        const everythingSql = 'SHOW tables';
-        const everything = alasql(everythingSql);
+        const globalConsumersSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND globalStoreName<>localStoreName';
         const localConsumers = alasql(localConsumersSql);
         const globalConsumers = alasql(globalConsumersSql);
         return {
-            // everything,
             localConsumers,
             globalConsumers
         };
@@ -300,7 +324,7 @@ module.exports.RedLinkStore = function (config) {
     this.on("input", msg => {
         console.log(msg);
         if (msg && msg.cmd === 'listConsumers') {
-            const allConsumers = getAllConsumers();
+            const allConsumers = getAllVisibleConsumers();
             this.send(allConsumers);
         } else if (msg && msg.cmd === 'refreshConsumers') {
             notifyNorthStoreOfConsumers([]);
@@ -328,5 +352,5 @@ module.exports.RedLinkStore = function (config) {
         alasql(dropTriggerRegisterConsumer);
         done();
     });
-} // function
+}; // function
 
