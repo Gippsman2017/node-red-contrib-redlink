@@ -1,5 +1,7 @@
 const alasql = require('alasql');
 
+const base64Helper = require('./base64-helper.js');
+
 let RED;
 module.exports.initRED = function (_RED) {
     RED = _RED;
