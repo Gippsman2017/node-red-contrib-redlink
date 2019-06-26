@@ -111,7 +111,7 @@
                 value: '127.0.0.1', required: true, validate: validateIpAddress
             },
             listenPort: {
-                value: 443, required: true, validate: validatePositiveNumber
+                value: 2000, required: true, validate: validatePositiveNumber
             },
             peerAddress: {
                 value: '0.0.0.0', required: true, validate: validateIpAddress
@@ -143,7 +143,7 @@
                         header.h = '127.0.0.1';
                     }
                     if (!header.v) { //todo confirm with John
-                        header.v = '443';
+                        header.v = '2000';
                     }
                     var row = $('<div/>').css({
                         overflow: 'hidden',
@@ -499,8 +499,8 @@
 
 <script type="text/x-red" data-template-name="redlink consumer">
     <div class="form-row">
-        <label for="node-input-name"><i class="icon-tag"></i> Service name </label>
-        <input type="text" id="node-input-name" placeholder="Service name">
+        <label for="node-input-name"><i class="icon-tag"></i> Consumer / Service name</label>
+        <input type="text" id="node-input-name" placeholder="Consumer/Service">
         <input type="hidden" id="node-input-outputs"/>
     </div>
     <div class="form-row" id="consumer-store-div">
