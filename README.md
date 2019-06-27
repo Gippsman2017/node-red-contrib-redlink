@@ -23,8 +23,8 @@ Redlink does not use a traditional messaging system, it actually creates a hiera
 		1/ To handle Consumers not processing the work
 		2/ Alternate services to work around busy consumers
 		3/ Expected end-to-end transaction times, allowing the producers to have an expectation of completeion.
-		4/Priority message processing.
-		5/Messages are stored in AlaSQL either ram or on disk.
+		4/ Priority message processing.
+		5/ Messages are stored in AlaSQL either ram or on disk.
 
 
 ## Why the decision to use AlaSQL as its internal DB
@@ -47,6 +47,9 @@ As stated, the real issue of scale-out containerisation is that adding compute b
 
 ## How Redlink actually communicates with other Redlink Instances
 
-Each time a connection is established between nodes, the data is passed through and the connection is closed, this provides a perfect way of using the least number of sockets with th e maximum number of session / connections.
+Each time a connection is established between nodes, the data is passed through and the connection is closed, this provides a perfect way of using the least number of sockets with the maximum number of session / connections.
 
 ## Tree Hierachy
+
+One of the greatest strengths of Redlnk, is that a full redundant mesh can be designed and tested on a single Node-Red instance.
+
