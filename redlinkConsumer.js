@@ -35,7 +35,8 @@ module.exports.RedLinkConsumer = function (config) {
     this.on('close', (removed, done) => {
         //todo deregister this consumer
         console.log('in close of consumer...', this.name);
-        const dropNotifyTriggerSql = 'DROP TRIGGER ' + msgNotifyTriggerId;
+        const dropNotifyTriggerSql = 'DROP TRIGGER ' + msgNotifyTriggerId; //todo this wont work- see https://github.com/agershun/alasql/issues/1113
+        //clean up like in the redlinkStore- reinit trigger function to empty
         alasql(dropNotifyTriggerSql);
         console.log('dropped notify trigger...');
         const deleteConsumerSql = 'DELETE FROM localStoreConsumers WHERE storeName="' + this.consumerStoreName + +'"' + 'AND serviceName="' + this.name + '"';
