@@ -18,7 +18,8 @@ module.exports.RedLinkStore = function (config) {
     this.listenPort = config.listenPort;
     this.peerAddress = config.peerAddress;
     this.peerPort = config.peerPort;
-    this.name = config.name;
+    this.meshName = config.meshName;
+    this.name = config.meshName ? config.meshName + ':' + config.name : config.name;
     this.notifyInterval = config.notifyInterval;
     this.functions = config.functions;
     this.northPeers = config.headers; //todo validation in ui to prevent multiple norths with same ip:port
@@ -39,19 +40,6 @@ module.exports.RedLinkStore = function (config) {
     function getConsumersOfType() {
         const globalConsumersSql = 'SELECT DISTINCT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '"';
         return alasql(globalConsumersSql);
-        /*
-                switch (consumerDirection) {
-                    case notifyDirections.NORTH:
-                        return alasql(globalConsumersSql);
-                    case notifyDirections.SOUTH:
-                        return alasql(globalConsumersSql);
-                        break;
-
-                    default:
-                        throw new Error('consumerDirection must be specified');
-
-                }
-        */
     }
 
     function getBody(allConsumers, ipTrail, notifyDirection) {
@@ -366,7 +354,7 @@ module.exports.RedLinkStore = function (config) {
 
     function dropTrigger(triggerName) { //workaround for https://github.com/agershun/alasql/issues/1113
         alasql.fn[triggerName] = () => {
-            console.log('\n\n\n\nEmpty trigger called for consumer registration', triggerName );
+            console.log('\n\n\n\nEmpty trigger called for consumer registration', triggerName);
         }
     }
 

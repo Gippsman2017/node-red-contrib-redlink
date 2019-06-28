@@ -54,6 +54,11 @@
 
 <script type="text/x-red" data-template-name="redlink store">
     <div class="form-row">
+        <label for="node-input-meshName"><i class="icon-tag"></i> Mesh Name </label>
+        <input type="text" id="node-input-meshName" placeholder="Mesh Name">
+    </div>
+
+    <div class="form-row">
         <label for="node-input-name"><i class="icon-tag"></i> Store Name </label>
         <input type="text" id="node-input-name" placeholder="Store Name">
     </div>
@@ -120,7 +125,8 @@
                 value: 443, required: true, validate: validatePositiveNumber
             },
             headers: {value: {}},
-            name: {value: 'Store Name', required: true},
+            name: {value: '', required: true},
+            meshName: {value: 'mesh0', required: true},
             notifyInterval: {value: 15, required: true/*, validate: validatePositiveNumber*/}
         },
         icon: "file.png",
