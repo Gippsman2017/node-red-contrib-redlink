@@ -29,10 +29,11 @@ module.exports.RedLinkStore = function (config) {
 
     const node = this;
     const insertStoreSql = 'INSERT INTO stores("' + node.name + '","' + node.listenAddress + '",' + node.listenPort + ')';
-    console.log('Creating Store and inserting store name ', node.name, ' in stores table');
+//    console.log('Creating Store and inserting store name ', node.name, ' in stores table');
     alasql(insertStoreSql);
     const allStoresSql = 'SELECT * FROM stores';
-    console.log('after inserting store', node.name, ' in constructor the contents fo the stores table is:', alasql(allStoresSql));
+//    console.log('after inserting store', node.name, ' in constructor the contents fo the stores table is:', alasql(allStoresSql));
+  
     // const insertMeIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.name + '","#' + node.name + '")';
     // alasql(insertMeIntoConsumerSql);
 
@@ -62,10 +63,10 @@ module.exports.RedLinkStore = function (config) {
                 const insertGlobalConsumersSql = 'INSERT INTO globalStoreConsumers("' +
                     node.name + '","' + consumer.globalConsumerName + '","' + consumer.globalStoreName + '","' + consumer.globalStoreIp + '",' + consumer.globalStorePort + ')';
                 if (!existingGlobalConsumer || existingGlobalConsumer.length === 0) {
-                    console.log('Inserting into globalStoreConsumers sql:', insertGlobalConsumersSql);
+  //                  console.log('Inserting into globalStoreConsumers sql:', insertGlobalConsumersSql);
                     alasql(insertGlobalConsumersSql);
                 } else {
-                    console.log('NOT inserting ', insertGlobalConsumersSql, ' into global consumers as existingGlobalConsumer is:', existingGlobalConsumer);
+  //                  console.log('NOT inserting ', insertGlobalConsumersSql, ' into global consumers as existingGlobalConsumer is:', existingGlobalConsumer);
                 }
             });
         }
@@ -78,19 +79,19 @@ module.exports.RedLinkStore = function (config) {
                     //get store ip and port
                     const storeDetailsSql = 'SELECT * FROM stores WHERE storeName="' + consumer.storeName + '"';
                     const storeDetails = alasql(storeDetailsSql);
-                    console.log('\n\n\n\n when inserting local consumers the store details:', storeDetails);
+    //                console.log('\n\n\n\n when inserting local consumers the store details:', storeDetails);
                     if (storeDetails && storeDetails[0]) {
                         const storeAddress = storeDetails[0].storeAddress;
                         const storePort = storeDetails[0].storePort;
                         const insertGlobalConsumersSql = 'INSERT INTO globalStoreConsumers("' +
                             node.name + '","' + consumer.serviceName + '","' + consumer.storeName + '","' + storeAddress + '",' + storePort + ')';
-                        console.log('Inserting into globalStoreConsumers sql:', insertGlobalConsumersSql);
+      //                  console.log('Inserting into globalStoreConsumers sql:', insertGlobalConsumersSql);
                         alasql(insertGlobalConsumersSql);
                     } else {
-                        console.log('!!!!!!!!!! not inserting local consumers from response as store details for ', consumer.storeName, ' could nto be found');
+        //                console.log('!!!!!!!!!! not inserting local consumers from response as store details for ', consumer.storeName, ' could nto be found');
                     }
                 } else {
-                    console.log('NOT inserting ', consumer, ' into global consumers as existingGlobalConsumer is:', existingGlobalConsumer);
+          //          console.log('NOT inserting ', consumer, ' into global consumers as existingGlobalConsumer is:', existingGlobalConsumer);
                 }
             });
 
@@ -102,11 +103,11 @@ module.exports.RedLinkStore = function (config) {
             ipTrail = [];
         }
         if (ipTrail.includes(ip + ':' + port)) { //loop in notifications- dont send it
-            console.log('not notifying as ip:port ', ip + ':' + port, ' is present in ipTrail:', ipTrail);
+//            console.log('not notifying as ip:port ', ip + ':' + port, ' is present in ipTrail:', ipTrail);
             return;
         } else {
             ipTrail.push(ip + ':' + port);
-            console.log('PUSHING ', ipTrail);
+//            console.log('PUSHING ', ipTrail);
         }
         // first get distinct local consumers
         // console.log('\n >>>>>>>>>>>>>>>>>notifyPeerStoreOfConsumers function of ', node.name,'\n');
@@ -123,9 +124,9 @@ module.exports.RedLinkStore = function (config) {
             });
         });
         const consumers = getConsumersOfType();
-        console.log('ALL CONSUMERS NOTIFY (', node.name, ') ,LOCAL Consumers ARE:', localConsumers, '-', notifyDirection + '-Consumers are at:', consumers, ',', ip, ',', port, ',', ipTrail);
+//        console.log('ALL CONSUMERS NOTIFY (', node.name, ') ,LOCAL Consumers ARE:', localConsumers, '-', notifyDirection + '-Consumers are at:', consumers, ',', ip, ',', port, ',', ipTrail);
         const allConsumers = qualifiedLocalconsumers.concat(consumers); //todo filter this for unique consumers
-        console.log('allComsumers=', allConsumers);
+//        console.log('allComsumers=', allConsumers);
         //const allConsumers = localConsumers;
         if (ip && ip !== '0.0.0.0') {
             const body = getBody(allConsumers, ipTrail, notifyDirection);
@@ -141,11 +142,13 @@ module.exports.RedLinkStore = function (config) {
                     console.log('got error for request:', options);
                     // console.log(error); //todo retry???
                 } else {
+/*
                     console.log('\n\n\n\n\n\n!@#$%');
                     console.log('sent request to endpoint:\n');
                     console.log(JSON.stringify(options, null, 2));
                     console.log('got response body as:', JSON.stringify(response.body, null, 2));
                     console.log('!@#$%\n\n\n\n\n\n');
+*/
                     insertConsumers(response.body);
                     /*
                                         if(response.body){
@@ -162,18 +165,18 @@ module.exports.RedLinkStore = function (config) {
     }
 
     function notifyNorthStoreOfConsumers(northIps) {
-        console.log('QWERTY 1 (', node.name, ') North Peers=', node.northPeers, 'NORTHIPs=', northIps, ' peer count=', northIps.length, '\n');
+//        console.log('QWERTY 1 (', node.name, ') North Peers=', node.northPeers, 'NORTHIPs=', northIps, ' peer count=', northIps.length, '\n');
         node.northPeers.forEach(peer => {
-            console.log('NOTIFY NORTH : going to call notifyPeerStoreOfConsumers peer:', peer, 'northIps:', northIps);
+//            console.log('NOTIFY NORTH : going to call notifyPeerStoreOfConsumers peer:', peer, 'northIps:', northIps);
             notifyPeerStoreOfConsumers(peer.ip, peer.port, northIps, notifyDirections.NORTH);
         });
     }
 
     function notifySouthStoreOfConsumers(southIps) {
-        console.log('QWERTY 1 (', node.name, ') South Peers=', node.southPeers, 'SOUTHIPs=', southIps, ' peer count=', southIps.length, '\n');
+//        console.log('QWERTY 1 (', node.name, ') South Peers=', node.southPeers, 'SOUTHIPs=', southIps, ' peer count=', southIps.length, '\n');
         node.southPeers.forEach(peer => {
             var [ip, port] = peer.split(':');
-            console.log('NOTIFY SOUTH : going to call notifyPeerStoreOfConsumers peer:', ip, '@', port, ' southIps:', southIps);
+//            console.log('NOTIFY SOUTH : going to call notifyPeerStoreOfConsumers peer:', ip, '@', port, ' southIps:', southIps);
             notifyPeerStoreOfConsumers(ip, port, southIps, notifyDirections.SOUTH);
         });
     }
@@ -200,7 +203,7 @@ module.exports.RedLinkStore = function (config) {
             // this.send([newMessages[0], null]);
         };
         alasql.fn[registerConsumerTriggerName] = () => {
-            console.log('going to call notifyNorth, notifySouth in register consumer trigger of store ', node.name);
+//            console.log('going to call notifyNorth, notifySouth in register consumer trigger of store ', node.name);
             notifyNorthStoreOfConsumers([]);
             // console.log('CONSUMER TRIGGER for ',node.name);
             notifySouthStoreOfConsumers([]);
@@ -212,7 +215,7 @@ module.exports.RedLinkStore = function (config) {
         try {
             alasql(createNewMsgTriggerSql);
             alasql(createRegisterConsumerSql);
-            console.log('going to call notifyNorth over here of store ', node.name);
+//            console.log('going to call notifyNorth over here of store ', node.name);
             notifyNorthStoreOfConsumers([]);
             // console.log('CONSUMER TRIGGER for ',node.name);
             notifySouthStoreOfConsumers([]);
@@ -243,7 +246,7 @@ module.exports.RedLinkStore = function (config) {
         const notifyType = req.body.notifyType;
         switch (notifyType) {
             case 'consumerRegistration' :
-                console.log("MY req.body:", req.body);
+  //              console.log("MY req.body:", req.body);
                 const storeName = req.body.storeName;
                 const storeAddress = req.body.storeAddress;
                 const storePort = req.body.storePort;
@@ -259,7 +262,7 @@ module.exports.RedLinkStore = function (config) {
                 }
 
                 const ips = req.body.ips;
-                console.log('the ips trail is:', ips);
+//                console.log('the ips trail is:', ips);
                 /*if (notifyDirection === notifyDirections.NORTH)*/
             {
                 req.body.consumers.forEach(consumer => {
@@ -273,7 +276,7 @@ module.exports.RedLinkStore = function (config) {
                         // console.log('SOUTH  inserting into globalStoreConsumers sql:', insertGlobalConsumersSql);
                         alasql(insertGlobalConsumersSql);
                     } else {
-                        console.log('NOT inserting ', insertGlobalConsumersSql, ' into global consumers as existingGlobalConsumer is:', existingGlobalConsumer);
+//                        console.log('NOT inserting ', insertGlobalConsumersSql, ' into global consumers as existingGlobalConsumer is:', existingGlobalConsumer);
                     }
                 });
                 notifyNorthStoreOfConsumers(ips);
