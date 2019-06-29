@@ -1,3 +1,4 @@
+
 module.exports = function (RED) {
 
     "use strict";
@@ -11,6 +12,7 @@ module.exports = function (RED) {
     initTables();
     registerNodeRedTypes();
     initNodeRedRoutes();
+
 
     function initTables() {
         alasql('DROP TABLE IF EXISTS notify');
@@ -81,5 +83,6 @@ module.exports = function (RED) {
         });
         return consumersArray;
     }
+
 };
 

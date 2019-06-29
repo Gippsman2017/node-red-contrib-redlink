@@ -1,6 +1,7 @@
+
 const httpsServer = require('./https-server.js');
-const alasql = require('alasql');
-const request = require('request').defaults({strictSSL: false});
+const alasql      = require('alasql');
+const request     = require('request').defaults({strictSSL: false});
 
 let RED;
 module.exports.initRED = function (_RED) {
@@ -14,20 +15,21 @@ module.exports.RedLinkStore = function (config) {
     };
 
     RED.nodes.createNode(this, config);
-    this.listenAddress = config.listenAddress;
-    this.listenPort = config.listenPort;
-    this.peerAddress = config.peerAddress;
-    this.peerPort = config.peerPort;
-    this.meshName = config.meshName;
-    this.name = config.meshName ? config.meshName + ':' + config.name : config.name;
-    this.notifyInterval = config.notifyInterval;
-    this.functions = config.functions;
-    this.northPeers = config.headers; //todo validation in ui to prevent multiple norths with same ip:port
-    this.southPeers = []; //todo each store should notify its north peer once when it comes up- that's how southPeers will be populated
-
     const node = this;
 
-    log('northPeers:', this.northPeers);
+    node.listenAddress = config.listenAddress;
+    node.listenPort = config.listenPort;
+    node.peerAddress = config.peerAddress;
+    node.peerPort = config.peerPort;
+    node.meshName = config.meshName;
+    node.name = config.meshName ? config.meshName + ':' + config.name : config.name;
+    node.notifyInterval = config.notifyInterval;
+    node.functions = config.functions;
+    node.northPeers = config.headers; //todo validation in ui to prevent multiple norths with same ip:port
+    node.southPeers = []; //todo each store should notify its north peer once when it comes up- that's how southPeers will be populated
+
+
+    log('northPeers:', node.northPeers);
     const insertStoreSql = 'INSERT INTO stores("' + node.name + '","' + node.listenAddress + '",' + node.listenPort + ')';
     log('Creating Store and inserting store name ', node.name, ' in stores table');
     alasql(insertStoreSql);
@@ -190,7 +192,7 @@ module.exports.RedLinkStore = function (config) {
             log('newMessages for this store:', newMessages);
             if (newMessages[newMessages.length - 1]) { //insert the last message into notify
                 //TODO add a check- insert into notify only if we have matching consumers here- else send to downstream store (if we have a record that it knows about the consumer)
-                const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + newMessages[newMessages.length - 1].serviceName + '","' + this.listenAddress + '",' + this.listenPort + ')';
+                const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + newMessages[newMessages.length - 1].serviceName + '","' + node.listenAddress + '",' + node.listenPort + ')';
                 log('in store', node.name, ' going to insert notify new message:', notifyInsertSql);
                 alasql(notifyInsertSql);
             }
@@ -199,7 +201,7 @@ module.exports.RedLinkStore = function (config) {
             log('going to call notifyNorth, notifySouth in register consumer trigger of store ', node.name);
             notifyNorthStoreOfConsumers([]);
             log('CONSUMER TRIGGER for ', node.name);
-            notifySouthStoreOfConsumers([]);
+//            notifySouthStoreOfConsumers([]);
         };
 
         const createNewMsgTriggerSql = 'CREATE TRIGGER ' + newMsgTriggerName + ' AFTER INSERT ON inMessages CALL ' + newMsgTriggerName + '()';
@@ -218,20 +220,20 @@ module.exports.RedLinkStore = function (config) {
     } catch (e) {
         log(e);
     }
-    if (this.listenPort) {
+    if (node.listenPort) {
         try {
-            this.listenServer = httpsServer.startServer(+this.listenPort);
+            node.listenServer = httpsServer.startServer(+node.listenPort);
         } catch (e) {
-            log('error starting listen server on ', this.listenPort, e);
+            log('error starting listen server on ', node.listenPort, e);
         }
-        if (this.listenServer) {
-            this.on('close', (removed, done) => {
-                this.listenServer.close(() => {
+        if (node.listenServer) {
+            node.on('close', (removed, done) => {
+                node.listenServer.close(() => {
                     done();
                 });
             })
         }
-        log('started server at port:', this.listenPort);
+        log('started server at port:', node.listenPort);
     }
 
     const app = httpsServer.getExpressApp();
@@ -304,17 +306,17 @@ module.exports.RedLinkStore = function (config) {
         };
     }
 
-    this.on("input", msg => {
+    node.on("input", msg => {
         log(msg);
         if (msg && msg.cmd === 'listConsumers') {
             const allConsumers = getAllVisibleConsumers();
-            this.send(allConsumers);
+            node.send(allConsumers);
         } else if (msg && msg.cmd === 'refreshConsumers') {
             // notifyNorthStoreOfConsumers([]); //TODO notifySouthStore too- see if there is a valid use case for this
-            this.send({northPeers: this.northPeers, globalPeers: this.southPeers});
+            node.send({northPeers: node.northPeers, globalPeers: node.southPeers});
         } else if (msg && msg.cmd === 'listTables') {
             // notifyNorthStoreOfConsumers([]);
-            this.send({
+            node.send({
                 localStoreConsumers: alasql('SELECT * FROM localStoreConsumers'),
                 globalStoreConsumers: alasql('SELECT * FROM globalStoreConsumers'),
                 stores: alasql('SELECT * FROM stores')
@@ -324,7 +326,7 @@ module.exports.RedLinkStore = function (config) {
         //todo what messages should we allow? register and notify are handled via endpoints
     });
 
-    this.on('close', (removed, done) => {
+    node.on('close', (removed, done) => {
         log('on close of store:', node.name, ' going to remove newMsg trigger, register consumer trigger, store name from tables store');
         const removeStoreSql = 'DELETE FROM stores WHERE storeName="' + node.name + '"';
         log('removing store name from table stores in store close...', node.name);
@@ -336,10 +338,12 @@ module.exports.RedLinkStore = function (config) {
         log('removing global consumers for store name...', node.name);
         alasql(removeGlobalConsumersSql);
         //also delete all associated consumers for this store name
-        const dropTriggerNewMsg = 'DROP TRIGGER ' + newMsgTriggerName;
+        const dropTriggerNewMsg = newMsgTriggerName;
+//        const dropTriggerNewMsg = 'DROP TRIGGER ' + newMsgTriggerName;
         // alasql(dropTriggerNewMsg);
         dropTrigger(dropTriggerNewMsg);
-        const dropTriggerRegisterConsumer = 'DROP TRIGGER ' + registerConsumerTriggerName;
+        const dropTriggerRegisterConsumer = registerConsumerTriggerName;
+//        const dropTriggerRegisterConsumer = 'DROP TRIGGER ' + registerConsumerTriggerName;
         // alasql(dropTriggerRegisterConsumer);
         dropTrigger(dropTriggerRegisterConsumer);
         done();
