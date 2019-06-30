@@ -43,7 +43,7 @@ More complexity, this type of system removes one of layer and has a modern appro
 
 ## Why is Redlink "Consumer" based messaging
 
-As stated, the real issue of scale-out containerisation is that adding compute by using consumer based load distribution works well with Kubenetes / ![Screenshot](screenshot.png)Docker / LXC.
+As stated, the real issue of scale-out containerisation is that adding compute by using consumer based load distribution works well with Kubenetes / Docker / LXC.
 
 ## How Redlink actually communicates with other Redlink Instances
 
