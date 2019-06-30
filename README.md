@@ -1,4 +1,4 @@
-![Screenshot](screenshot.png)# node-red-contrib-redlink
+# node-red-contrib-redlink
 
 ## What is Redlink
 
