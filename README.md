@@ -51,7 +51,7 @@ Each time a connection is established between nodes, the data is passed through 
 
 ## Tree Hierachy
 
-One of the greatest strengths of Redlnk, is that a full redundant mesh can be designed and tested on either a single Node-Red instance or cluster of instances.
+One of the greatest strengths of Redlink, is that a full redundant mesh can be designed and tested on either a single Node-Red instance or cluster of instances.
 
 ![RedlinkMesh](RedlinkMesh.png)
 
