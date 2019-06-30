@@ -65,7 +65,7 @@
 
     <div class="form-row">
         <label for="node-input-listenAddress"><i class="icon-tag"></i> Listen Address </label>
-        <input type="text" id="node-input-listenAddress" placeholder="Address" style="width:150px; height:28px;">
+        <input type="text" id="node-input-listenAddress" placeholder="Address" style="width:160px; height:28px;">
         <label for="node-input-listenPort"><i class="icon-tag"></i> Listen Port </label>
         <input type="text" id="node-input-listenPort" placeholder="Port" style="width:60px; height:28px;">
     </div>
@@ -108,7 +108,7 @@
 
     RED.nodes.registerType('redlink store', {
         category: 'redlink',
-        color: "#7ad752",
+        color: "#f56042",
         inputs: 1,
         outputs: 1, //debug
         defaults: {
@@ -119,17 +119,17 @@
                 value: 2000, required: true, validate: validatePositiveNumber
             },
             peerAddress: {
-                value: '0.0.0.0', required: true, validate: validateIpAddress
+                value: '127.0.0.1', required: true, validate: validateIpAddress
             },
             peerPort: {
-                value: 443, required: true, validate: validatePositiveNumber
+                value: 2100, required: true, validate: validatePositiveNumber
             },
             headers: {value: {}},
             name: {value: '', required: true},
             meshName: {value: 'mesh0', required: true},
             notifyInterval: {value: 15, required: true/*, validate: validatePositiveNumber*/}
         },
-        icon: "file.png",
+        icon: "redis.png",
         label: function () {
             return this.name || "";
         },
@@ -367,7 +367,7 @@
 <script type="text/javascript">
     RED.nodes.registerType('redlink producer', {
         category: 'redlink',
-        color: "#7ad752",
+        color: "#f56042",
         inputs: 1,
         outputs: 2,
         defaults: {
@@ -385,7 +385,6 @@
             rateSendReceive: {value: 1},
             rateUnitsSendReceive: {value: "second"},
             nbRateUnitsSendReceive: {value: ''},
-            server: {value: "tcp://localhost:9660"},
             topic: {value: ""},
             cmd: {value: "send"},
             private: {value: false},
@@ -404,7 +403,8 @@
             var labels = getOutputs(!this.sendOnly, this.manualRead, true, this.showStats, this.showDebug);
             return labels[index];
         },
-        icon: "file.png",
+        icon: "arrow-in.png",
+        align: "right",
         label: function () {
             return this.name || "";
         },
@@ -568,11 +568,11 @@
 <script type="text/javascript">
     RED.nodes.registerType('redlink consumer', {
         category: 'redlink',
-        color: "#7ad752",
+        color: "#f56042",
         inputs: 1,
         outputs: 2,
         defaults: {
-            name: {value: 'REDLink consumer', required: true},
+            name: {value: '', required: true},
             consumerStoreName: {value: '', required: true},
             intransit: {
                 value: 1, validate: function (v) {
@@ -584,7 +584,6 @@
             rateReceiveSend: {value: 1},
             rateUnitsReceiveSend: {value: "second"},
             nbRateUnitsReceiveSend: {value: ''},
-            server: {value: "tcp://localhost:9660"},
             topicReceiveSend: {value: ""},
             cmd: {value: "read"},
             showStatsReceiveSend: {value: false},
@@ -600,7 +599,7 @@
             var labels = getOutputs(true, this.manualReadReceiveSend, true, this.showStatsReceiveSend, this.showDebugReceiveSend);
             return labels[index];
         },
-        icon: "file.png",
+        icon: "arrow-in.png",
         label: function () {
             return this.name || "";
         },
@@ -696,7 +695,7 @@
 <script type="text/javascript">
     RED.nodes.registerType('redlink reply', {
         category: 'redlink',
-        color: "#7ad752",
+        color: "#f56042",
         inputs: 1,
         outputs: 2,
         defaults: {
@@ -705,7 +704,8 @@
             priorityReceiveSend: {value: 0},
             timeoutReceiveSend: {value: -1},//TODO check with John,
         },
-        icon: "file.png",
+        icon: "arrow-in.png",
+        align: "right",
         label: function () {
             return this.name || "";
         },

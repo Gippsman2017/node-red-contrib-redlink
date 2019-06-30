@@ -16,11 +16,20 @@ module.exports.RedLinkProducer = function (config) {
         msg.msgid = RED.util.generateId();
         const stringify = JSON.stringify(msg);
         const encodedMessage = base64Helper.encode(msg);
-        console.log('the input message is:', stringify);
+        log('the input message is:', stringify);
         const msgInsertSql = 'INSERT INTO inMessages VALUES ("' + msg.msgid + '","' + this.producerStoreName + '","' + this.producerConsumer + '","' + encodedMessage + '")';
-        console.log('in the consumer going to execute sql to insert into inmesasges: ', msgInsertSql);
+        log('in the consumer going to execute sql to insert into inmesasges: ', msgInsertSql);
         alasql(msgInsertSql);
         const allRows = alasql('select * from inMessages');
-        console.log('after inserting input message the inMessages table is:', allRows[0]);
-    })
+        log('after inserting input message the inMessages table is:', allRows[0]);
+    });
+    function log() {
+        let i = 0;
+        let str = '';
+        for (; i < arguments.length; i++) {
+            str += ' ' + JSON.stringify(arguments[i], null, 2) + ' ';
+        }
+        node.trace(str);
+}
+
 };

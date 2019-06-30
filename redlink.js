@@ -23,9 +23,9 @@ module.exports = function (RED) {
         alasql('CREATE TABLE notify (storeName STRING, serviceName STRING, producerIp STRING, producerPort INT )');
         alasql('CREATE TABLE inMessages (msgId STRING, storeName STRING, serviceName STRING, message STRING)');
         alasql('CREATE TABLE localStoreConsumers (storeName STRING, serviceName STRING)'); //can have multiple consumers with same name registered to the same store
-        alasql('CREATE TABLE globalStoreConsumers (localStoreName STRING, globalConsumerName STRING, globalStoreName STRING, globalStoreIp STRING, globalStorePort INT)');
+        alasql('CREATE TABLE globalStoreConsumers (localStoreName STRING, globalServiceName STRING, globalStoreName STRING, globalStoreIp STRING, globalStorePort INT)');
         alasql('CREATE TABLE stores (storeName STRING, storeAddress STRING, storePort INT)'); //todo other fields like listenip/port, north store?
-        console.log('created tables...');
+        log('created tables...');
     }
 
     function registerNodeRedTypes() {
@@ -58,7 +58,7 @@ module.exports = function (RED) {
             const store = req.query.store;
             let responseJson = getLocalGlobalConsumers(store);
             if (!store) { //shouldnt happen- nothing we can do
-                console.log('no store selected for producer- not populating consumers ');
+                log('no store selected for producer- not populating consumers ');
             }
             res.json(responseJson);
         });
@@ -70,18 +70,27 @@ module.exports = function (RED) {
         }
         const localConsumersSql = 'SELECT DISTINCT serviceName FROM localStoreConsumers WHERE storeName="' + storeName + '"';
         const localConsumers = alasql(localConsumersSql);
-        console.log('local consumers are:', localConsumers);
-        const globalConsumersSql = 'SELECT DISTINCT globalConsumerName FROM globalStoreConsumers WHERE localStoreName="' + storeName + '"';//globalStoreConsumers (localStoreName STRING, globalConsumer
+        log('local consumers are:', localConsumers);
+        const globalConsumersSql = 'SELECT DISTINCT globalServiceName FROM globalStoreConsumers WHERE localStoreName="' + storeName + '"';//globalStoreConsumers (localStoreName STRING, globalConsumer
         const globalConsumers = alasql(globalConsumersSql);
-        console.log(' global consumers are:', globalConsumers, ' Global consumers are:', globalConsumers);
+        log(' global consumers are:', globalConsumers, ' Global consumers are:', globalConsumers);
 //        const allConsumers = localConsumers.concat(globalConsumers); //todo filter this for unique consumers
         const allConsumers = globalConsumers; //todo filter this for unique consumers
-        console.log('in get allconsumers going to return', JSON.stringify(allConsumers, null, 2));
+        log('in get allconsumers going to return', JSON.stringify(allConsumers, null, 2));
         let consumersArray = [];
         allConsumers.forEach(consumer => {
-            consumersArray.push(consumer.serviceName || consumer.globalConsumerName || consumer.northConsumerName);
+            consumersArray.push(consumer.serviceName || consumer.globalServiceName || consumer.northConsumerName);
         });
         return consumersArray;
+    }
+    
+    function log() {
+        let i = 0;
+        let str = '';
+        for (; i < arguments.length; i++) {
+            str += ' ' + JSON.stringify(arguments[i], null, 2) + ' ';
+        }
+//        console.trace(str);
     }
 
 };
