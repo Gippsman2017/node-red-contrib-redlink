@@ -67,7 +67,7 @@
         <label for="node-input-listenAddress"><i class="icon-tag"></i> Listen Address </label>
         <input type="text" id="node-input-listenAddress" placeholder="Address" style="width:160px; height:28px;">
         <label for="node-input-listenPort"><i class="icon-tag"></i> Listen Port </label>
-        <input type="text" id="node-input-listenPort" placeholder="Port" style="width:60px; height:28px;">
+        <input type="text" id="node-input-listenPort" placeholder="Port"       style="width:60px;  height:28px;">
     </div>
 
     <div class="form-row node-input-headers-container-row">
@@ -112,22 +112,14 @@
         inputs: 1,
         outputs: 1, //debug
         defaults: {
-            listenAddress: {
-                value: '127.0.0.1', required: true, validate: validateIpAddress
-            },
-            listenPort: {
-                value: 2000, required: true, validate: validatePositiveNumber
-            },
-            peerAddress: {
-                value: '127.0.0.1', required: true, validate: validateIpAddress
-            },
-            peerPort: {
-                value: 2100, required: true, validate: validatePositiveNumber
-            },
-            headers: {value: {}},
-            name: {value: '', required: true},
-            meshName: {value: 'mesh0', required: true},
-            notifyInterval: {value: 15, required: true/*, validate: validatePositiveNumber*/}
+            listenAddress: { value: '127.0.0.1', required: true, validate: validateIpAddress },
+            listenPort:    { value: 2000,        required: true, validate: validatePositiveNumber },
+            peerAddress:   { value: '127.0.0.1', required: true, validate: validateIpAddress },
+            peerPort:      { value: 2100,        required: true, validate: validatePositiveNumber },
+            headers:       { value: {}},
+            name:          { value: '',          required: true},
+            meshName:      { value: 'mesh0',     required: true},
+            notifyInterval:{ value: 15,          required: true/*, validate: validatePositiveNumber*/}
         },
         icon: "redis.png",
         label: function () {
@@ -143,7 +135,7 @@
                 rule.find('.red-ui-typedInput').typedInput("width", (newWidth - 15) / 2);
             }
 
-            var headerList = $("#node-input-headers-container").css('min-height', '150px').css('min-width', '450px').editableList({
+            var headerList = $("#node-input-headers-container").css('min-height', '150px').css('min-width', '400px').editableList({
                 addItem: function (container, i, header) {
                     if (!header.h) {
                         header.h = '127.0.0.1';
