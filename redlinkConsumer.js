@@ -1,24 +1,24 @@
-
 const alasql = require('alasql');
-
 let RED;
-
 module.exports.initRED = function (_RED) {
     RED = _RED;
 };
 
 module.exports.RedLinkConsumer = function (config) {
-
     RED.nodes.createNode(this, config);
-
     const node = this;
-
-    node.name                 = config.name;
-    node.consumerStoreName    = config.consumerStoreName;
-    const msgNotifyTriggerId  = 'a' + config.id.replace('.', '');
+    node.name = config.name;
+    node.consumerStoreName = config.consumerStoreName;
+    node.consumerMeshName = config.consumerMeshName;
+    if(node.consumerMeshName){
+        node.consumerStoreName = node.consumerMeshName+':'+node.consumerStoreName;
+    }else{
+        log('\n\n\n\nNo mesh name set for consumer', node.name);
+    }
+    const msgNotifyTriggerId = 'a' + config.id.replace('.', '');
     const newMsgNotifyTrigger = 'onNotify' + msgNotifyTriggerId;
     log('in constructor of consumer:', node.name);
-    
+
     alasql.fn[newMsgNotifyTrigger] = () => {
         //check if the notify is for this consumer name with the registered store name
         const notifiesSql = 'SELECT * from notify WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"';
@@ -35,7 +35,7 @@ module.exports.RedLinkConsumer = function (config) {
 
     //localStoreConsumers (storeName STRING, serviceName STRING)'); 
     //can have multiple consumers with same name registered to the same store
-    const insertIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.consumerStoreName + '","' + node.name + '")'; 
+    const insertIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.consumerStoreName + '","' + node.name + '")';
     log('in consumer constructor sql to insert into localStoreConsumer is:', insertIntoConsumerSql);
     alasql(insertIntoConsumerSql);
     log('inserted consumer ', node.name, ' for store ', node.consumerStoreName);
@@ -57,7 +57,6 @@ module.exports.RedLinkConsumer = function (config) {
         const globalConsumersSql = 'SELECT * FROM globalStoreConsumers';
         const globalConsumers = alasql(globalConsumersSql);
         log(' Global consumers are:', globalConsumers);
-        log();
         done();
     });
 

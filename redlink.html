@@ -65,9 +65,9 @@
 
     <div class="form-row">
         <label for="node-input-listenAddress"><i class="icon-tag"></i> Listen Address </label>
-        <input type="text" id="node-input-listenAddress" placeholder="Address" style="width:160px; height:28px;">
+        <input type="text" id="node-input-listenAddress" placeholder="Address" style="width:150px; height:28px;">
         <label for="node-input-listenPort"><i class="icon-tag"></i> Listen Port </label>
-        <input type="text" id="node-input-listenPort" placeholder="Port"       style="width:60px;  height:28px;">
+        <input type="text" id="node-input-listenPort" placeholder="Port" style="width:60px; height:28px;">
     </div>
 
     <div class="form-row node-input-headers-container-row">
@@ -112,14 +112,22 @@
         inputs: 1,
         outputs: 1, //debug
         defaults: {
-            listenAddress: { value: '127.0.0.1', required: true, validate: validateIpAddress },
-            listenPort:    { value: 2000,        required: true, validate: validatePositiveNumber },
-            peerAddress:   { value: '127.0.0.1', required: true, validate: validateIpAddress },
-            peerPort:      { value: 2100,        required: true, validate: validatePositiveNumber },
-            headers:       { value: {}},
-            name:          { value: '',          required: true},
-            meshName:      { value: 'mesh0',     required: true},
-            notifyInterval:{ value: 15,          required: true/*, validate: validatePositiveNumber*/}
+            listenAddress: {
+                value: '127.0.0.1', required: true, validate: validateIpAddress
+            },
+            listenPort: {
+                value: 2000, required: true, validate: validatePositiveNumber
+            },
+            peerAddress: {
+                value: '0.0.0.0', required: true, validate: validateIpAddress
+            },
+            peerPort: {
+                value: 443, required: true, validate: validatePositiveNumber
+            },
+            headers: {value: {}},
+            name: {value: '', required: true},
+            meshName: {value: 'mesh0', required: true},
+            notifyInterval: {value: 15, required: true/*, validate: validatePositiveNumber*/}
         },
         icon: "redis.png",
         label: function () {
@@ -377,6 +385,7 @@
             rateSendReceive: {value: 1},
             rateUnitsSendReceive: {value: "second"},
             nbRateUnitsSendReceive: {value: ''},
+            server: {value: "tcp://localhost:9660"},
             topic: {value: ""},
             cmd: {value: "send"},
             private: {value: false},
@@ -502,6 +511,12 @@
         <input type="hidden" id="node-input-outputs"/>
     </div>
     <div class="form-row" id="consumer-store-div">
+        <label for="node-input-consumerMeshName"><i class="fa fa-ellipsis-v"></i> Mesh Name</label>
+        <select id="node-input-consumerMeshName">
+        </select>
+    </div>
+
+    <div class="form-row" id="consumer-store-div">
         <label for="node-input-consumerStoreName"><i class="fa fa-ellipsis-v"></i> Store Name</label>
         <select id="node-input-consumerStoreName">
         </select>
@@ -565,6 +580,7 @@
         outputs: 2,
         defaults: {
             name: {value: '', required: true},
+            consumerMeshName:{value:'', required: true},
             consumerStoreName: {value: '', required: true},
             intransit: {
                 value: 1, validate: function (v) {
@@ -576,6 +592,7 @@
             rateReceiveSend: {value: 1},
             rateUnitsReceiveSend: {value: "second"},
             nbRateUnitsReceiveSend: {value: ''},
+            server: {value: "tcp://localhost:9660"},
             topicReceiveSend: {value: ""},
             cmd: {value: "read"},
             showStatsReceiveSend: {value: false},
@@ -600,19 +617,65 @@
         },
         oneditprepare: function () {
             const selectedStore = this.consumerStoreName;
+            const selectedMesh = this.consumerMeshName;
             console.log('selectedStore:', selectedStore);
-            let storesElement = $("#node-input-consumerStoreName");
-            $.getJSON('store-names', function (stores) {
-                console.log('\n\n\n\nstores from get call:', stores);
-                $.each(stores, function (index, obj) {
+
+            function repopulateStores() {
+                console.log('in repopulateStores the selected consumerMeshName is:', $("#node-input-consumerMeshName").children("option:selected").val());
+                let storeElement = $("#node-input-consumerStoreName");
+                storeElement.find('option').remove().end();
+                console.log("Handler for .change() called.");
+                // console.log('value of node-input-producerStoreName:', );
+                const meshName = $("#node-input-consumerMeshName").children("option:selected").val() || selectedMesh;
+                $.getJSON('store-names', {"producer": this.name, "mesh": meshName}, stores => {
+                    console.log('\n\n\n\nstores from get call:', stores);
+                    $.each(stores, function (index, obj) {
+                        console.log('index:', index, ' obj:', obj);
+                        storeElement.append($('<option>', {
+                            value: obj,
+                            text: obj,
+                            selected: selectedStore === obj
+                        }));
+                    });
+                });
+            }
+
+            $("#node-input-consumerMeshName").change(() => {
+                repopulateStores();
+            });
+
+            let meshesElement = $("#node-input-consumerMeshName");
+            let selectionSet = false;
+            $.getJSON('mesh-names', meshes => {
+                console.log('\n\n\n\nmeshes from get call:', meshes);
+                $.each(meshes, function (index, obj) {
+                    if (selectedMesh === obj) {
+                        selectionSet = true;
+                    }
                     console.log('index:', index, ' obj:', obj);
-                    storesElement.append($('<option>', {
+                    meshesElement.append($('<option>', {
                         value: obj,
                         text: obj,
-                        selected: selectedStore === obj
+                        selected: selectedMesh === obj
                     }));
                 });
+                if (!selectionSet) {
+                    console.log(' selection not set for meshes in consumer- going to select element at zero', $("#node-input-consumerMeshName option:first").val());
+
+                    var options = $('#node-input-consumerMeshName option');
+
+                    var values = $.map(options ,function(option) {
+                        return option.value;
+                    });
+                    console.log('all mesh values:', values);
+                    // $("#node-input-producerStoreName").prop("selectedIndex", 0);
+                    $("#node-input-consumerMeshName option:first").attr('selected','selected');
+                    console.log('after settign selected to zero, the selected store in producer is:', $("#node-input-consumerMeshName").children("option:selected").val());
+                    repopulateStores();
+                }
             });
+
+
             $('#node-input-rateTypeReceiveSend').change(function () {
                 if (this.value == 'none') {
                     $('#rate-limit-details-receive-send').hide();
@@ -649,7 +712,6 @@
             $("#node-input-outputs").val(JSON.stringify(nodeRedOutputsObject));
             console.log('\n\n\n\n\n on editsave val of $("#node-input-outputs"):', $("#node-input-outputs").val());
             console.log('this.outputLabels:', this.outputLabels);
-
         }
     });
 </script>

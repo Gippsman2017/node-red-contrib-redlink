@@ -1,7 +1,6 @@
-
 const httpsServer = require('./https-server.js');
-const alasql      = require('alasql');
-const request     = require('request').defaults({strictSSL: false});
+const alasql = require('alasql');
+const request = require('request').defaults({strictSSL: false});
 
 let RED;
 module.exports.initRED = function (_RED) {
@@ -289,8 +288,18 @@ module.exports.RedLinkStore = function (config) {
 
 
     function getAllVisibleConsumers() {
+        log('\n\n\n\n\nin getAllVisibleConsumers of ', node.name);
+        log('all localStoreConsumers:', alasql('SELECT * FROM localStoreConsumers'));
         const localConsumersSql  = 'SELECT DISTINCT * FROM localStoreConsumers WHERE storeName="' + node.name + '"';
         const globalConsumersSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND globalStoreName<>localStoreName';
+
+/*
+        const localConsumersSql = 'SELECT DISTINCT serviceName FROM localStoreConsumers WHERE storeName="' + node.name + '"';
+        log('localConsumersSql:', localConsumersSql);
+        log('all localStoreConsumers:', alasql('SELECT * FROM localStoreConsumers'));
+*/
+
+
         const localConsumers = alasql(localConsumersSql);
         const globalConsumers = alasql(globalConsumersSql);
         return {
@@ -328,14 +337,12 @@ module.exports.RedLinkStore = function (config) {
         log('removing global consumers for store name...', node.name);
         alasql(removeGlobalConsumersSql);
         //also delete all associated consumers for this store name
-        const dropTriggerNewMsg = newMsgTriggerName;
         // const dropTriggerNewMsg = 'DROP TRIGGER ' + newMsgTriggerName;
         // alasql(dropTriggerNewMsg);
-        dropTrigger(dropTriggerNewMsg);
-        const dropTriggerRegisterConsumer = registerConsumerTriggerName;
+        dropTrigger(newMsgTriggerName);
         // const dropTriggerRegisterConsumer = 'DROP TRIGGER ' + registerConsumerTriggerName;
         // alasql(dropTriggerRegisterConsumer);
-        dropTrigger(dropTriggerRegisterConsumer);
+        dropTrigger(registerConsumerTriggerName);
         done();
     });
 
