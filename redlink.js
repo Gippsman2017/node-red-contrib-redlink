@@ -53,7 +53,7 @@ module.exports = function (RED) {
                 meshNames.add(meshName);
             }
         });
-        log('returning mesh names:', meshNames)
+        log('returning mesh names:', meshNames);
         return Array.from(meshNames);
     }
 
@@ -82,6 +82,19 @@ module.exports = function (RED) {
             });
             res.json(returnStores);
         });
+        RED.httpAdmin.get("/all-store-names", function (req, res) { //TODO see if we can use the same route as store-names- maybe pass params?
+            let returnStores = [];
+            const storesSql = 'SELECT DISTINCT storeName FROM stores'; //console.log(alasql('SELECT * FROM one WHERE a LIKE "abc%"'));
+            // console.log(alasql('SELECT * FROM one WHERE a LIKE "'+prefix+'%"'));
+            log('\n\n\n\n!@#$%^&*\nstoresSql:', storesSql);
+            const stores = alasql(storesSql);
+            log('in all store names route returning stores as:', stores);
+            stores.forEach(meshStore => {
+                returnStores.push(meshStore.storeName);
+            });
+            res.json(returnStores);
+        });
+
         RED.httpAdmin.get("/consumers", function (req, res) {
             const store = req.query.store;
             let responseJson = getLocalGlobalConsumers(store);
@@ -103,7 +116,8 @@ module.exports = function (RED) {
         const globalConsumers = alasql(globalConsumersSql);
         log(' global consumers are:', globalConsumers, ' Global consumers are:', globalConsumers);
 //        const allConsumers = localConsumers.concat(globalConsumers); //todo filter this for unique consumers
-        const allConsumers = globalConsumers; //todo filter this for unique consumers
+        const allConsumers = [... new Set([ ...localConsumers, ...globalConsumers ])];
+        // const allConsumers = globalConsumers; //todo filter this for unique consumers
         log('in get allconsumers going to return', JSON.stringify(allConsumers, null, 2));
         let consumersArray = [];
         allConsumers.forEach(consumer => {

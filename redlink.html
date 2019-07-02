@@ -290,7 +290,6 @@
         <input type="text" id="node-input-name" placeholder="name">
                         <input type="hidden" id="node-input-outputs"/>
 
-    </div>
     <div class="form-row" id="producer-store-div">
         <label for="node-input-producerStoreName"><i class="fa fa-ellipsis-v"></i> Store Name</label>
         <select id="node-input-producerStoreName">
@@ -427,30 +426,43 @@
         },
         oneditprepare: function () {
             const selectedStore = this.producerStoreName;
+            const selectedMesh = this.producerMeshName;
             console.log('selectedStore:', selectedStore);
-            let storesElement = $("#node-input-producerStoreName");
-            let selectionSet = false;
-            $.getJSON('store-names', function (stores) {
-                console.log('\n\n\n\nstores from get call:', stores);
-                $.each(stores, function (index, obj) {
-                    console.log('index:', index, ' obj:', obj);
-                    if (selectedStore === obj) {
-                        selectionSet = true;
+
+            function repopulateStores() { //todo refactor
+                let storeElement = $("#node-input-producerStoreName");
+                storeElement.find('option').remove().end();
+                $.getJSON('all-store-names', stores => {
+                    let selectionSet = false;
+                    console.log('\n\n\n\nstores from get call in producer:', stores);
+                    $.each(stores, function (index, obj) {
+                        if (selectedMesh === obj) {
+                            selectionSet = true;
+                        }
+                        storeElement.append($('<option>', {
+                            value: obj,
+                            text: obj,
+                            selected: selectionSet
+                        }));
+                    });
+                    if (!selectionSet) {
+                        console.log(' selection not set for meshes in producer- going to select element at zero', $("#node-input-producerStoreName option:first").val());
+
+                        var options = $('#node-input-producerStoreName option');
+
+                        var values = $.map(options ,function(option) {
+                            return option.value;
+                        });
+                        console.log('all store values:', values);
+                        // $("#node-input-producerStoreName").prop("selectedIndex", 0);
+                        $("#node-input-producerStoreName option:first").attr('selected','selected');
+                        console.log('after settign selected to zero, the selected store in producer is:', $("#node-input-producerMeshName").children("option:selected").val());
+                        repopulateConsumers();
                     }
-                    storesElement.append($('<option>', {
-                        value: obj,
-                        text: obj,
-                        selected: selectedStore === obj
-                    }));
                 });
-            });
-            if (!selectionSet) {
-                console.log(' selection not set for stores in producer- going to select element at zero');
-                // $("#node-input-producerStoreName").prop("selectedIndex", 0);
-                $("#node-input-producerStoreName option:first").attr('selected','selected');
-                console.log('after settign selected to zero, the selected store in producer is:', $("#node-input-producerStoreName").children("option:selected").val());
-                repopulateConsumers();
+
             }
+            repopulateStores();
 
             $('#node-input-rateTypeSendReceive').change(function () {
                 if (this.value === 'none') {
@@ -510,7 +522,7 @@
         <input type="text" id="node-input-name" placeholder="Consumer/Service">
         <input type="hidden" id="node-input-outputs"/>
     </div>
-    <div class="form-row" id="consumer-store-div">
+    <div class="form-row" id="consumer-mesh-div">
         <label for="node-input-consumerMeshName"><i class="fa fa-ellipsis-v"></i> Mesh Name</label>
         <select id="node-input-consumerMeshName">
         </select>
@@ -645,8 +657,9 @@
             });
 
             let meshesElement = $("#node-input-consumerMeshName");
-            let selectionSet = false;
+
             $.getJSON('mesh-names', meshes => {
+                let selectionSet = false;
                 console.log('\n\n\n\nmeshes from get call:', meshes);
                 $.each(meshes, function (index, obj) {
                     if (selectedMesh === obj) {
