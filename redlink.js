@@ -7,6 +7,7 @@ module.exports = function (RED) {
     const redlinkProducer = require('./redlinkProducer.js');
     const redlinkReply = require('./redlinkReply.js');
     const redlinkStore = require('./redlinkStore.js');
+    const log = require('./log.js')().log; //dont have node yet over here
 
     initTables();
     registerNodeRedTypes();
@@ -18,11 +19,11 @@ module.exports = function (RED) {
         alasql('DROP TABLE IF EXISTS localStoreConsumers');
         alasql('DROP TABLE IF EXISTS globalStoreConsumers');
         alasql('DROP TABLE IF EXISTS stores');
-        alasql('CREATE TABLE notify (storeName STRING, serviceName STRING, producerIp STRING, producerPort INT )');
-        alasql('CREATE TABLE inMessages (msgId STRING, storeName STRING, serviceName STRING, message STRING)');
+        alasql('CREATE TABLE notify (storeName STRING, serviceName STRING, producerIp STRING, producerPort INT , redlinkMsgId STRING)');
+        alasql('CREATE TABLE inMessages (redlinkMsgId STRING, storeName STRING, serviceName STRING, message STRING)');
         alasql('CREATE TABLE localStoreConsumers (storeName STRING, serviceName STRING)'); //can have multiple consumers with same name registered to the same store
         alasql('CREATE TABLE globalStoreConsumers (localStoreName STRING, globalServiceName STRING, globalStoreName STRING, globalStoreIp STRING, globalStorePort INT)');
-        alasql('CREATE TABLE stores (storeName STRING, storeAddress STRING, storePort INT)'); //todo other fields like listenip/port, north store?
+        alasql('CREATE TABLE stores (storeName STRING, storeAddress STRING, storePort INT)');
         log('created tables...');
     }
 
@@ -47,7 +48,7 @@ module.exports = function (RED) {
         let meshNames = new Set();
         meshStores.forEach(function (meshStore) {
             const meshStorename = meshStore.storeName;
-            const meshName = meshStorename.indexOf(':') != -1 ? meshStorename.substring(0, meshStorename.indexOf(':')) : '';//todo this shouldnt happen
+            const meshName = meshStorename.indexOf(':') !== -1 ? meshStorename.substring(0, meshStorename.indexOf(':')) : '';//todo this shouldnt happen
             log('going to push mesh name:', meshName);
             if(meshName){
                 meshNames.add(meshName);
@@ -77,7 +78,7 @@ module.exports = function (RED) {
             const stores = alasql(storesSql);
             stores.forEach(meshStore => {
                 const meshStorename = meshStore.storeName;
-                const storeName = meshStorename.indexOf(':') != -1 ? meshStorename.substring(meshStorename.indexOf(':')+1) : meshStorename;//todo this shouldnt happen
+                const storeName = meshStorename.indexOf(':') !== -1 ? meshStorename.substring(meshStorename.indexOf(':')+1) : meshStorename;//todo this shouldnt happen
                 returnStores.push(storeName);
             });
             res.json(returnStores);
@@ -125,16 +126,5 @@ module.exports = function (RED) {
         });
         return consumersArray;
     }
-
-    function log() {
-        let i = 0;
-        let str = '';
-        for (; i < arguments.length; i++) {
-            str += ' ' + JSON.stringify(arguments[i], null, 2) + ' ';
-        }
-        // node.trace(str); TODO dont comment this in current state
-        console.log(str);
-    }
-
 };
 
