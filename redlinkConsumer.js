@@ -7,6 +7,7 @@ module.exports.initRED = function (_RED) {
 module.exports.RedLinkConsumer = function (config) {
     RED.nodes.createNode(this, config);
     const node = this;
+    const log = require('./log.js')(node).log;
     node.name = config.name;
     node.consumerStoreName = config.consumerStoreName;
     node.consumerMeshName = config.consumerMeshName;
@@ -24,8 +25,9 @@ module.exports.RedLinkConsumer = function (config) {
         const notifiesSql = 'SELECT * from notify WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"';
         log('notifiesSql in consumer:', notifiesSql);
         var notifies = alasql(notifiesSql);
+        const newNotify = notifies[notifies.length - 1];
         log('notifies for this consumer:', notifies);
-        node.send([notifies[0], null]);
+        node.send([newNotify, null]);
     };
 
     const createTriggerSql = 'CREATE TRIGGER ' + msgNotifyTriggerId + ' AFTER INSERT ON notify CALL ' + newMsgNotifyTrigger + '()';
@@ -60,12 +62,4 @@ module.exports.RedLinkConsumer = function (config) {
         done();
     });
 
-    function log() {
-        let i = 0;
-        let str = '';
-        for (; i < arguments.length; i++) {
-            str += ' ' + JSON.stringify(arguments[i], null, 2) + ' ';
-        }
-        node.trace(str);
-}
 };
