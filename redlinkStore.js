@@ -15,6 +15,7 @@ module.exports.RedLinkStore = function (config) {
 
     RED.nodes.createNode(this, config);
     const node = this;
+    const log = require('./log.js')(node).log;
 
     node.listenAddress = config.listenAddress;
     node.listenPort = config.listenPort;
@@ -56,6 +57,11 @@ module.exports.RedLinkStore = function (config) {
         if (body.globalConsumers) {
             body.globalConsumers.forEach(consumer => {
                 const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND globalServiceName="' + consumer.globalServiceName + '"';
+                //todo need fix for case where remote mesh:store:consumer is same (but ip:port is different)
+                /*const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' +
+                    node.name + '" AND globalServiceName="' + consumer.globalServiceName + '" AND globalStoreIp="'+consumer.globalStoreIp+
+                    '" AND globalStorePort='+consumer.globalStorePort;*/
+
                 const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
                 const insertGlobalConsumersSql = 'INSERT INTO globalStoreConsumers("' +
                     node.name + '","' + consumer.globalServiceName + '","' + consumer.globalStoreName + '","' + consumer.globalStoreIp + '",' + consumer.globalStorePort + ')';
@@ -175,21 +181,59 @@ module.exports.RedLinkStore = function (config) {
     const newMsgTriggerName = 'onNewMessage' + nodeId;
 
     const registerConsumerTriggerName = 'registerConsumer' + nodeId;
+
+    function getRemoteMatchingStores(serviceName, meshStore, address, port) {
+        //stores (storeName STRING, storeAddress STRING, storePort INT)');
+        //globalStoreConsumers (localStoreName STRING, globalServiceName STRING, globalStoreName STRING, globalStoreIp STRING, globalStorePort INT)');
+        const globalStoresSql = 'SELECT * FROM globalStoreConsumers WHERE globalServiceName="'+serviceName+'" AND globalStoreName="'+meshStore+'"';
+        log('\n in getRemoteMatchingStores \n', 'globalStoresSql:', globalStoresSql);
+        const matchingGlobalStores = alasql(globalStoresSql);
+        log('matchingGlobalStores:', matchingGlobalStores);
+        let allLocalStoresSql = 'SELECT * FROM stores';
+        const allLocalStores = alasql(allLocalStoresSql);
+        log(allLocalStores);
+        const matchingGlobalStoresAddresses = [];
+        matchingGlobalStores.forEach(store=>{
+            matchingGlobalStoresAddresses.push(store.globalStoreIp+':'+store.globalStorePort);
+        });
+        const localStoresAddresses = [];
+        allLocalStores.forEach(store=>{
+            localStoresAddresses.push(store.storeAddress+':'+store.storePort);
+        });
+        const remoteStoreAddresses= [];
+        matchingGlobalStoresAddresses.forEach(remoteAddress=>{
+            if(!localStoresAddresses.includes(remoteAddress)){
+                remoteStoreAddresses.push(remoteAddress);
+            }
+        });
+        log('remote addresses matching service name:', remoteStoreAddresses);
+        return remoteStoreAddresses;
+    }
+
     try {
         log('newMsgTriggerName:', newMsgTriggerName);
         alasql.fn[newMsgTriggerName] = () => {
             // check if the input message is for this store
             // inMessages (msgId STRING, storeName STRING, serviceName STRING, message STRING)'
-            const newMessagesSql = 'SELECT * from inMessages WHERE storeName="' + node.name + '"';
+            const newMessagesSql = 'SELECT * from inMessages WHERE storeName="' + node.name + '"'; //todo also filter by address and port? what happens if we have multiple non-unique mesh:store?
             log('newMessagesSql in consumer:', newMessagesSql);
             var newMessages = alasql(newMessagesSql);
             log('newMessages for this store:', newMessages);
-            if (newMessages[newMessages.length - 1]) { //insert the last message into notify
-                //TODO add a check- insert into notify only if we have matching consumers here- else send to downstream store (if we have a record that it knows about the consumer)
-                const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + newMessages[newMessages.length - 1].serviceName + '","' + node.listenAddress + '",' + node.listenPort + ')';
+            const newMessage = newMessages[newMessages.length - 1];
+            if (newMessage) {
+                //insert the last message into notify
+                //local notify- store src=store dest
+                const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + newMessage.serviceName + '","' + node.listenAddress + '",' + node.listenPort + ',"' + newMessage.redlinkMsgId + '")';
                 log('in store', node.name, ' going to insert notify new message:', notifyInsertSql);
                 alasql(notifyInsertSql);
+
+                //remote notify- notify any stores having same consumer not on same node-red instance
+                //stores table contains stores local to this node-red instance, all consumers will contain consumers on stores reachable from this store- even if they are remote
+                getRemoteMatchingStores(newMessage.serviceName, node.name,node.listenAddress, node.listenPort);//todo fix bug on 61, 298; then do notify
+                //we need to add a local notify stores not on this instance but having services which can handle this message
+
             }
+            //todo notify stores having global consumers
         };
         //On local consumer registration, let them all know
         alasql.fn[registerConsumerTriggerName] = () => {
@@ -254,6 +298,13 @@ module.exports.RedLinkStore = function (config) {
                 req.body.consumers.forEach(consumer => {
                     const serviceName = consumer.serviceName || consumer.globalServiceName;
                     const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND globalServiceName="' + serviceName + '"';
+                    //todo need fix for case where remote mesh:store:consumer is same (but ip:port is different)
+                    /*
+                    const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' +
+                        node.name + '" AND globalServiceName="' + serviceName + '" AND globalStoreIp="'+storeAddress+
+                        '" AND globalStorePort='+storePort;
+*/
+                    //globalStoreConsumers (localStoreName STRING, globalServiceName STRING, globalStoreName STRING, globalStoreIp STRING, globalStorePort INT)');
                     const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
                     log('EXISTINGGlobalConsumer(', node.name, ':', existingGlobalConsumer);
                     const insertGlobalConsumersSql = 'INSERT INTO globalStoreConsumers("' + node.name + '","' + serviceName + '","' + storeName + '","' + storeAddress + '",' + storePort + ')';
@@ -290,14 +341,14 @@ module.exports.RedLinkStore = function (config) {
     function getAllVisibleConsumers() {
         log('\n\n\n\n\nin getAllVisibleConsumers of ', node.name);
         log('all localStoreConsumers:', alasql('SELECT * FROM localStoreConsumers'));
-        const localConsumersSql  = 'SELECT DISTINCT * FROM localStoreConsumers WHERE storeName="' + node.name + '"';
+        const localConsumersSql = 'SELECT DISTINCT * FROM localStoreConsumers WHERE storeName="' + node.name + '"';
         const globalConsumersSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND globalStoreName<>localStoreName';
 
-/*
-        const localConsumersSql = 'SELECT DISTINCT serviceName FROM localStoreConsumers WHERE storeName="' + node.name + '"';
-        log('localConsumersSql:', localConsumersSql);
-        log('all localStoreConsumers:', alasql('SELECT * FROM localStoreConsumers'));
-*/
+        /*
+                const localConsumersSql = 'SELECT DISTINCT serviceName FROM localStoreConsumers WHERE storeName="' + node.name + '"';
+                log('localConsumersSql:', localConsumersSql);
+                log('all localStoreConsumers:', alasql('SELECT * FROM localStoreConsumers'));
+        */
 
 
         const localConsumers = alasql(localConsumersSql);
@@ -313,11 +364,14 @@ module.exports.RedLinkStore = function (config) {
         if (msg && msg.cmd === 'listConsumers') {
             const allConsumers = getAllVisibleConsumers();
             node.send(allConsumers);
+        } else if (msg && msg.cmd === 'listStores') {
+            const stores = alasql('SELECT * FROM stores');
+            node.send({stores});
         } else if (msg && msg.cmd === 'listPeers') {
             node.send({northPeers: node.northPeers, globalPeers: node.southPeers});
         } else if (msg && msg.cmd === 'listTables') {
             node.send({
-                localStoreConsumers:  alasql('SELECT * FROM localStoreConsumers'),
+                localStoreConsumers: alasql('SELECT * FROM localStoreConsumers'),
                 globalStoreConsumers: alasql('SELECT * FROM globalStoreConsumers'),
                 stores: alasql('SELECT * FROM stores')
             });
@@ -350,16 +404,6 @@ module.exports.RedLinkStore = function (config) {
         alasql.fn[triggerName] = () => {
             log('\n\n\n\nEmpty trigger called for consumer registration', triggerName);
         }
-    }
-
-
-    function log() {
-        let i = 0;
-        let str = '';
-        for (; i < arguments.length; i++) {
-            str += ' ' + JSON.stringify(arguments[i], null, 2) + ' ';
-        }
-        node.trace(str);
     }
 }; // function
 
