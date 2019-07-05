@@ -22,10 +22,16 @@ module.exports.RedLinkConsumer = function (config) {
 
     alasql.fn[newMsgNotifyTrigger] = () => {
         //check if the notify is for this consumer name with the registered store name
-        const notifiesSql = 'SELECT * from notify WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"';
+        const notifiesSql = 'SELECT * from notify WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"' + ' AND notifySent='+ false;
         log('notifiesSql in consumer:', notifiesSql);
         var notifies = alasql(notifiesSql);
         const newNotify = notifies[notifies.length - 1];
+        if(!newNotify){
+            return; //nothing to do- trigger for some other service
+        }
+        const updateNotify = 'UPDATE notify SET notifySent='+true+' WHERE redlinkMsgId="'+newNotify.redlinkMsgId+'"';
+        alasql(updateNotify);
+        log('!@#$%$#@! after updating all notifies:', alasql('SELECT * FROM notify'));
         log('notifies for this consumer:', notifies);
         node.send([newNotify, null]);
     };
