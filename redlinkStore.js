@@ -69,7 +69,7 @@ module.exports.RedLinkStore = function (config) {
                     log('Inserting into globalStoreConsumers sql:', insertGlobalConsumersSql);
                     alasql(insertGlobalConsumersSql);
                 } else {
-                    log('NOT inserting ', insertGlobalConsumersSql, ' into global consumers as existingGlobalConsumer is:', existingGlobalConsumer);
+                    log('#1. NOT inserting ', insertGlobalConsumersSql, ' into global consumers as existingGlobalConsumer is:', existingGlobalConsumer);
                 }
             });
         }
@@ -94,7 +94,7 @@ module.exports.RedLinkStore = function (config) {
                         log('!!!!!!!!!! not inserting local consumers from response as store details for ', consumer.storeName, ' could nto be found');
                     }
                 } else {
-                    log('NOT inserting ', consumer, ' into global consumers as existingGlobalConsumer is:', existingGlobalConsumer);
+                    log('#2 NOT inserting ', consumer, ' into global consumers as existingGlobalConsumer is:', existingGlobalConsumer);
                 }
             });
 
@@ -223,7 +223,7 @@ module.exports.RedLinkStore = function (config) {
             if (newMessage) {
                 //insert the last message into notify
                 //local notify- store src=store dest
-                const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + newMessage.serviceName + '","' + node.listenAddress + '",' + node.listenPort + ',"' + newMessage.redlinkMsgId + '")';
+                const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + newMessage.serviceName + '","' + node.listenAddress + '",' + node.listenPort + ',"' + newMessage.redlinkMsgId +  '",'+false+')';
                 log('in store', node.name, ' going to insert notify new message:', notifyInsertSql);
                 alasql(notifyInsertSql);
 
@@ -312,7 +312,7 @@ module.exports.RedLinkStore = function (config) {
                         log('SOUTH  inserting into globalStoreConsumers sql:', insertGlobalConsumersSql);
                         alasql(insertGlobalConsumersSql);
                     } else {
-                        log('NOT inserting ', insertGlobalConsumersSql, ' into global consumers as existingGlobalConsumer is:', existingGlobalConsumer);
+                        log('#3 NOT inserting ', insertGlobalConsumersSql, ' into global consumers as existingGlobalConsumer is:', existingGlobalConsumer);
                     }
                 });
                 notifyNorthStoreOfConsumers(ips);
@@ -327,7 +327,7 @@ module.exports.RedLinkStore = function (config) {
             case 'producerNotification' :
                 log('PRODUCER NOTIFICATION');
                 log("req.body:", req.body);
-                const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.producerIp + '",' + req.body.producerPort + ')';
+                const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.producerIp + '",' + req.body.producerPort + ','+false+'")';
                 log('notifyInsertSql:', notifyInsertSql);
                 alasql(notifyInsertSql);
                 const allNotifies = alasql('SELECT * FROM notify');
