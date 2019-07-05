@@ -435,13 +435,15 @@
                     let selectionSet = false;
                     console.log('\n\n\n\nstores from get call in producer:', stores);
                     $.each(stores, function (index, obj) {
+                        console.log('selectedStore:', selectedStore, 'obj:', obj, 'selectedStore === obj:', selectedStore === obj);
                         if (selectedStore === obj) {
                             selectionSet = true;
+                            console.log('selectionSet:', selectionSet);
                         }
                         storeElement.append($('<option>', {
                             value: obj,
                             text: obj,
-                            selected: selectionSet
+                            selected: selectedStore === obj
                         }));
                     });
                     if (!selectionSet) {
