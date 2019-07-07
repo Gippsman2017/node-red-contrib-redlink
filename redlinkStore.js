@@ -223,7 +223,7 @@ module.exports.RedLinkStore = function (config) {
             if (newMessage) {
                 //insert the last message into notify
                 //local notify- store src=store dest
-                const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + newMessage.serviceName + '","' + node.listenAddress + '",' + node.listenPort + ',"' + newMessage.redlinkMsgId +  '",'+false+')';
+                const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + newMessage.serviceName + '","' + node.listenAddress + '",' + node.listenPort + ',"' + newMessage.redlinkMsgId +  '","")';
                 log('in store', node.name, ' going to insert notify new message:', notifyInsertSql);
                 alasql(notifyInsertSql);
 
