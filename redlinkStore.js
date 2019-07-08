@@ -136,7 +136,7 @@ module.exports.RedLinkStore = function (config) {
             log('the body being posted is:', JSON.stringify(body, null, 2));
             const options = {
                 method: 'POST',
-                url: 'https://' + ip + ':' + port + '/notify', //todo add specifier for north or south; also add id (to prevent cyclic notifs)
+                url: 'https://' + ip + ':' + port + '/notify',
                 body,
                 json: true
             };
@@ -323,11 +323,10 @@ module.exports.RedLinkStore = function (config) {
                 const consumers = getConsumersOfType();
                 res.send({globalConsumers: consumers, localConsumers: localConsumers}); //TODO send back a delta- dont send back consumers just been notified of...
                 break;
-
             case 'producerNotification' :
                 log('PRODUCER NOTIFICATION');
                 log("req.body:", req.body);
-                const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.producerIp + '",' + req.body.producerPort + ','+false+'")';
+                const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.producerIp + '",' + req.body.producerPort + ',"")';
                 log('notifyInsertSql:', notifyInsertSql);
                 alasql(notifyInsertSql);
                 const allNotifies = alasql('SELECT * FROM notify');
@@ -336,6 +335,26 @@ module.exports.RedLinkStore = function (config) {
                 break;
         } //case
     }); // notify
+    app.post('/read-message', (req, res)=>{
+        console.log('got a request for read-message in store:', node.name, node.listenAddress, node.listenPort);
+        console.log('the req.body is:', JSON.stringify(req.body, null, 2));
+        const redlinkMsgId = req.body.redlinkMsgId;
+        if(!redlinkMsgId){
+            res.status(400).send({err:'redlinkMsgId not specified'});
+            return;
+        }
+        const msgSql = 'SELECT * FROM inMessages WHERE redlinkMsgId="'+redlinkMsgId+'" AND read='+false;
+        const msgs = alasql(msgSql);//should get one or none
+        if(msgs.length >0){ //will be zero if the message has already been read
+            res.send(msgs[msgs.length-1]);
+            //update message to read=true
+            const updateMsgStatus = 'UPDATE inMessages SET read=' + true + ' WHERE redlinkMsgId="' + redlinkMsgId + '"';
+            console.log('updateMsgStatus:', updateMsgStatus);
+            alasql(updateMsgStatus);
+        }else{
+            res.status(404).send({err:'msg '+redlinkMsgId+' already read'});
+        }
+    });
 
 
     function getAllVisibleConsumers() {
