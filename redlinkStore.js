@@ -336,8 +336,8 @@ module.exports.RedLinkStore = function (config) {
         } //case
     }); // notify
     app.post('/read-message', (req, res)=>{
-        console.log('got a request for read-message in store:', node.name, node.listenAddress, node.listenPort);
-        console.log('the req.body is:', JSON.stringify(req.body, null, 2));
+        log('got a request for read-message in store:', node.name, node.listenAddress, node.listenPort);
+        log('the req.body is:', JSON.stringify(req.body, null, 2));
         const redlinkMsgId = req.body.redlinkMsgId;
         if(!redlinkMsgId){
             res.status(400).send({err:'redlinkMsgId not specified'});
@@ -349,7 +349,7 @@ module.exports.RedLinkStore = function (config) {
             res.send(msgs[msgs.length-1]);
             //update message to read=true
             const updateMsgStatus = 'UPDATE inMessages SET read=' + true + ' WHERE redlinkMsgId="' + redlinkMsgId + '"';
-            console.log('updateMsgStatus:', updateMsgStatus);
+            log('updateMsgStatus:', updateMsgStatus);
             alasql(updateMsgStatus);
         }else{
             res.status(404).send({err:'msg '+redlinkMsgId+' already read'});
