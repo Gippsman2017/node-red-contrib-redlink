@@ -1,4 +1,8 @@
 const alasql = require('alasql');
+const request = require('request').defaults({strictSSL: false});
+
+const base64Helper = require('./base64-helper.js');
+
 let RED;
 module.exports.initRED = function (_RED) {
     RED = _RED;
@@ -11,9 +15,11 @@ module.exports.RedLinkConsumer = function (config) {
     node.name = config.name;
     node.consumerStoreName = config.consumerStoreName;
     node.consumerMeshName = config.consumerMeshName;
-    if(node.consumerMeshName){
-        node.consumerStoreName = node.consumerMeshName+':'+node.consumerStoreName;
-    }else{
+    node.manualRead = config.manualReadReceiveSend;
+    log('consumer configuration:', JSON.stringify(config, null, 2));
+    if (node.consumerMeshName) {
+        node.consumerStoreName = node.consumerMeshName + ':' + node.consumerStoreName;
+    } else {
         log('\n\n\n\nNo mesh name set for consumer', node.name);
     }
     const msgNotifyTriggerId = 'a' + config.id.replace('.', '');
@@ -23,27 +29,42 @@ module.exports.RedLinkConsumer = function (config) {
     alasql.fn[newMsgNotifyTrigger] = () => {
         //check if the notify is for this consumer name with the registered store name
         const notifiesSql = 'SELECT * from notify WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' +
-            node.name + '"' + ' AND notifySent NOT LIKE "%'+ node.id+'%"';
+            node.name + '"' + ' AND notifySent NOT LIKE "%' + node.id + '%"';
         log('notifiesSql in consumer:', notifiesSql);
         const notifies = alasql(notifiesSql);
         const newNotify = notifies[notifies.length - 1];
-        if(!newNotify){
+        if (!newNotify) {
             return; //nothing to do- trigger for some other service
         }
-        const existingNotifiesNodes = newNotify.notifySent.trim();
-        let newNotifiesNodes = existingNotifiesNodes?existingNotifiesNodes+','+node.id:node.id;
-        const updateNotify = 'UPDATE notify SET notifySent="'+newNotifiesNodes+'" WHERE redlinkMsgId="'+newNotify.redlinkMsgId+'"';
+        const existingNotifiedNodes = newNotify.notifySent.trim();
+        let newNotifiedNodes = existingNotifiedNodes ? existingNotifiedNodes + ',' + node.id : node.id;
+        const updateNotify = 'UPDATE notify SET notifySent="' + newNotifiedNodes + '" WHERE redlinkMsgId="' + newNotify.redlinkMsgId + '"';
         log('\n\n\n\ngoing to update notifies with', updateNotify);
         alasql(updateNotify);
         log('!@#$%$#@! after updating all notifies:', alasql('SELECT * FROM notify'));
         log('notifies for this consumer:', notifies);
-        node.send([newNotify, null]);
+        const notifyMessage = {
+            redlinkMsgId: newNotify.redlinkMsgId,
+            src: {
+                storeName: newNotify.storeName,
+                address: newNotify.producerIp + ':' + newNotify.producerPort,
+            },
+            dest: {
+                storeName: newNotify.storeName,
+                serviceName: newNotify.serviceName
+            }
+        };
+        if (node.manualRead) {
+            node.send([null, notifyMessage]);
+        } else {
+            readMessage(notifyMessage.redlinkMsgId);
+        }
     };
 
     const createTriggerSql = 'CREATE TRIGGER ' + msgNotifyTriggerId + ' AFTER INSERT ON notify CALL ' + newMsgNotifyTrigger + '()';
     log('the sql statement for adding trigger in consumer is:', createTriggerSql);
     alasql(createTriggerSql);
-    log('registered notify trigger (',createTriggerSql,') for service ', node.name, ' in store ', node.consumerStoreName);
+    log('registered notify trigger (', createTriggerSql, ') for service ', node.name, ' in store ', node.consumerStoreName);
 
     //localStoreConsumers (storeName STRING, serviceName STRING)'); 
     //can have multiple consumers with same name registered to the same store
@@ -72,4 +93,43 @@ module.exports.RedLinkConsumer = function (config) {
         done();
     });
 
+    node.on("input", msg => {
+        if (msg.cmd === 'read' && node.manualRead) {
+            if (msg.redlinkMsgId) {
+                readMessage(msg.redlinkMsgId);
+            }
+        }
+    });
+
+    function readMessage(redlinkMsgId) { //todo enforce rate limits here...
+        const notifiesSql = 'SELECT * from notify WHERE redlinkMsgId="' + redlinkMsgId + '"';
+        log('notifiesSql in consumer:', notifiesSql);
+        const notifies = alasql(notifiesSql);
+        if(notifies.length>0) {
+            const address = notifies[0].producerIp + ':' + notifies[0].producerPort;
+            const options = {
+                method: 'POST',
+                url: 'https://' + address + '/read-message',
+                body: {
+                    redlinkMsgId
+                },
+                json: true
+            };
+            request(options, function (error, response) {
+                console.log(response.statusCode);
+                if(response.statusCode === 200){
+                    if(response.body.message){
+                        response.body.message = base64Helper.decode(response.body.message);
+                    }
+                    node.send(response.body);
+                } else{
+                    if(node.manualRead){
+                        node.send([null, null, response.body]); //todo rationalise sending outputs- ||| to dlink
+                    }else{
+                        node.send([null, response.body]);
+                    }
+                }
+            });
+        }
+    }
 };
