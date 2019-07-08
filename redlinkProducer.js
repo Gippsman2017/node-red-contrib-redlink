@@ -19,7 +19,7 @@ module.exports.RedLinkProducer = function (config) {
         const stringify = JSON.stringify(msg);
         const encodedMessage = base64Helper.encode(msg);
         log('the input message is:', stringify);
-        const msgInsertSql = 'INSERT INTO inMessages VALUES ("' + msg.redlinkMsgId + '","' + this.producerStoreName + '","' + this.producerConsumer + '","' + encodedMessage + '")';
+        const msgInsertSql = 'INSERT INTO inMessages VALUES ("' + msg.redlinkMsgId + '","' + this.producerStoreName + '","' + this.producerConsumer + '","' + encodedMessage + '",'+false+')';
         log('in the producer going to execute sql to insert into inmesasges: ', msgInsertSql);
         alasql(msgInsertSql);
 /*
