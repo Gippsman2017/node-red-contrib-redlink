@@ -37,7 +37,7 @@ module.exports.RedLinkStore = function (config) {
         log('started server at port:', node.listenPort);
     }
     const app = httpsServer.getExpressApp();
-    storeConsumer.init(node, app);
+    storeConsumer.init(node, app, log);
 
     log('northPeers:', node.northPeers);
     const insertStoreSql = 'INSERT INTO stores("' + node.name + '","' + node.listenAddress + '",' + node.listenPort + ')';

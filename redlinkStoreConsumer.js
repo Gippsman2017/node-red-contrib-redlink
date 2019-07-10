@@ -7,7 +7,7 @@ const notifyDirections = {
     SOUTH: 'south'
 };
 
-module.exports.init = function(node, expressApp){
+module.exports.init = function(node, expressApp, log){
     const registerConsumerTriggerName = 'registerConsumer' + node.nodeId;
     try {
         //On local consumer registration, let them all know
