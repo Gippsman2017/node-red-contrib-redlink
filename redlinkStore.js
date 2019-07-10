@@ -18,7 +18,7 @@ module.exports.RedLinkStore = function (config) {
     node.name = config.meshName ? config.meshName + ':' + config.name : config.name;
     node.notifyInterval = config.notifyInterval;
     node.functions = config.functions;
-    node.northPeers = config.headers; //todo validation in ui to prevent multiple norths with same ip:port
+    node.northPeers = config.headers||[]; //todo validation in ui to prevent multiple norths with same ip:port
     node.southPeers = []; //todo each store should notify its north peer once when it comes up- that's how southPeers will be populated
     node.nodeId = config.id.replace('.', '');
     if (node.listenPort) {
@@ -38,7 +38,6 @@ module.exports.RedLinkStore = function (config) {
     }
     const app = httpsServer.getExpressApp();
     storeConsumer.init(node, app, log);
-
     log('northPeers:', node.northPeers);
     const insertStoreSql = 'INSERT INTO stores("' + node.name + '","' + node.listenAddress + '",' + node.listenPort + ')';
     log('Creating Store and inserting store name ', node.name, ' in stores table');
