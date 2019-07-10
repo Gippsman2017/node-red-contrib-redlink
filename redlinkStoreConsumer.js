@@ -7,12 +7,19 @@ const notifyDirections = {
     SOUTH: 'south'
 };
 
-module.exports.init = function(node, expressApp, log){
+let node;
+let expressApp;
+let log;
+module.exports.init = function(_node, _expressApp, _log){
+    node=_node;
+    expressApp = _expressApp;
+    log = _log;
+    log('in redlinkstoreconsumers  init for node:', node.name, 'node.northPeers:', node.northPeers);
     const registerConsumerTriggerName = 'registerConsumer' + node.nodeId;
     try {
         //On local consumer registration, let them all know
         alasql.fn[registerConsumerTriggerName] = () => {
-            log('going to call notifyNorth, notifySouth in register consumer trigger of store ', node.name);
+            log('going to call notifyNorth, notifySouth in register consumer trigger of store ', node.name, 'node.northPeers:', node.northPeers);
             notifyNorthStoreOfConsumers([]);
             log('CONSUMER TRIGGER for ', node.name);
         };
