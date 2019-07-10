@@ -198,7 +198,6 @@ module.exports.RedLinkStore = function (config) {
         dropTrigger(newMsgTriggerName);
         // const dropTriggerRegisterConsumer = 'DROP TRIGGER ' + registerConsumerTriggerName;
         // alasql(dropTriggerRegisterConsumer);
-        dropTrigger(registerConsumerTriggerName);
         done();
     });
 

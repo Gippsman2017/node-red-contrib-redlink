@@ -25,6 +25,11 @@ module.exports.init = function(node, expressApp, log){
     }catch (e1) {
         log('@@@@@@@@@@@@@@@@@@@@here- problem creating trigger in redlink store...', e1);
     }
+    node.on('close', (removed, done) => {
+        dropTrigger(registerConsumerTriggerName);
+        done();
+    });
+
     expressApp.post('/notify', (req, res) => { //todo validation on params
         const notifyType = req.body.notifyType;
         if (notifyType === 'consumerRegistration') {
@@ -208,5 +213,11 @@ function insertConsumers(body) {
             }
         });
 
+    }
+}
+
+function dropTrigger(triggerName) { //workaround for https://github.com/agershun/alasql/issues/1113
+    alasql.fn[triggerName] = () => {
+        log('\n\n\n\nEmpty trigger called for consumer registration', triggerName);
     }
 }
