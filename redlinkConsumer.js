@@ -30,19 +30,22 @@ module.exports.RedLinkConsumer = function (config) {
         //check if the notify is for this consumer name with the registered store name
         const notifiesSql = 'SELECT * from notify WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' +
             node.name + '"' + ' AND notifySent NOT LIKE "%' + node.id + '%"';
-        log('notifiesSql in consumer:', notifiesSql);
+        log('in consumer notify trigger all notifies:', alasql('SELECT * from notify'));
+        log('notifiesSql for consumer:', node.id, notifiesSql);
         const notifies = alasql(notifiesSql);
+        log('notifies for consumer:', node.id, notifies);
         const newNotify = notifies[notifies.length - 1];
         if (!newNotify) {
             return; //nothing to do- trigger for some other service
         }
         const existingNotifiedNodes = newNotify.notifySent.trim();
         let newNotifiedNodes = existingNotifiedNodes ? existingNotifiedNodes + ',' + node.id : node.id;
-        const updateNotify = 'UPDATE notify SET notifySent="' + newNotifiedNodes + '" WHERE redlinkMsgId="' + newNotify.redlinkMsgId + '"';
-        log('\n\n\n\ngoing to update notifies with', updateNotify);
-        alasql(updateNotify);
+        const matchingDogs = alasql('SELECT * FROM notify WHERE redlinkMsgId="' + newNotify.redlinkMsgId + '" AND serviceName="' +node.name + '"');
+        const updateNotifySql = 'UPDATE notify SET notifySent="' + newNotifiedNodes + '" WHERE redlinkMsgId="' + newNotify.redlinkMsgId + '" AND storeName="' +node.consumerStoreName + '"';
+        log('\n\n\n\n!@#$%$#@!\n going to update the following docs:', matchingDogs, ' with updateSql:', updateNotifySql);
+        // log('\n\n\n\ngoing to update notifies with', updateNotifySql);
+        alasql(updateNotifySql);
         log('!@#$%$#@! after updating all notifies:', alasql('SELECT * FROM notify'));
-        log('notifies for this consumer:', notifies);
         const notifyMessage = {
             redlinkMsgId: newNotify.redlinkMsgId,
             src: {

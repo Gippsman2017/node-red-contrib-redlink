@@ -215,17 +215,35 @@ module.exports.RedLinkStore = function (config) {
         alasql.fn[newMsgTriggerName] = () => {
             // check if the input message is for this store
             // inMessages (msgId STRING, storeName STRING, serviceName STRING, message STRING)'
-            const newMessagesSql = 'SELECT * from inMessages WHERE storeName="' + node.name + '"'; //todo also filter by address and port? what happens if we have multiple non-unique mesh:store?
-            log('newMessagesSql in consumer:', newMessagesSql);
+            const newMessagesSql = 'SELECT * from inMessages WHERE storeName="' + node.name + '" AND read='+false;
+            log('newMessagesSql in store:', newMessagesSql);
             var newMessages = alasql(newMessagesSql);
             log('newMessages for this store:', newMessages);
             const newMessage = newMessages[newMessages.length - 1];
             if (newMessage) {
-                //insert the last message into notify
-                //local notify- store src=store dest
-                const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + newMessage.serviceName + '","' + node.listenAddress + '",' + node.listenPort + ',"' + newMessage.redlinkMsgId +  '","")';
-                log('in store', node.name, ' going to insert notify new message:', notifyInsertSql);
-                alasql(notifyInsertSql);
+                const allVisibleConsumers = getAllVisibleConsumers(); //todo optimise this
+                //insert one notify for local
+                for (const localConsumer of allVisibleConsumers.localConsumers) {
+                    if(localConsumer.serviceName === newMessage.serviceName){
+                        const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + newMessage.serviceName + '","' + node.listenAddress + '",' + node.listenPort + ',"' + newMessage.redlinkMsgId +  '","")';
+                        log('in store', node.name, ' going to insert notify new message for local consumers:', notifyInsertSql);
+                        alasql(notifyInsertSql);
+                        break; //should get only one local consumer with the same name- this is a just in case
+                    }
+                }
+                //one for each store having a matching global consumer
+                const remoteStores = new Set();
+                allVisibleConsumers.globalConsumers.forEach(globalConsumer=>{
+                    if(globalConsumer.globalServiceName === newMessage.serviceName){
+                        remoteStores.add(globalConsumer.globalStoreName);
+                    }
+                });
+                remoteStores.forEach(store=>{
+                    //notify (storeName STRING, serviceName STRING, producerIp STRING, producerPort INT , redlinkMsgId STRING, notifySent STRING)')
+                    const notifyInsertSql = 'INSERT INTO notify VALUES ("' + store + '","' + newMessage.serviceName + '","' + node.listenAddress + '",' + node.listenPort + ',"' + newMessage.redlinkMsgId +  '","")';
+                    log('in store', node.name, ' going to insert notify new message for global consumers:', notifyInsertSql);
+                    alasql(notifyInsertSql);
+                });
 
                 //remote notify- notify any stores having same consumer not on same node-red instance
                 //stores table contains stores local to this node-red instance, all consumers will contain consumers on stores reachable from this store- even if they are remote
@@ -362,14 +380,6 @@ module.exports.RedLinkStore = function (config) {
         log('all localStoreConsumers:', alasql('SELECT * FROM localStoreConsumers'));
         const localConsumersSql = 'SELECT DISTINCT * FROM localStoreConsumers WHERE storeName="' + node.name + '"';
         const globalConsumersSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND globalStoreName<>localStoreName';
-
-        /*
-                const localConsumersSql = 'SELECT DISTINCT serviceName FROM localStoreConsumers WHERE storeName="' + node.name + '"';
-                log('localConsumersSql:', localConsumersSql);
-                log('all localStoreConsumers:', alasql('SELECT * FROM localStoreConsumers'));
-        */
-
-
         const localConsumers = alasql(localConsumersSql);
         const globalConsumers = alasql(globalConsumersSql);
         return {
