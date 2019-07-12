@@ -182,32 +182,20 @@ module.exports.RedLinkStore = function (config) {
 
     const registerConsumerTriggerName = 'registerConsumer' + nodeId;
 
-    function getRemoteMatchingStores(serviceName, meshStore, address, port) {
+    function getRemoteMatchingStores(serviceName, meshName) {
         //stores (storeName STRING, storeAddress STRING, storePort INT)');
         //globalStoreConsumers (localStoreName STRING, globalServiceName STRING, globalStoreName STRING, globalStoreIp STRING, globalStorePort INT)');
-        const globalStoresSql = 'SELECT * FROM globalStoreConsumers WHERE globalServiceName="'+serviceName+'" AND globalStoreName="'+meshStore+'"';
+        log('in getRemoteMatchingStores all global consumers:', alasql('SELECT * FROM globalStoreConsumers'));
+        const globalStoresSql = 'SELECT * FROM globalStoreConsumers WHERE globalServiceName="'+serviceName+'" AND globalStoreName LIKE "'+meshName+':%"';
         log('\n in getRemoteMatchingStores \n', 'globalStoresSql:', globalStoresSql);
         const matchingGlobalStores = alasql(globalStoresSql);
         log('matchingGlobalStores:', matchingGlobalStores);
-        let allLocalStoresSql = 'SELECT * FROM stores';
-        const allLocalStores = alasql(allLocalStoresSql);
-        log(allLocalStores);
         const matchingGlobalStoresAddresses = [];
         matchingGlobalStores.forEach(store=>{
             matchingGlobalStoresAddresses.push(store.globalStoreIp+':'+store.globalStorePort);
         });
-        const localStoresAddresses = [];
-        allLocalStores.forEach(store=>{
-            localStoresAddresses.push(store.storeAddress+':'+store.storePort);
-        });
-        const remoteStoreAddresses= [];
-        matchingGlobalStoresAddresses.forEach(remoteAddress=>{
-            if(!localStoresAddresses.includes(remoteAddress)){
-                remoteStoreAddresses.push(remoteAddress);
-            }
-        });
-        log('remote addresses matching service name:', remoteStoreAddresses);
-        return remoteStoreAddresses;
+        log('remote addresses matching service name:', matchingGlobalStoresAddresses);
+        return matchingGlobalStoresAddresses;
     }
 
     try {
@@ -247,9 +235,37 @@ module.exports.RedLinkStore = function (config) {
 
                 //remote notify- notify any stores having same consumer not on same node-red instance
                 //stores table contains stores local to this node-red instance, all consumers will contain consumers on stores reachable from this store- even if they are remote
-                getRemoteMatchingStores(newMessage.serviceName, node.name,node.listenAddress, node.listenPort);//todo fix bug on 61, 298; then do notify
-                //we need to add a local notify stores not on this instance but having services which can handle this message
 
+                const remoteMatchingStores = getRemoteMatchingStores(newMessage.serviceName, node.meshName);
+                remoteMatchingStores.forEach(remoteStore=>{
+                    const body = {
+                        service: newMessage.serviceName,
+                        srcStoreIp: node.listenAddress,
+                        srcStorePort: node.listenPort,
+                        redlinkMsgId: newMessage.redlinkMsgId,
+                        notifyType: 'producerNotification'
+                    };
+                    //'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreIp + '",' + req.body.srcStorePort + ',"' + req.body.redlinkMsgId +  '")';
+                    log('the body being posted is:', JSON.stringify(body, null, 2));
+                    const options = {
+                        method: 'POST',
+                        url: 'https://' + remoteStore + '/notify',
+                        body,
+                        json: true
+                    };
+                    request(options, function (error, response) {
+                        if (error) {
+                            log('got error when sending new notify to remote store:', options);
+                            log(error); //todo retry???
+                        } else {
+                            log('\n\n\n\n\n\n!@#$%');
+                            log('sent request to endpoint:\n');
+                            log(JSON.stringify(options, null, 2));
+                            log('got response body as:', JSON.stringify(response.body, null, 2));
+                            log('!@#$%\n\n\n\n\n\n');
+                        }
+                    });
+                });
             }
             //todo notify stores having global consumers
         };
@@ -344,7 +360,7 @@ module.exports.RedLinkStore = function (config) {
             case 'producerNotification' :
                 log('PRODUCER NOTIFICATION');
                 log("req.body:", req.body);
-                const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreIp + '",' + req.body.srcStorePort + ',"")';
+                const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreIp + '",' + req.body.srcStorePort + ',"' + req.body.redlinkMsgId +  '","")';
                 log('notifyInsertSql:', notifyInsertSql);
                 alasql(notifyInsertSql);
                 const allNotifies = alasql('SELECT * FROM notify');
