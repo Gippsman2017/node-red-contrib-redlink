@@ -396,7 +396,13 @@ module.exports.RedLinkStore = function (config) {
         } else if (msg && msg.cmd === 'listStores') {
             const stores = alasql('SELECT * FROM stores');
             node.send({stores});
-        } else if (msg && msg.cmd === 'listPeers') {
+        } else if (msg && msg.cmd === 'listInMessages') {
+            const stores = alasql('SELECT * FROM inMessages');
+            node.send({stores});
+        } else if (msg && msg.cmd === 'listNotifies') {
+            const stores = alasql('SELECT * FROM notify');
+            node.send({stores});
+        }else if (msg && msg.cmd === 'listPeers') {
             node.send({northPeers: node.northPeers, globalPeers: node.southPeers});
         } else if (msg && msg.cmd === 'listTables') {
             node.send({
