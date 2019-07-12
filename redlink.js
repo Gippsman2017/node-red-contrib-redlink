@@ -19,7 +19,7 @@ module.exports = function (RED) {
         alasql('DROP TABLE IF EXISTS localStoreConsumers');
         alasql('DROP TABLE IF EXISTS globalStoreConsumers');
         alasql('DROP TABLE IF EXISTS stores');
-        alasql('CREATE TABLE notify (storeName STRING, serviceName STRING, producerIp STRING, producerPort INT , redlinkMsgId STRING, notifySent STRING)');//todo change this to list of consumer node ids
+        alasql('CREATE TABLE notify (storeName STRING, serviceName STRING, srcStoreIp STRING, srcStorePort INT , redlinkMsgId STRING, notifySent STRING)');//todo change this to list of consumer node ids
         alasql('CREATE TABLE inMessages (redlinkMsgId STRING, storeName STRING, serviceName STRING, message STRING, read BOOLEAN)');
         alasql('CREATE TABLE localStoreConsumers (storeName STRING, serviceName STRING)'); //can have multiple consumers with same name registered to the same store
         alasql('CREATE TABLE globalStoreConsumers (localStoreName STRING, globalServiceName STRING, globalStoreName STRING, globalStoreIp STRING, globalStorePort INT)');

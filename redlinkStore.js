@@ -239,7 +239,7 @@ module.exports.RedLinkStore = function (config) {
                     }
                 });
                 remoteStores.forEach(store=>{
-                    //notify (storeName STRING, serviceName STRING, producerIp STRING, producerPort INT , redlinkMsgId STRING, notifySent STRING)')
+                    //notify (storeName STRING, serviceName STRING, srcStoreIp STRING, srcStorePort INT , redlinkMsgId STRING, notifySent STRING)')
                     const notifyInsertSql = 'INSERT INTO notify VALUES ("' + store + '","' + newMessage.serviceName + '","' + node.listenAddress + '",' + node.listenPort + ',"' + newMessage.redlinkMsgId +  '","")';
                     log('in store', node.name, ' going to insert notify new message for global consumers:', notifyInsertSql);
                     alasql(notifyInsertSql);
@@ -344,7 +344,7 @@ module.exports.RedLinkStore = function (config) {
             case 'producerNotification' :
                 log('PRODUCER NOTIFICATION');
                 log("req.body:", req.body);
-                const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.producerIp + '",' + req.body.producerPort + ',"")';
+                const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreIp + '",' + req.body.srcStorePort + ',"")';
                 log('notifyInsertSql:', notifyInsertSql);
                 alasql(notifyInsertSql);
                 const allNotifies = alasql('SELECT * FROM notify');
@@ -397,11 +397,11 @@ module.exports.RedLinkStore = function (config) {
             const stores = alasql('SELECT * FROM stores');
             node.send({stores});
         } else if (msg && msg.cmd === 'listInMessages') {
-            const stores = alasql('SELECT * FROM inMessages');
-            node.send({stores});
+            const messages = alasql('SELECT * FROM inMessages');
+            node.send({messages});
         } else if (msg && msg.cmd === 'listNotifies') {
-            const stores = alasql('SELECT * FROM notify');
-            node.send({stores});
+            const notifies = alasql('SELECT * FROM notify');
+            node.send({notifies});
         }else if (msg && msg.cmd === 'listPeers') {
             node.send({northPeers: node.northPeers, globalPeers: node.southPeers});
         } else if (msg && msg.cmd === 'listTables') {

@@ -50,7 +50,7 @@ module.exports.RedLinkConsumer = function (config) {
             redlinkMsgId: newNotify.redlinkMsgId,
             src: {
                 storeName: newNotify.storeName,
-                address: newNotify.producerIp + ':' + newNotify.producerPort,
+                address: newNotify.srcStoreIp + ':' + newNotify.srcStorePort,
             },
             dest: {
                 storeName: newNotify.storeName,
@@ -109,7 +109,7 @@ module.exports.RedLinkConsumer = function (config) {
         log('notifiesSql in consumer:', notifiesSql);
         const notifies = alasql(notifiesSql);
         if(notifies.length>0) {
-            const address = notifies[0].producerIp + ':' + notifies[0].producerPort;
+            const address = notifies[0].srcStoreIp + ':' + notifies[0].srcStorePort;
             const options = {
                 method: 'POST',
                 url: 'https://' + address + '/read-message',
