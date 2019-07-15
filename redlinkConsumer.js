@@ -117,6 +117,7 @@ module.exports.RedLinkConsumer = function (config) {
                 },
                 json: true
             };
+            node.send([null,{storeName: node.consumerStoreName,consumerName:node.name,action:'consumerRead',direction:'outBound',Data:options},null]);
 
             request(options, function (error, response) {
                 log(response ? response.statusCode : error);
@@ -131,14 +132,17 @@ module.exports.RedLinkConsumer = function (config) {
                         delete msg.message;
                         delete msg.read;
                         log('RESPONSE=', response.body);
+                        node.send([null,{storeName: node.consumerStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',Data:msg,error:'none'},null]);
                     }
                     node.send(msg);
                 } else {  // No message
                     let output = response? response.body: error;
                     if (node.manualRead) {
                         node.send([null, null, output]); //todo rationalise sending outputs- ||| to dlink
+                        node.send([null,{storeName: node.consumerStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',Data:output,error},null]);
                     } else {
                         node.send([null, output]);
+                         node.send([null,{storeName: node.consumerStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',Data:output,error},null]);
                     }
                 }});
             }

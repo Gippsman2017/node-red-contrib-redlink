@@ -133,6 +133,7 @@ module.exports.RedLinkStore = function (config) {
         //const allConsumers = localConsumers;
         if (ip && ip !== '0.0.0.0') {
             const body = getBody(allConsumers, ipTrail, notifyDirection);
+            node.send([null,{storeName:node.name, action:'notifyRegistration',direction:'outBound',notifyData:body},null]);
             log('the body being posted is:', JSON.stringify(body, null, 2));
             const options = {
                 method: 'POST',
@@ -144,12 +145,14 @@ module.exports.RedLinkStore = function (config) {
                 if (error) {
                     log('got error for request:', options);
                     log(error); //todo retry???
+                    node.send([null,{storeName:node.name, action:'notifyRegistrationResult',direction:'outBound',notifyData:body,error:error},null]);
                 } else {
                     log('\n\n\n\n\n\n!@#$%');
                     log('sent request to endpoint:\n');
                     log(JSON.stringify(options, null, 2));
                     log('got response body as:', JSON.stringify(response.body, null, 2));
                     log('!@#$%\n\n\n\n\n\n');
+                    node.send([null,{storeName:node.name, action:'notifyRegistrationResult',direction:'outBound',notifyData:response.body},null]);
                     insertConsumers(response.body);
                 }
                 // This is the return message from the post, it contains the north peer consumers, so, we will update our services.
@@ -313,6 +316,7 @@ module.exports.RedLinkStore = function (config) {
         const notifyType = req.body.notifyType;
         switch (notifyType) {
             case 'consumerRegistration' :
+                node.send([null,{storeName:node.name,action:'notifyConsumerRegistration',direction:'inBound',Data:req.body},null]);
                 log("in notify.consumerRegistration req.body:", req.body);
                 const storeName = req.body.storeName;
                 const storeAddress = req.body.storeAddress;
@@ -355,9 +359,11 @@ module.exports.RedLinkStore = function (config) {
                 const localConsumersSql = 'SELECT DISTINCT * FROM localStoreConsumers WHERE storeName ="' + node.name + '"';
                 const localConsumers = alasql(localConsumersSql);
                 const consumers = getConsumersOfType();
+                node.send([null,{storeName:node.name,toStoreName:req.body.storeName,action:'notifyConsumerRegistration',direction:'inBoundReply',Data:{globalConsumers: consumers, localConsumers: localConsumers}},null]);
                 res.send({globalConsumers: consumers, localConsumers: localConsumers}); //TODO send back a delta- dont send back consumers just been notified of...
                 break;
             case 'producerNotification' :
+                node.send([null,null,{storeName:node.name,action:'producerNotification',direction:'inBound',Data:req.body}]);
                 log('PRODUCER NOTIFICATION');
                 log("req.body:", req.body);
                 //avoid inserting multiple notifies
@@ -367,6 +373,7 @@ module.exports.RedLinkStore = function (config) {
                     log('notifyInsertSql:', notifyInsertSql);
                     alasql(notifyInsertSql);
                     const allNotifies = alasql('SELECT * FROM notify');
+                    node.send([null,null,{storeName:node.name,action:'producerNotification',direction:'outBound',Data:allNotifies}]);
                     log('allNotifies inside da store is:', allNotifies);
                 }
                 res.status(200).send('ACK');
@@ -378,19 +385,23 @@ module.exports.RedLinkStore = function (config) {
         log('got a request for read-message in store:', node.name, node.listenAddress, node.listenPort);
         log('the req.body is:', JSON.stringify(req.body, null, 2));
         const redlinkMsgId = req.body.redlinkMsgId;
+        node.send([null,null,{storeName:node.name,action:'read-message',direction:'inBound',Data:req.body}]);
         if(!redlinkMsgId){
+            node.send([null,null,{storeName:node.name,action:'read-message',direction:'outBound',error:'redlinkMsgId not specified-400'}]);
             res.status(400).send({err:'redlinkMsgId not specified'});
             return;
         }
         const msgSql = 'SELECT * FROM inMessages WHERE redlinkMsgId="'+redlinkMsgId+'" AND read='+false;
         const msgs = alasql(msgSql);//should get one or none
         if(msgs.length >0){ //will be zero if the message has already been read
+            node.send([null,null,{storeName:node.name,action:'read-message',direction:'outBound',Data:msgs[msgs.length-1],error:'none'}]);
             res.send(msgs[msgs.length-1]);
             //update message to read=true
             const updateMsgStatus = 'UPDATE inMessages SET read=' + true + ' WHERE redlinkMsgId="' + redlinkMsgId + '"';
             log('updateMsgStatus:', updateMsgStatus);
             alasql(updateMsgStatus);
         }else{
+            node.send([null,null,{storeName:node.name,action:'read-message',direction:'outBound',error:'Message Already Read-404'}]);
             res.status(404).send({err:'msg '+redlinkMsgId+' already read'});
         }
     });
