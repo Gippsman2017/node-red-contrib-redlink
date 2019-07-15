@@ -47,6 +47,7 @@ module.exports.RedLinkConsumer = function (config) {
         log('!@#$%$#@! after updating all notifies:', alasql('SELECT * FROM notify'));
         const notifyMessage = {
             redlinkMsgId: newNotify.redlinkMsgId,
+            notifyType: 'producerNotification',
             src: {
                 storeName: newNotify.storeName,
                 address: newNotify.srcStoreIp + ':' + newNotify.srcStorePort,
@@ -56,9 +57,11 @@ module.exports.RedLinkConsumer = function (config) {
                 serviceName: newNotify.serviceName
             }
         };
+
         if (node.manualRead) {
             node.send([null, notifyMessage]);
         } else {
+            node.send([null, notifyMessage]);
             readMessage(notifyMessage.redlinkMsgId);
         }
     };
