@@ -16,7 +16,6 @@ module.exports.RedLinkConsumer = function (config) {
     node.consumerStoreName = config.consumerStoreName;
     node.consumerMeshName = config.consumerMeshName;
     node.manualRead = config.manualReadReceiveSend;
-    log('consumer configuration:', JSON.stringify(config, null, 2));
     if (node.consumerMeshName) {
         node.consumerStoreName = node.consumerMeshName + ':' + node.consumerStoreName;
     } else {
