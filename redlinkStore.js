@@ -360,12 +360,17 @@ module.exports.RedLinkStore = function (config) {
             case 'producerNotification' :
                 log('PRODUCER NOTIFICATION');
                 log("req.body:", req.body);
-                const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreIp + '",' + req.body.srcStorePort + ',"' + req.body.redlinkMsgId +  '","")';
-                log('notifyInsertSql:', notifyInsertSql);
-                alasql(notifyInsertSql);
-                const allNotifies = alasql('SELECT * FROM notify');
-                log('allNotifies inside da store is:', allNotifies);
-                res.send('hello world'); //TODO this will be a NAK/ACK
+                //avoid inserting multiple notifies
+                const existingNotify = alasql('SELECT * FROM notify WHERE storeName="'+node.name+'" AND serviceName="'+req.body.service+'" AND srcStoreIp="'+req.body.srcStoreIp+'" AND srcStorePort='+req.body.srcStorePort+' AND redlinkMsgId="'+req.body.redlinkMsgId+'"');
+                if(!existingNotify || existingNotify.length === 0){
+                    const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreIp + '",' + req.body.srcStorePort + ',"' + req.body.redlinkMsgId +  '","")';
+                    log('notifyInsertSql:', notifyInsertSql);
+                    alasql(notifyInsertSql);
+                    const allNotifies = alasql('SELECT * FROM notify');
+                    log('allNotifies inside da store is:', allNotifies);
+                }
+                res.status(200).send('ACK');
+                // res.send('hello world'); //TODO this will be a NAK/ACK
                 break;
         } //case
     }); // notify
