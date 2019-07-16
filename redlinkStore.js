@@ -405,6 +405,18 @@ module.exports.RedLinkStore = function (config) {
             res.status(404).send({err:'msg '+redlinkMsgId+' already read'});
         }
     });
+    app.post('/reply-message', (req, res)=>{
+        log('got a request for reply-message in store:', node.name, node.listenAddress, node.listenPort);
+        log('the req.body is:', JSON.stringify(req.body, null, 2));
+        const redlinkMsgId = req.body.redlinkMsgId;
+        const host = req.hostname;//store address of replying store
+        console.log('host:', host);
+        //todo insert into replyMessages table
+
+        res.status(200).send({msg:'Reply received for '+redlinkMsgId});
+    });
+
+
 
 
     function getAllVisibleConsumers() {
