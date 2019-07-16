@@ -38,6 +38,7 @@ module.exports = function (RED) {
         redlinkProducer.initRED(RED);
         RED.nodes.registerType("redlink producer", redlinkProducer.RedLinkProducer);
         //Reply
+        redlinkReply.initRED(RED);
         RED.nodes.registerType("redlink reply", redlinkReply.RedLinkReply);
     }
 
