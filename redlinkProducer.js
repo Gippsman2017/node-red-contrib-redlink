@@ -12,6 +12,7 @@ module.exports.RedLinkProducer = function (config) {
     RED.nodes.createNode(this, config);
     this.producerStoreName = config.producerStoreName;
     this.producerConsumer  = config.producerConsumer;
+    this.sendOnly = config.sendOnly;
     const node = this;
     const log = require('./log.js')(node).log;
     node.on("input", msg => {
@@ -19,13 +20,9 @@ module.exports.RedLinkProducer = function (config) {
         const stringify = JSON.stringify(msg);
         const encodedMessage = base64Helper.encode(msg);
         log('the input message is:', stringify);
-        const msgInsertSql = 'INSERT INTO inMessages VALUES ("' + msg.redlinkMsgId + '","' + this.producerStoreName + '","' + this.producerConsumer + '","' + encodedMessage + '",'+false+')';
+        const msgInsertSql = 'INSERT INTO inMessages VALUES ("' + msg.redlinkMsgId + '","' + this.producerStoreName + '","' + this.producerConsumer + '","' + encodedMessage + '",'+false+','+node.sendOnly+')';
         log('in the producer going to execute sql to insert into inmesasges: ', msgInsertSql);
         alasql(msgInsertSql);
-/*
-        const allRows = alasql('select * from inMessages');
-        log('after inserting input message the inMessages table is:', allRows[0]);
-*/
     });
 
 };
