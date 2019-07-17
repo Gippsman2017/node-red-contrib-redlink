@@ -188,11 +188,11 @@ module.exports.RedLinkStore = function (config) {
     function getRemoteMatchingStores(serviceName, meshName) {
         //stores (storeName STRING, storeAddress STRING, storePort INT)');
         //globalStoreConsumers (localStoreName STRING, globalServiceName STRING, globalStoreName STRING, globalStoreIp STRING, globalStorePort INT)');
-        log('in getRemoteMatchingStores all global consumers:', alasql('SELECT * FROM globalStoreConsumers'));
+        // log('in getRemoteMatchingStores all global consumers:', alasql('SELECT * FROM globalStoreConsumers'));
         const globalStoresSql = 'SELECT * FROM globalStoreConsumers WHERE globalServiceName="'+serviceName+'" AND globalStoreName LIKE "'+meshName+':%"';
         log('\n in getRemoteMatchingStores \n', 'globalStoresSql:', globalStoresSql);
         const matchingGlobalStores = alasql(globalStoresSql);
-        log('matchingGlobalStores:', matchingGlobalStores);
+        // log('matchingGlobalStores:', matchingGlobalStores);
         const matchingGlobalStoresAddresses = [];
         matchingGlobalStores.forEach(store=>{
             matchingGlobalStoresAddresses.push(store.globalStoreIp+':'+store.globalStorePort);
@@ -374,7 +374,7 @@ module.exports.RedLinkStore = function (config) {
                     alasql(notifyInsertSql);
                     const allNotifies = alasql('SELECT * FROM notify');
                     node.send([null,null,{storeName:node.name,action:'producerNotification',direction:'outBound',Data:allNotifies}]);
-                    log('allNotifies inside da store is:', allNotifies);
+                    //log('allNotifies inside da store is:', allNotifies);
                 }
                 res.status(200).send('ACK');
                 // res.send('hello world'); //TODO this will be a NAK/ACK
@@ -409,10 +409,14 @@ module.exports.RedLinkStore = function (config) {
         log('got a request for reply-message in store:', node.name, node.listenAddress, node.listenPort);
         log('the req.body is:', JSON.stringify(req.body, null, 2));
         const redlinkMsgId = req.body.redlinkMsgId;
-        const host = req.hostname;//store address of replying store
-        console.log('host:', host);
-        //todo insert into replyMessages table
-
+        // const replyingService = req.body.replyingService;
+        const message = req.body.payload;
+        const host = req.headers.host;//store address of replying store
+        log('host:', host);
+        const insertReplySql = 'INSERT INTO replyMessages ("'+redlinkMsgId+'","'+message+'", false)';
+        log('going to insert into reply:', insertReplySql);
+        log('the reply table after inserting is: ', alasql('SELECT * FROM replyMessages'));
+        alasql(insertReplySql);
         res.status(200).send({msg:'Reply received for '+redlinkMsgId});
     });
 
