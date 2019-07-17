@@ -45,8 +45,10 @@ module.exports.RedLinkProducer = function (config) {
                     const replyMessage = relevantReplies[0].replyMessage;
                     const reply = {
                         payload: base64Helper.decode(replyMessage),
-                        redlinkMsgId : daId
+                        redlinkMsgId : daId,
+                        topic: relevantReplies[0].topic
                     };
+                    log('in producer going to send out reply as:', JSON.stringify(reply, null, 2));
                     node.send(reply);
                 }
             }
