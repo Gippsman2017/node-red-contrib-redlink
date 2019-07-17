@@ -10,7 +10,9 @@ module.exports.initRED = function (_RED) {
 
 module.exports.RedLinkReply = function (config) {
     RED.nodes.createNode(this, config);
+
     const node = this;
+    node.topic = config.topicReply;
 
     node.on("input", msg => {
         if (msg.redlinkMsgId) {
@@ -27,6 +29,7 @@ module.exports.RedLinkReply = function (config) {
                     if (notifies.length > 0) {
                         const replyAddress = notifies[0].srcStoreIp + ':' + notifies[0].srcStorePort;
                         const body = {
+                            topic : node.topic,
                             replyingService: replyService,
                             redlinkMsgId: msg.redlinkMsgId,
                             payload: base64Helper.encode(msg.payload)
