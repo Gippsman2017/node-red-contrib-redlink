@@ -25,7 +25,7 @@ module.exports = function (RED) {
         alasql('CREATE TABLE localStoreConsumers (storeName STRING, serviceName STRING)'); //can have multiple consumers with same name registered to the same store
         alasql('CREATE TABLE globalStoreConsumers (localStoreName STRING, globalServiceName STRING, globalStoreName STRING, globalStoreIp STRING, globalStorePort INT)');
         alasql('CREATE TABLE stores (storeName STRING, storeAddress STRING, storePort INT)');
-        alasql('CREATE TABLE replyMessages (redlinkMsgId STRING, replyMessage STRING, read BOOLEAN)');
+        alasql('CREATE TABLE replyMessages (redlinkMsgId STRING, replyMessage STRING, read BOOLEAN, topic STRING)');
         log('created tables...');
     }
 
