@@ -411,12 +411,13 @@ module.exports.RedLinkStore = function (config) {
         const redlinkMsgId = req.body.redlinkMsgId;
         // const replyingService = req.body.replyingService;
         const message = req.body.payload;
+        const topic = req.body.topic;
         const host = req.headers.host;//store address of replying store
         log('host:', host);
-        const insertReplySql = 'INSERT INTO replyMessages ("'+redlinkMsgId+'","'+message+'", false)';
+        const insertReplySql = 'INSERT INTO replyMessages ("'+redlinkMsgId+'","'+message+'", false,"'+topic+'")';
         log('going to insert into reply:', insertReplySql);
-        log('the reply table after inserting is: ', alasql('SELECT * FROM replyMessages'));
         alasql(insertReplySql);
+        log('the reply table after inserting is: ', alasql('SELECT * FROM replyMessages'));
         res.status(200).send({msg:'Reply received for '+redlinkMsgId});
     });
 
