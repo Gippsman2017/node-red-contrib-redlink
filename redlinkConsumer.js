@@ -16,7 +16,6 @@ module.exports.RedLinkConsumer = function (config) {
     node.consumerStoreName = config.consumerStoreName;
     node.consumerMeshName = config.consumerMeshName;
     node.manualRead = config.manualReadReceiveSend;
-    log('consumer configuration:', JSON.stringify(config, null, 2));
     if (node.consumerMeshName) {
         node.consumerStoreName = node.consumerMeshName + ':' + node.consumerStoreName;
     } else {
@@ -40,26 +39,29 @@ module.exports.RedLinkConsumer = function (config) {
         }
         const existingNotifiedNodes = newNotify.notifySent.trim();
         let newNotifiedNodes = existingNotifiedNodes ? existingNotifiedNodes + ',' + node.id : node.id;
-        const matchingDogs = alasql('SELECT * FROM notify WHERE redlinkMsgId="' + newNotify.redlinkMsgId + '" AND serviceName="' +node.name + '"');
-        const updateNotifySql = 'UPDATE notify SET notifySent="' + newNotifiedNodes + '" WHERE redlinkMsgId="' + newNotify.redlinkMsgId + '" AND storeName="' +node.consumerStoreName + '"';
+        const matchingDogs = alasql('SELECT * FROM notify WHERE redlinkMsgId="' + newNotify.redlinkMsgId + '" AND serviceName="' + node.name + '"');
+        const updateNotifySql = 'UPDATE notify SET notifySent="' + newNotifiedNodes + '" WHERE redlinkMsgId="' + newNotify.redlinkMsgId + '" AND storeName="' + node.consumerStoreName + '"';
         log('\n\n\n\n!@#$%$#@!\n going to update the following docs:', matchingDogs, ' with updateSql:', updateNotifySql);
         // log('\n\n\n\ngoing to update notifies with', updateNotifySql);
         alasql(updateNotifySql);
         log('!@#$%$#@! after updating all notifies:', alasql('SELECT * FROM notify'));
         const notifyMessage = {
             redlinkMsgId: newNotify.redlinkMsgId,
+            notifyType: 'producerNotification',
             src: {
                 storeName: newNotify.storeName,
-                address: newNotify.producerIp + ':' + newNotify.producerPort,
+                address: newNotify.srcStoreIp + ':' + newNotify.srcStorePort,
             },
             dest: {
                 storeName: newNotify.storeName,
                 serviceName: newNotify.serviceName
             }
         };
+
         if (node.manualRead) {
             node.send([null, notifyMessage]);
         } else {
+            node.send([null, notifyMessage]);
             readMessage(notifyMessage.redlinkMsgId);
         }
     };
@@ -108,8 +110,9 @@ module.exports.RedLinkConsumer = function (config) {
         const notifiesSql = 'SELECT * from notify WHERE redlinkMsgId="' + redlinkMsgId + '"';
         log('notifiesSql in consumer:', notifiesSql);
         const notifies = alasql(notifiesSql);
-        if(notifies.length>0) {
-            const address = notifies[0].producerIp + ':' + notifies[0].producerPort;
+        if (notifies.length > 0) {
+            const sendingStoreName = notifies[0].storeName;
+            const address = notifies[0].srcStoreIp + ':' + notifies[0].srcStorePort;
             const options = {
                 method: 'POST',
                 url: 'https://' + address + '/read-message',
@@ -118,21 +121,34 @@ module.exports.RedLinkConsumer = function (config) {
                 },
                 json: true
             };
+            node.send([null,{storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'outBound',Data:options},null]);
+
             request(options, function (error, response) {
-                console.log(response.statusCode);
-                if(response.statusCode === 200){
-                    if(response.body.message){
-                        response.body.message = base64Helper.decode(response.body.message);
+                log(response ? response.statusCode : error);
+                if (response && response.statusCode === 200) {
+                    if (response.body.message) {
+                        response.body.message = JSON.parse(base64Helper.decode(response.body.message));
                     }
-                    node.send(response.body);
-                } else{
-                    if(node.manualRead){
-                        node.send([null, null, response.body]); //todo rationalise sending outputs- ||| to dlink
-                    }else{
-                        node.send([null, response.body]);
+                    const msg = response.body;
+                    if(msg){
+                        msg.payload = msg.message.payload;
+                        msg.topic = msg.message.topic;
+                        delete msg.message;
+                        delete msg.read;
+                        log('RESPONSE=', response.body);
+                        node.send([null,{storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',Data:msg,error:'none'},null]);
                     }
-                }
-            });
+                    node.send(msg);
+                } else {  // No message
+                    let output = response? response.body: error;
+                    if (node.manualRead) {
+                        node.send([null, null, output]); //todo rationalise sending outputs- ||| to dlink
+                        node.send([null,{storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',Data:output,error},null]);
+                    } else {
+                        node.send([null, output]);
+                         node.send([null,{storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',Data:output,error},null]);
+                    }
+                }});
+            }
         }
-    }
-};
+    };

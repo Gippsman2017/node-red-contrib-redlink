@@ -735,13 +735,11 @@
         <label for="node-input-name"><i class="icon-tag"></i> Name </label>
         <input type="text" id="node-input-name" placeholder="Name">
     </div>
-<!--
-    <div class="form-row" id="reply-store-div">
-        <label for="node-input-replyStoreName"><i class="fa fa-ellipsis-v"></i> Store Name</label>
-        <select id="node-input-replyStoreName">
-        </select>
+        <div class="form-row">
+        <label for="node-input-topicReply"><i class="fa fa-tasks"></i> Topic</label>
+        <input type="text" id="node-input-topicReply" placeholder="Topic">
     </div>
--->
+
 
     <div class="form-row">
         <label style="width:100%; border-bottom:1px solid #eee;"><em><span>Send</span></em></label>
@@ -768,7 +766,7 @@
         outputs: 2,
         defaults: {
             name: {value: 'REDLink reply'},
-            replyStoreName: {value: ''},//TODO remove
+            topicReply: {value: ''},
             priorityReceiveSend: {value: 0},
             timeoutReceiveSend: {value: -1},//TODO check with John,
         },
