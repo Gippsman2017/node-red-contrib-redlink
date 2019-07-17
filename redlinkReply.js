@@ -12,22 +12,21 @@ module.exports.RedLinkReply = function (config) {
     RED.nodes.createNode(this, config);
     const node = this;
 
-    node.on("input", msg => { //todo reply to store associated with original producer here
-        //todo dont reply if sendOnly
+    node.on("input", msg => {
         if (msg.redlinkMsgId) {
             if (!msg.sendOnly) {
                 const msgSql = 'SELECT * FROM inMessages WHERE redlinkMsgId="' + msg.redlinkMsgId + '"';
                 const matchingMessages = alasql(msgSql);
+                console.log('in reply matchingMessages:', matchingMessages);
                 if (matchingMessages.length > 0) { //should have only one
                     const replyStore = matchingMessages[0].storeName;
                     const replyService = matchingMessages[0].serviceName;
                     const notifySql = 'SELECT * FROM notify WHERE redlinkMsgId="' + msg.redlinkMsgId + '" AND storeName="' + replyStore + '"';
                     const notifies = alasql(notifySql); //should have only one
+                    console.log('in reply matching notifies:', notifies);
                     if (notifies.length > 0) {
                         const replyAddress = notifies[0].srcStoreIp + ':' + notifies[0].srcStorePort;
                         const body = {
-                            replyingStoreIp: node.listenAddress,
-                            replyingPort: node.listenPort,
                             replyingService: replyService,
                             redlinkMsgId: msg.redlinkMsgId,
                             payload: base64Helper.encode(msg.payload)
@@ -39,6 +38,7 @@ module.exports.RedLinkReply = function (config) {
                             body,
                             json: true
                         };
+                        console.log('going to post to reply-message with options:', JSON.stringify(options, null, 2));
                         request(options, function (error, response) {
                             console.log('in the reply block got response from remote store as:', response ? response.body : error);
                             //todo send response/error to appropriate reply outputs
