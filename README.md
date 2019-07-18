@@ -1,4 +1,4 @@
-# node-red-contrib-redlink
+added# node-red-contrib-redlink
 
 ## What is Redlink
 
@@ -58,6 +58,8 @@ Each time a connection is established between nodes, the data is passed through 
 One of the greatest strengths of Redlink, is that a full redundant mesh can be designed and tested on either a single Node-Red instance or cluster of instances.
 
 ![RedlinkMesh](RedlinkMesh.png)
+
+![RedlinkSeq](redlink-seq1.png)
 
 
 
