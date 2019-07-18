@@ -59,6 +59,8 @@ One of the greatest strengths of Redlink, is that a full redundant mesh can be d
 
 ![RedlinkMesh](RedlinkMesh.png)
 
+## Producer, Consumer, Reply to Sender/Receiver Socket design
+
 ![RedlinkSeq](redlink-seq1.png)
 
 
