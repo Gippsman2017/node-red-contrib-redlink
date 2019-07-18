@@ -31,9 +31,12 @@ Redlink does not use a traditional messaging system, it actually creates a hiera
 
 AlaSQL provides a very robust and high level of complexity using very simple SELECT statements and it reduces the code required to perform queueing and timing.
 
-## Why Redlink uses peer to peer for "Notifications"
+## Why Redlink uses peer to peer for "Notifications" 
 
-Redlink's design stengths are:
+The reason for this, is that multiple peer and consumer combinations have actually nothing to do with the production of messaging. What this means is that since Redlink is not a Publish-Subscribe system, more over publish to a single consumer at a time model, this allows fan out micro services to consume messages based on their ability to consume. 
+So, lets assume that I have 2 consumers on a service and both are busy, one will fetch the message and the other will get rejected as the first consumer has already consumed it from the producer.
+
+## Redlink's design stengths are:
 When a "Service" is advertised on this node it will not send notifies to its children.
 When consumers register on nodes, the node automatically registers / deregisters its Services to their peer / parent. 
 
@@ -44,6 +47,7 @@ More complexity, this type of system removes one of layer and has a modern appro
 ## Why is Redlink "Consumer" based messaging
 
 As stated, the real issue of scale-out containerisation is that adding compute by using consumer based load distribution works well with Kubenetes / Docker / LXC.
+Consumer based messaging is infinitly more secure as it is up to the consumer to actually transact the produces request based on merit.
 
 ## How Redlink actually communicates with other Redlink Instances
 
@@ -54,5 +58,6 @@ Each time a connection is established between nodes, the data is passed through 
 One of the greatest strengths of Redlink, is that a full redundant mesh can be designed and tested on either a single Node-Red instance or cluster of instances.
 
 ![RedlinkMesh](RedlinkMesh.png)
+
 
 
