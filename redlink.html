@@ -91,7 +91,6 @@
     const validatePositiveNumber = function (port) {
         return RED.validators.number(port) && (port >= 0);
     };
-
     var headerTypes = [ //TODO clean this up- copied from http-node most of these are not used
         {value: "other", label: RED._("node-red:httpin.label.other"), icon: "red/images/typedInput/az.png"}
     ];
@@ -113,7 +112,7 @@
         outputs: 1, //debug
         defaults: {
             listenAddress: {
-                value: '127.0.0.1', required: true, validate: validateIpAddress
+                value: ''
             },
             listenPort: {
                 value: 2000, required: true, validate: validatePositiveNumber
@@ -124,10 +123,11 @@
             peerPort: {
                 value: 443, required: true, validate: validatePositiveNumber
             },
-            headers: {value: {}},
+            headers: {value: []},
             name: {value: '', required: true},
             meshName: {value: 'mesh0', required: true},
-            notifyInterval: {value: 15, required: true/*, validate: validatePositiveNumber*/}
+            notifyInterval: {value: 15, required: true/*, validate: validatePositiveNumber*/},
+            oldStore: {value: false}
         },
         icon: "redis.png",
         label: function () {
@@ -137,6 +137,13 @@
             return this.name ? "node_label_italic" : "";
         },
         oneditprepare: function () {
+            $.getJSON('hostname', hostname=>{
+                console.log('got hostname as:', hostname);
+                this.listenAddress = this.listenAddress || hostname;
+                $('#node-input-listenAddress').val(this.listenAddress);
+            });
+
+
             //TODO get all store names in this instance; then validate current store name on change to avoid duplicates
             function resizeRule(rule) {
                 var newWidth = rule.width();
@@ -229,25 +236,28 @@
                 resizeItem: resizeRule,
                 removable: true
             });
-
-            if (this.headers) {
+            if (this.headers && this.headers.length>0) {
                 this.headers.forEach((header) => {
                     const ip = header.ip;
                     const port = header.port;
                     headerList.editableList('addItem', {h: ip, v: port});
                 });
-                /*for (var key in this.headers) {
-                    if (this.headers.hasOwnProperty(key)) {
-                        headerList.editableList('addItem', {h: key, v: this.headers[key]});
-                    }
-                }*/
+            } else if (!this.oldStore) {
+                console.log('newStore:', this.oldStore);
+                $.getJSON('north-peers', northies=>{
+                    console.log('northies:', northies);
+                    northies.map(northie=>{
+                        console.log(northie);
+                        headerList.editableList('addItem', {h: northie.address, v: northie.port});
+                    });
+                });
             }
-
         },
         oneditsave: function () {
             var headers = $("#node-input-headers-container").editableList('items');
             var node = this;
             node.headers = [];
+            node.oldStore = true;
             headers.each(function (i) {
                 var header = $(this);
                 var keyType = header.find(".node-input-header-name").typedInput('type');
