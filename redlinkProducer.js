@@ -58,7 +58,9 @@ module.exports.RedLinkProducer = function (config) {
     alasql(createReplyMsgTriggerSql);
 
     node.on("input", msg => {
-        msg.redlinkMsgId = RED.util.generateId();
+        if (!msg.redlinkMsgId) {
+          msg.redlinkMsgId = RED.util.generateId();
+          };
         const stringify = JSON.stringify(msg);
         const encodedMessage = base64Helper.encode(msg);
         log('the input message is:', stringify);

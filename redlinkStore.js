@@ -413,6 +413,7 @@ module.exports.RedLinkStore = function (config) {
         const message = req.body.payload;
         const topic = req.body.topic;
         const host = req.headers.host;//store address of replying store
+        node.send([null,null,{storeName:node.name,action:'reply-message',direction:'inBound',Data:req.body}]);
         log('host:', host);
         const insertReplySql = 'INSERT INTO replyMessages ("'+redlinkMsgId+'","'+message+'", false,"'+topic+'")';
         log('going to insert into reply:', insertReplySql);
@@ -439,21 +440,13 @@ module.exports.RedLinkStore = function (config) {
 
     node.on("input", msg => {
         log(msg);
-        if (msg && msg.cmd === 'listConsumers') {
-            const allConsumers = getAllVisibleConsumers();
-            node.send(allConsumers);
-        } else if (msg && msg.cmd === 'listStores') {
-            const stores = alasql('SELECT * FROM stores');
-            node.send({stores});
-        } else if (msg && msg.cmd === 'listInMessages') {
-            const messages = alasql('SELECT * FROM inMessages');
-            node.send({messages});
-        } else if (msg && msg.cmd === 'listNotifies') {
-            const notifies = alasql('SELECT * FROM notify');
-            node.send({notifies});
-        }else if (msg && msg.cmd === 'listPeers') {
-            node.send({northPeers: node.northPeers, globalPeers: node.southPeers});
-        } else if (msg && msg.cmd === 'listTables') {
+             if (msg && msg.cmd === 'listConsumers')  { const allConsumers = getAllVisibleConsumers();          node.send(allConsumers); } 
+        else if (msg && msg.cmd === 'listStores')     { const stores   = alasql('SELECT * FROM stores');        node.send({stores});     } 
+        else if (msg && msg.cmd === 'listInMessages') { const messages = alasql('SELECT * FROM inMessages');    node.send({messages});   } 
+        else if (msg && msg.cmd === 'listNotifies')   { const notifies = alasql('SELECT * FROM notify');        node.send({notifies});   }
+        else if (msg && msg.cmd === 'listReplies')    { const replies  = alasql('SELECT * FROM replyMessages'); node.send({replies});   }
+        else if (msg && msg.cmd === 'listPeers')      { node.send({northPeers: node.northPeers, southPeers: node.southPeers});        } 
+        else if (msg && msg.cmd === 'listAllStoreConsumers')     { 
             node.send({
                 localStoreConsumers: alasql('SELECT * FROM localStoreConsumers'),
                 globalStoreConsumers: alasql('SELECT * FROM globalStoreConsumers'),
@@ -464,6 +457,12 @@ module.exports.RedLinkStore = function (config) {
     });
 
     node.on('close', (removed, done) => {
+        log('on close of store:', node.name, ' going to remove inMessages and Notify');
+        const removeNotifySql     = 'DELETE FROM notify     WHERE storeName="' + node.name + '"';
+        const removeInMessagesSql = 'DELETE FROM inMessages WHERE storeName="' + node.name + '"';
+        alasql(removeNotifySql);
+        alasql(removeInMessagesSql);
+
         log('on close of store:', node.name, ' going to remove newMsg trigger, register consumer trigger, store name from tables store');
         const removeStoreSql = 'DELETE FROM stores WHERE storeName="' + node.name + '"';
         log('removing store name from table stores in store close...', node.name);
