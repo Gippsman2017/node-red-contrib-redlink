@@ -3,6 +3,7 @@
         receive: 'Receive',
         manual: 'Manual Notify',
         failure: 'Failure',
+        config: 'Config',
         stats: 'Stats',
         debug: 'Debug'
     };
@@ -25,6 +26,10 @@
             outputs.push(outputNames.debug);
         }
         return outputs;
+    }
+
+    function getProducerOutputs(outputObj){ //receive, notify, failure, debug
+
     }
 
     function getRandomNumber() {
@@ -314,12 +319,6 @@
         <label style="width:100%; border-bottom:1px solid #eee;"><span>Advanced</span></label>
     </div>
         <div class="form-row">
-        <label for="node-input-showStats"><i class="fa fa-bar-chart"></i> Show Stats</label>
-        <input type="checkbox" id="node-input-showStats">
-        <div class="form-row" id="stats-frequency">
-            <label for="node-input-statsFrequency">Emit stats every </label>
-            <input type="text" id="node-input-statsFrequency" placeholder="1" style="text-align:end; width:40px !important"> second(s)
-        </div>
         <label for="node-input-showDebug"><i class="fa fa-stack-exchange"></i> Show Debug</label>
         <input type="checkbox" id="node-input-showDebug">
     </div>
@@ -342,32 +341,34 @@
         <label for="node-input-sendOnly"><i class="fa fa-angle-double-right"></i> Send Only</label>
         <input type="checkbox" id="node-input-sendOnly" placeholder="Send Only">
     </div>
-    <div class="form-row">
-        <label style="width:100%; border-bottom:1px solid #eee;"><em><span>Receive</span></em></label>
-    </div>
-    <div class="form-row">
-        <label for="node-input-manualRead"><i class="fa fa-male"></i> Manual Read</label>
-        <input type="checkbox" id="node-input-manualRead" placeholder="Manual Read">
-    </div>
-    <div id="rate-limit-send-receive">
+    <div id="producer-receive">
         <div class="form-row">
-            <label><i class="fa fa-sliders"></i> Rate Limit Received Messages</label>
-            <select id="node-input-rateTypeSendReceive" style="width:270px !important">
-                <option value="none" data-i18n="delay.limitall">None</option>
-                <option value="rateLimit" data-i18n="delay.limittopic">Rate Limit</option>
-            </select>
+            <label style="width:100%; border-bottom:1px solid #eee;"><em><span>Receive</span></em></label>
         </div>
-        <div class="form-row" id="rate-limit-details-send-receive">
-            <label for="node-input-rate-send-receive">Rate<i class="fa fa-clock-o"></i> <span data-i18n="delay.rate"></span></label>
-            <input type="text" id="node-input-rateSendReceive" placeholder="1" style="text-align:end; width:40px !important">
-            <label for="node-input-rateUnitsSendReceive">msg(s) per<span data-i18n="delay.msgper"></span></label>
-            <input type="text" id="node-input-nbRateUnitsSendReceive" placeholder="1" style="text-align:end; width:40px !important">
-            <select id="node-input-rateUnitsSendReceive" style="width:90px !important">
-              <option value="second" data-i18n="delay.label.units.second.singular">Seconds</option>
-              <option value="minute" data-i18n="delay.label.units.minute.singular">Minutes</option>
-              <option value="hour" data-i18n="delay.label.units.hour.singular">Hours</option>
-              <option value="day" data-i18n="delay.label.units.day.singular">Days</option>
-            </select>
+        <div class="form-row">
+            <label for="node-input-manualRead"><i class="fa fa-male"></i> Manual Read</label>
+            <input type="checkbox" id="node-input-manualRead" placeholder="Manual Read">
+        </div>
+        <div id="rate-limit-send-receive">
+            <div class="form-row">
+                <label><i class="fa fa-sliders"></i> Rate Limit Received Messages</label>
+                <select id="node-input-rateTypeSendReceive" style="width:270px !important">
+                    <option value="none" data-i18n="delay.limitall">None</option>
+                    <option value="rateLimit" data-i18n="delay.limittopic">Rate Limit</option>
+                </select>
+            </div>
+            <div class="form-row" id="rate-limit-details-send-receive">
+                <label for="node-input-rate-send-receive">Rate<i class="fa fa-clock-o"></i> <span data-i18n="delay.rate"></span></label>
+                <input type="text" id="node-input-rateSendReceive" placeholder="1" style="text-align:end; width:40px !important">
+                <label for="node-input-rateUnitsSendReceive">msg(s) per<span data-i18n="delay.msgper"></span></label>
+                <input type="text" id="node-input-nbRateUnitsSendReceive" placeholder="1" style="text-align:end; width:40px !important">
+                <select id="node-input-rateUnitsSendReceive" style="width:90px !important">
+                  <option value="second" data-i18n="delay.label.units.second.singular">Seconds</option>
+                  <option value="minute" data-i18n="delay.label.units.minute.singular">Minutes</option>
+                  <option value="hour" data-i18n="delay.label.units.hour.singular">Hours</option>
+                  <option value="day" data-i18n="delay.label.units.day.singular">Days</option>
+                </select>
+            </div>
         </div>
     </div>
 
@@ -400,17 +401,11 @@
             private: {value: false},
             ttl: {value: null},
             tba: {value: null},
-            showStats: {value: false},
-            statsFrequency: {
-                value: 0, validate: function (v) {
-                    return RED.validators.number(v) && (v >= 0);
-                }
-            },
             showDebug: {value: false},
             outputs: {value: 2},
         },
         outputLabels: function (index) {
-            var labels = getOutputs(!this.sendOnly, this.manualRead, true, this.showStats, this.showDebug);
+            var labels = getOutputs(!this.sendOnly, this.manualRead, true, this.showStats, this.showDebug); //TODO
             return labels[index];
         },
         icon: "arrow-in.png",
@@ -437,6 +432,21 @@
         oneditprepare: function () {
             const selectedStore = this.producerStoreName;
             console.log('selectedStore:', selectedStore);
+
+            if (!this.sendOnly) {
+                $('#producer-receive').show();
+            } else {
+                $('#producer-receive').hide();
+            }
+            $('#node-input-sendOnly').click(function () {
+                console.log('this.checked:', this.checked);
+                if (!this.checked) {
+                    $('#producer-receive').show();
+                } else {
+                    $('#producer-receive').hide();
+                }
+            });
+
 
             function repopulateStores() { //todo refactor
                 let storeElement = $("#node-input-producerStoreName");
@@ -509,20 +519,6 @@
             $("#node-input-producerStoreName").change(() => {
                 repopulateConsumers();
             });
-            if (this.showStats) {
-                $('#stats-frequency').show();
-            } else {
-                $('#stats-frequency').hide();
-            }
-            $('#node-input-showStats').click(function () {
-                console.log('this.checked:', this.checked);
-                if (this.checked) {
-                    $('#stats-frequency').show();
-                } else {
-                    $('#stats-frequency').hide();
-                }
-            });
-
         }
     });
 </script>
