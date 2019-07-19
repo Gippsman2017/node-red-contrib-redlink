@@ -2,6 +2,7 @@ module.exports = function (RED) {
 
     "use strict";
     const alasql = require('alasql');
+    const os = require('os');
 
     const redlinkConsumer = require('./redlinkConsumer.js');
     const redlinkProducer = require('./redlinkProducer.js');
@@ -63,6 +64,12 @@ module.exports = function (RED) {
 
     function initNodeRedRoutes() {
         //express routes
+        RED.httpAdmin.get("/north-peers", function (req, res) {
+            res.json(RED.settings.northPeers || []);
+        });
+        RED.httpAdmin.get("/hostname", function (req, res) {
+            res.json(os.hostname());
+        });
         RED.httpAdmin.get("/mesh-names", function (req, res) {
             log('get mesh-names route called...');
             res.json(getMeshNames());
