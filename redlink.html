@@ -1,7 +1,7 @@
 <script type="text/javascript">
     const outputNames = {
         receive: 'Receive',
-        manual: 'Manual Notify',
+        manual: 'Notify',
         failure: 'Failure',
         config: 'Config',
         stats: 'Stats',
@@ -28,8 +28,17 @@
         return outputs;
     }
 
-    function getProducerOutputs(outputObj){ //receive, notify, failure, debug
-
+    function getProducerOutputs(outputObj) { //receive, notify, failure, debug
+        const outputs = [];
+        if (!outputObj.sendOnly) { //show both receive and notify
+            outputs.push(outputNames.receive);
+            outputs.push(outputNames.manual); //todo rename this to notify- we are showing notify in both maul and auto read
+        }
+        outputs.push(outputNames.failure);//always show failure port
+        if(outputObj.debug){
+            outputs.push(outputNames.debug);
+        }
+        return outputs;
     }
 
     function getRandomNumber() {
@@ -84,6 +93,7 @@
         <label for="node-input-notifyInterval"><i class="fa fa-hourglass-1"></i> Notify Interval (s)</label>
         <input type="text" id="node-input-notifyInterval" placeholder="Notify Interval in sec">
     </div>
+
 
 </script>
 
@@ -142,7 +152,7 @@
             return this.name ? "node_label_italic" : "";
         },
         oneditprepare: function () {
-            $.getJSON('hostname', hostname=>{
+            $.getJSON('hostname', hostname => {
                 console.log('got hostname as:', hostname);
                 this.listenAddress = this.listenAddress || hostname;
                 $('#node-input-listenAddress').val(this.listenAddress);
@@ -241,7 +251,7 @@
                 resizeItem: resizeRule,
                 removable: true
             });
-            if (this.headers && this.headers.length>0) {
+            if (this.headers && this.headers.length > 0) {
                 this.headers.forEach((header) => {
                     const ip = header.ip;
                     const port = header.port;
@@ -249,9 +259,9 @@
                 });
             } else if (!this.oldStore) {
                 console.log('newStore:', this.oldStore);
-                $.getJSON('north-peers', northies=>{
+                $.getJSON('north-peers', northies => {
                     console.log('northies:', northies);
-                    northies.map(northie=>{
+                    northies.map(northie => {
                         console.log(northie);
                         headerList.editableList('addItem', {h: northie.address, v: northie.port});
                     });
@@ -372,6 +382,7 @@
         </div>
     </div>
 
+
 </script>
 <!--redlink producer-->
 <script type="text/javascript">
@@ -379,7 +390,7 @@
         category: 'redlink',
         color: "#f56042",
         inputs: 1,
-        outputs: 2,
+        outputs: 3,
         defaults: {
             name: {value: 'REDLink producer'},
             producerStoreName: {value: '', required: true},
@@ -402,10 +413,13 @@
             ttl: {value: null},
             tba: {value: null},
             showDebug: {value: false},
-            outputs: {value: 2},
+            outputs: {value: 3},
         },
         outputLabels: function (index) {
-            var labels = getOutputs(!this.sendOnly, this.manualRead, true, this.showStats, this.showDebug); //TODO
+            var labels = getProducerOutputs({
+                sendOnly: this.sendOnly,
+                debug: this.showDebug
+            });
             return labels[index];
         },
         icon: "arrow-in.png",
@@ -417,14 +431,21 @@
             return this.name ? "node_label_italic" : "";
         },
         oneditsave: function () {
-            let newShowReceive = !$('#node-input-sendOnly').is(":checked");
-            let newManualRead = $('#node-input-manualRead').is(":checked");
-            let newShowStats = $('#node-input-showStats').is(":checked");
-            let newShowDebug = $('#node-input-showDebug').is(":checked");
-            console.log('going to call getoutputs for existing ports with receive: ', !this.sendOnly, 'manual:', this.manualRead, 'true(fail), stats:', this.showStats, 'showDebug:', this.showDebug);
-            const existingOutputs = getOutputs(!this.sendOnly, this.manualRead, true, this.showStats, this.showDebug);
-            console.log('going to call getoutputs for new with receive: ', newShowReceive, 'manual:', newManualRead, 'true(fail), stats:', newShowStats, 'showDebug:', newShowDebug);
-            const newOutputs = getOutputs(newShowReceive, newManualRead, true, newShowStats, newShowDebug);
+            let newSendOnly = $('#node-input-sendOnly').is(":checked");
+            let newDebug = $('#node-input-showDebug').is(":checked");
+            console.log('going to call getoutputs for existing ports with sendOnly: ', this.sendOnly, 'showDebug:', this.showDebug);
+            const existingOutputs = getProducerOutputs({
+                sendOnly: this.sendOnly,
+                debug: this.showDebug
+            });
+            console.log('got existing outputs as:', existingOutputs);
+            // getOutputs(!this.sendOnly, this.manualRead, true, this.showStats, this.showDebug);
+            console.log('going to call getoutputs for new with sendOnly: ', newSendOnly, 'showDebug:', newDebug);
+            const newOutputs =  getProducerOutputs({
+                sendOnly: newSendOnly,
+                debug: newDebug
+            });
+            console.log('got new outputs as:', newOutputs);
             var nodeRedOutputsObject = getNodeRedOutputObject(existingOutputs, newOutputs);
             $("#node-input-outputs").val(JSON.stringify(nodeRedOutputsObject));
             console.log('\n\n\n\n\n on editsave val of $("#node-input-outputs"):', $("#node-input-outputs").val());
@@ -471,18 +492,19 @@
 
                         var options = $('#node-input-producerStoreName option');
 
-                        var values = $.map(options ,function(option) {
+                        var values = $.map(options, function (option) {
                             return option.value;
                         });
                         console.log('all store values:', values);
                         // $("#node-input-producerStoreName").prop("selectedIndex", 0);
-                        $("#node-input-producerStoreName option:first").attr('selected','selected');
+                        $("#node-input-producerStoreName option:first").attr('selected', 'selected');
                         console.log('after settign selected to zero, the selected store in producer is:', $("#node-input-producerMeshName").children("option:selected").val());
                         repopulateConsumers();
                     }
                 });
 
             }
+
             repopulateStores();
 
             $('#node-input-rateTypeSendReceive').change(function () {
@@ -589,6 +611,7 @@
             </select>
         </div>
     </div>
+
 </script>
 <!--redlink consumer-->
 <script type="text/javascript">
@@ -599,7 +622,7 @@
         outputs: 2,
         defaults: {
             name: {value: '', required: true},
-            consumerMeshName:{value:'', required: true},
+            consumerMeshName: {value: '', required: true},
             consumerStoreName: {value: '', required: true},
             intransit: {
                 value: 1, validate: function (v) {
@@ -684,12 +707,12 @@
 
                     var options = $('#node-input-consumerMeshName option');
 
-                    var values = $.map(options ,function(option) {
+                    var values = $.map(options, function (option) {
                         return option.value;
                     });
                     console.log('all mesh values:', values);
                     // $("#node-input-producerStoreName").prop("selectedIndex", 0);
-                    $("#node-input-consumerMeshName option:first").attr('selected','selected');
+                    $("#node-input-consumerMeshName option:first").attr('selected', 'selected');
                     console.log('after settign selected to zero, the selected store in producer is:', $("#node-input-consumerMeshName").children("option:selected").val());
                     repopulateStores();
                 }
@@ -758,6 +781,7 @@
         <label for="node-input-timeoutReceiveSend"><i class="fa fa-hourglass-1"></i> Timeout</label>
         <input type="text" id="node-input-timeoutReceiveSend" placeholder="Timeout">
     </div>
+
 
 
 
