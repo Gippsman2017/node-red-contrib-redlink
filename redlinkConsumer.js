@@ -127,7 +127,7 @@ module.exports.RedLinkConsumer = function (config) {
                 log(response ? response.statusCode : error);
                 if (response && response.statusCode === 200) {
                     if (response.body.message) {
-                        response.body.message = JSON.parse(base64Helper.decode(response.body.message));
+                        response.body.message = base64Helper.decode(response.body.message);
                     }
                     const msg = response.body;
                     if(msg){
