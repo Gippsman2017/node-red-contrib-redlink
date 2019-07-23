@@ -8,5 +8,5 @@ module.exports.encode = function(obj){
 };
 
 module.exports.decode = function(str){
-    return base64.decode(str, decodetype);
+    return JSON.parse(base64.decode(str, decodetype));
 };
