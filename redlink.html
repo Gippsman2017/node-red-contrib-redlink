@@ -34,7 +34,15 @@
             outputs.push(outputNames.receive);
             outputs.push(outputNames.manual); //todo rename this to notify- we are showing notify in both maul and auto read
         }
-        outputs.push(outputNames.failure);//always show failure port
+        if(outputObj.failure){
+            outputs.push(outputNames.failure);
+        }
+        if(outputObj.config){
+            outputs.push(outputNames.config);
+        }
+        if(outputObj.stats){
+            outputs.push(outputNames.stats);
+        }
         if(outputObj.debug){
             outputs.push(outputNames.debug);
         }
@@ -416,9 +424,10 @@
             outputs: {value: 3},
         },
         outputLabels: function (index) {
-            var labels = getProducerOutputs({
+            const labels = getProducerOutputs({
                 sendOnly: this.sendOnly,
-                debug: this.showDebug
+                debug: this.showDebug,
+                failure: true
             });
             return labels[index];
         },
@@ -436,14 +445,16 @@
             console.log('going to call getoutputs for existing ports with sendOnly: ', this.sendOnly, 'showDebug:', this.showDebug);
             const existingOutputs = getProducerOutputs({
                 sendOnly: this.sendOnly,
-                debug: this.showDebug
+                debug: this.showDebug,
+                failure: true
             });
             console.log('got existing outputs as:', existingOutputs);
             // getOutputs(!this.sendOnly, this.manualRead, true, this.showStats, this.showDebug);
             console.log('going to call getoutputs for new with sendOnly: ', newSendOnly, 'showDebug:', newDebug);
             const newOutputs =  getProducerOutputs({
                 sendOnly: newSendOnly,
-                debug: newDebug
+                debug: newDebug,
+                failure: true
             });
             console.log('got new outputs as:', newOutputs);
             var nodeRedOutputsObject = getNodeRedOutputObject(existingOutputs, newOutputs);
@@ -793,12 +804,13 @@
         category: 'redlink',
         color: "#f56042",
         inputs: 1,
-        outputs: 2,
+        outputs: 0,
         defaults: {
             name: {value: 'REDLink reply'},
             topicReply: {value: ''},
             priorityReceiveSend: {value: 0},
             timeoutReceiveSend: {value: -1},//TODO check with John,
+
         },
         icon: "arrow-in.png",
         align: "right",
