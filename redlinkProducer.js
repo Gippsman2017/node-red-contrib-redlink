@@ -51,7 +51,7 @@ module.exports.RedLinkProducer = function (config) {
                     if (node.manualRead) {
                         sendMessage({notify: notifyMessage})
                     } else {
-                        const reply = getReply(daId, relevanttReplySql, relevantReplies);
+                        const reply = getReply(daId, relevanttReplySql, relevantReplies, msgsByThisProducer[0].preserved);
                         sendMessage({receive: reply}, {notify: notifyMessage});
                     }
                 }
@@ -61,7 +61,7 @@ module.exports.RedLinkProducer = function (config) {
     const createReplyMsgTriggerSql = 'CREATE TRIGGER ' + replyMsgTriggerName + ' AFTER INSERT ON replyMessages CALL ' + replyMsgTriggerName + '()';
     alasql(createReplyMsgTriggerSql);
 
-    function getReply(daId, relevanttReplySql, relevantReplies) {
+    function getReply(daId, relevanttReplySql, relevantReplies, preserved) {
         const updateReplySql = 'UPDATE replyMessages SET READ=true WHERE redlinkMsgId="' + daId + '"';
         alasql(updateReplySql);
         log('replies after updating:', alasql(relevanttReplySql));
@@ -70,7 +70,7 @@ module.exports.RedLinkProducer = function (config) {
             payload: base64Helper.decode(replyMessage),
             redlinkMsgId: daId,
             topic: relevantReplies[0].topic,
-            preserved :  base64Helper.decode(relevantReplies[0].preserved)
+            preserved :  base64Helper.decode(preserved)
         };
         log('in producer going to send out reply as:', JSON.stringify(reply, null, 2));
         const deleteReplyMsg  = 'DELETE from replyMessages WHERE storeName="'+node.producerStoreName+'" AND redlinkMsgId="' +  daId + '"';
