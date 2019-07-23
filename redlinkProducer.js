@@ -27,6 +27,7 @@ module.exports.RedLinkProducer = function (config) {
         const unreadRepliesSql = 'SELECT redlinkMsgId FROM replyMessages WHERE read=false';
         const unreadReplies = alasql(unreadRepliesSql);
         log('in trigger unread replies:', unreadReplies);
+        sendMessage({debug: {storeName: node.producerStoreName,consumerName:node.producerConsumer,action:'producerReplyRead',direction:'inBound'}});
         if (unreadReplies && unreadReplies.length > 0) {
             let unreadMsgIdsStr = '(';
             unreadReplies.forEach(reply => {
@@ -42,7 +43,7 @@ module.exports.RedLinkProducer = function (config) {
                 const daId = msgsByThisProducer[0].redlinkMsgId;
                 const relevanttReplySql = 'SELECT * FROM replyMessages WHERE redlinkMsgId="' + daId + '"';
                 const relevantReplies = alasql(relevanttReplySql); //should have just one result
-                if (relevantReplies && relevantReplies.length > 0) {
+                if(relevantReplies && relevantReplies.length >0){
                     const notifyMessage = { //todo store more info in replyMesssages- store, etc and populate in notify msg
                         redlinkMsgId: daId,
                         notifyType: 'producerReplyNotification',
@@ -68,9 +69,19 @@ module.exports.RedLinkProducer = function (config) {
         const reply = {
             payload: base64Helper.decode(replyMessage),
             redlinkMsgId: daId,
-            topic: relevantReplies[0].topic
+            topic: relevantReplies[0].topic,
+            preserved :  base64Helper.decode(relevantReplies[0].preserved)
         };
         log('in producer going to send out reply as:', JSON.stringify(reply, null, 2));
+        const deleteReplyMsg  = 'DELETE from replyMessages WHERE storeName="'+node.producerStoreName+'" AND redlinkMsgId="' +  daId + '"';
+        const deleteInMsg     = 'DELETE from inMessages    WHERE storeName="'+node.producerStoreName+'" AND redlinkMsgId="' +  daId + '"';
+        const deleteNotifyMsg = 'DELETE from notify        WHERE redlinkMsgId="' +  daId + '"';
+        const deleteReply = alasql(deleteReplyMsg);
+        const deleteIn = alasql(deleteInMsg);
+        const deleteNotify = alasql(deleteNotifyMsg);
+        log('Producer Delete Reply  = ', deleteReply);
+        log('Producer Delete inMsg  = ', deleteIn);
+        log('Delete Consumer Notify = ', deleteNotify);
         return reply;
     }
 
@@ -103,7 +114,6 @@ module.exports.RedLinkProducer = function (config) {
         node.send(msgs);
     }
 
-
     node.on("input", msg => {
         if (msg.cmd === 'read') {
             if (node.manualRead && msg.redlinkMsgId) {
@@ -120,11 +130,13 @@ module.exports.RedLinkProducer = function (config) {
             return;
         }
         msg.redlinkMsgId = RED.util.generateId();
-        const stringify = JSON.stringify(msg);
-        const encodedMessage = base64Helper.encode(msg);
-        log('the input message is:', stringify);
-        const msgInsertSql = 'INSERT INTO inMessages VALUES ("' + msg.redlinkMsgId + '","' + this.producerStoreName +
-            '","' + this.producerConsumer + '","' + encodedMessage + '",' + false + ',' + node.sendOnly + ',"' + node.id + '")';
+        const preserved = msg.preserved;
+        delete msg.preserved;
+        const encodedMessage   = base64Helper.encode(msg);
+        const encodedPreserved = base64Helper.encode(preserved);
+//        log('the input message is:', stringify);
+        const msgInsertSql = 'INSERT INTO inMessages VALUES ("' + msg.redlinkMsgId + '","' + node.producerStoreName + '","' + node.producerConsumer + '","' + encodedMessage +
+                                                          '",'  + false            + ','   + node.sendOnly          + ',"' + node.id                + '","' + encodedPreserved + '")';
         log('in the producer going to execute sql to insert into inmesasges: ', msgInsertSql);
         alasql(msgInsertSql);
     });

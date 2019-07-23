@@ -107,9 +107,10 @@ module.exports.RedLinkConsumer = function (config) {
     });
 
     function readMessage(redlinkMsgId) { //todo enforce rate limits here...
-        const notifiesSql = 'SELECT * from notify WHERE redlinkMsgId="' + redlinkMsgId + '"';
-        log('notifiesSql in consumer:', notifiesSql);
+        const notifiesSql = 'SELECT * from notify WHERE storeName="' + node.consumerStoreName + '" AND redlinkMsgId="' + redlinkMsgId + '"';
         const notifies = alasql(notifiesSql);
+        log('%%%%%%%%%%%%%%%%%%%%%%%%%Consumer (',node.name,') notifiesSql in consumer:', notifies);
+//        if (true) {
         if (notifies.length > 0) {
             const sendingStoreName = notifies[0].storeName;
             const address = notifies[0].srcStoreIp + ':' + notifies[0].srcStorePort;
@@ -132,7 +133,8 @@ module.exports.RedLinkConsumer = function (config) {
                     const msg = response.body;
                     if(msg){
                         msg.payload = msg.message.payload;
-                        msg.topic = msg.message.topic;
+                        msg.topic   = msg.message.topic;
+                        delete msg.preserved;
                         delete msg.message;
                         delete msg.read;
                         log('RESPONSE=', response.body);

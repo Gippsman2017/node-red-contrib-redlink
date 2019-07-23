@@ -242,11 +242,11 @@ module.exports.RedLinkStore = function (config) {
                 const remoteMatchingStores = getRemoteMatchingStores(newMessage.serviceName, node.meshName);
                 remoteMatchingStores.forEach(remoteStore=>{
                     const body = {
-                        service: newMessage.serviceName,
-                        srcStoreIp: node.listenAddress,
+                        service:      newMessage.serviceName,
+                        srcStoreIp:   node.listenAddress,
                         srcStorePort: node.listenPort,
                         redlinkMsgId: newMessage.redlinkMsgId,
-                        notifyType: 'producerNotification'
+                        notifyType:   'producerNotification'
                     };
                     //'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreIp + '",' + req.body.srcStorePort + ',"' + req.body.redlinkMsgId +  '")';
                     log('the body being posted is:', JSON.stringify(body, null, 2));
@@ -341,7 +341,7 @@ module.exports.RedLinkStore = function (config) {
                     const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' +
                         node.name + '" AND globalServiceName="' + serviceName + '" AND globalStoreIp="'+storeAddress+
                         '" AND globalStorePort='+storePort;
-*/
+                    */
                     //globalStoreConsumers (localStoreName STRING, globalServiceName STRING, globalStoreName STRING, globalStoreIp STRING, globalStorePort INT)');
                     const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
                     log('EXISTINGGlobalConsumer(', node.name, ':', existingGlobalConsumer);
@@ -362,19 +362,27 @@ module.exports.RedLinkStore = function (config) {
                 node.send([null,{storeName:node.name,toStoreName:req.body.storeName,action:'notifyConsumerRegistration',direction:'inBoundReply',Data:{globalConsumers: consumers, localConsumers: localConsumers}},null]);
                 res.send({globalConsumers: consumers, localConsumers: localConsumers}); //TODO send back a delta- dont send back consumers just been notified of...
                 break;
+
             case 'producerNotification' :
                 node.send([null,null,{storeName:node.name,action:'producerNotification',direction:'inBound',Data:req.body}]);
                 log('PRODUCER NOTIFICATION');
-                log("req.body:", req.body);
-                //avoid inserting multiple notifies
-                const existingNotify = alasql('SELECT * FROM notify WHERE storeName="'+node.name+'" AND serviceName="'+req.body.service+'" AND srcStoreIp="'+req.body.srcStoreIp+'" AND srcStorePort='+req.body.srcStorePort+' AND redlinkMsgId="'+req.body.redlinkMsgId+'"');
-                if(!existingNotify || existingNotify.length === 0){
-                    const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreIp + '",' + req.body.srcStorePort + ',"' + req.body.redlinkMsgId +  '","")';
-                    log('notifyInsertSql:', notifyInsertSql);
-                    alasql(notifyInsertSql);
-                    const allNotifies = alasql('SELECT * FROM notify');
-                    node.send([null,null,{storeName:node.name,action:'producerNotification',direction:'outBound',Data:allNotifies}]);
-                    //log('allNotifies inside da store is:', allNotifies);
+                console.log("Notification req.body:", req.body);
+                const existingLocalConsumerSql = 'SELECT * FROM localStoreConsumers WHERE storeName="' + node.name + '" AND serviceName="' + req.body.service + '"';
+                const localCons = alasql(existingLocalConsumerSql);
+                log('DATA=',localCons);
+                if (localCons.length > 0) { 
+                   //If this store has a consumer on it then send out a local notify
+                   log('Defined Consumer',localCons);
+                   //avoid inserting multiple notifies
+                   const existingNotify = alasql('SELECT * FROM notify WHERE storeName="'+node.name+'" AND serviceName="'+req.body.service+'" AND srcStoreIp="'+req.body.srcStoreIp+'" AND srcStorePort='+req.body.srcStorePort+' AND redlinkMsgId="'+req.body.redlinkMsgId+'"');
+                   if(!existingNotify || existingNotify.length === 0){
+                      const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreIp + '",' + req.body.srcStorePort + ',"' + req.body.redlinkMsgId +  '","")';
+                      console.log('producerNotification(',node.name,') ---  notifyInsertSql:', notifyInsertSql);
+                      alasql(notifyInsertSql);
+                      const allNotifies = alasql('SELECT * FROM notify');
+                      node.send([null,null,{storeName:node.name,action:'producerNotification',direction:'outBound',Data:allNotifies}]);
+                      //log('allNotifies inside da store is:', allNotifies);
+                  }
                 }
                 res.status(200).send('ACK');
                 // res.send('hello world'); //TODO this will be a NAK/ACK
@@ -400,6 +408,7 @@ module.exports.RedLinkStore = function (config) {
             const updateMsgStatus = 'UPDATE inMessages SET read=' + true + ' WHERE redlinkMsgId="' + redlinkMsgId + '"';
             log('updateMsgStatus:', updateMsgStatus);
             alasql(updateMsgStatus);
+
         }else{
             node.send([null,null,{storeName:node.name,action:'read-message',direction:'outBound',error:'Message Already Read-404'}]);
             res.status(404).send({err:'msg '+redlinkMsgId+' already read'});
@@ -413,8 +422,9 @@ module.exports.RedLinkStore = function (config) {
         const message = req.body.payload;
         const topic = req.body.topic;
         const host = req.headers.host;//store address of replying store
+        node.send([null,null,{storeName:node.name,action:'reply-message',direction:'inBound',Data:req.body}]);
         log('host:', host);
-        const insertReplySql = 'INSERT INTO replyMessages ("'+redlinkMsgId+'","'+message+'", false,"'+topic+'")';
+        const insertReplySql = 'INSERT INTO replyMessages ("'+node.name+'","'+redlinkMsgId+'","'+message+'", false,"'+topic+'")';
         log('going to insert into reply:', insertReplySql);
         alasql(insertReplySql);
         log('the reply table after inserting is: ', alasql('SELECT * FROM replyMessages'));
@@ -439,21 +449,13 @@ module.exports.RedLinkStore = function (config) {
 
     node.on("input", msg => {
         log(msg);
-        if (msg && msg.cmd === 'listConsumers') {
-            const allConsumers = getAllVisibleConsumers();
-            node.send(allConsumers);
-        } else if (msg && msg.cmd === 'listStores') {
-            const stores = alasql('SELECT * FROM stores');
-            node.send({stores});
-        } else if (msg && msg.cmd === 'listInMessages') {
-            const messages = alasql('SELECT * FROM inMessages');
-            node.send({messages});
-        } else if (msg && msg.cmd === 'listNotifies') {
-            const notifies = alasql('SELECT * FROM notify');
-            node.send({notifies});
-        }else if (msg && msg.cmd === 'listPeers') {
-            node.send({northPeers: node.northPeers, globalPeers: node.southPeers});
-        } else if (msg && msg.cmd === 'listTables') {
+             if (msg && msg.cmd === 'listConsumers')  { const allConsumers = getAllVisibleConsumers();          node.send(allConsumers); } 
+        else if (msg && msg.cmd === 'listStores')     { const stores   = alasql('SELECT * FROM stores');        node.send({stores});     } 
+        else if (msg && msg.cmd === 'listInMessages') { const messages = alasql('SELECT * FROM inMessages');    node.send({messages});   } 
+        else if (msg && msg.cmd === 'listNotifies')   { const notifies = alasql('SELECT * FROM notify');        node.send({notifies});   }
+        else if (msg && msg.cmd === 'listReplies')    { const replies  = alasql('SELECT * FROM replyMessages'); node.send({replies});   }
+        else if (msg && msg.cmd === 'listPeers')      { node.send({northPeers: node.northPeers, southPeers: node.southPeers});        } 
+        else if (msg && msg.cmd === 'listAllStoreConsumers')     { 
             node.send({
                 localStoreConsumers: alasql('SELECT * FROM localStoreConsumers'),
                 globalStoreConsumers: alasql('SELECT * FROM globalStoreConsumers'),
@@ -464,6 +466,12 @@ module.exports.RedLinkStore = function (config) {
     });
 
     node.on('close', (removed, done) => {
+        log('on close of store:', node.name, ' going to remove inMessages and Notify');
+        const removeNotifySql     = 'DELETE FROM notify     WHERE storeName="' + node.name + '"';
+        const removeInMessagesSql = 'DELETE FROM inMessages WHERE storeName="' + node.name + '"';
+        alasql(removeNotifySql);
+        alasql(removeInMessagesSql);
+
         log('on close of store:', node.name, ' going to remove newMsg trigger, register consumer trigger, store name from tables store');
         const removeStoreSql = 'DELETE FROM stores WHERE storeName="' + node.name + '"';
         log('removing store name from table stores in store close...', node.name);
