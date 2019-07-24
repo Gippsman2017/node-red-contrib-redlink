@@ -10,10 +10,22 @@ module.exports.initRED = function (_RED) {
 
 module.exports.RedLinkReply = function (config) {
     RED.nodes.createNode(this, config);
-
+    this.debug = config.showDebug;
     const node = this;
     node.topic = config.topicReply;
-   
+
+    function sendMessage(msg) { //receive, notify, failure, debug
+        const msgs = [];
+        if (node.debug) {
+            if (msg.debug) {
+                msgs.push(msg.debug);
+            } else {
+                msgs.push(null);
+            }
+        }
+        node.send(msgs);
+    }
+
     node.on("input", msg => {
         if (msg.redlinkMsgId && !msg.sendOnly) {
            const msgSql = 'SELECT * FROM inMessages WHERE redlinkMsgId="' + msg.redlinkMsgId + '"';
@@ -46,7 +58,7 @@ module.exports.RedLinkReply = function (config) {
                       };
                  request(options, function (error, response) {
                     body.payload = base64Helper.decode(body.payload);
-                    node.send([{storeName: replyStore,serviceName:replyService,action:'replySend',direction:'outBound',Data:body,error}]);
+                    sendMessage({debug: {storeName: replyStore,serviceName:replyService,action:'replySend',direction:'outBound',Data:body,error}})
                   });
                }
            }

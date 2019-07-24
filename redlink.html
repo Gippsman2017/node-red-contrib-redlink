@@ -49,6 +49,14 @@
         return outputs;
     }
 
+    function getReplyOutputs(outputObj){
+        const outputs = [];
+        if(outputObj.debug){
+            outputs.push(outputNames.debug);
+        }
+        return outputs;
+    }
+
     function getRandomNumber() {
         return Math.floor((0x99999 - 0x10000) * Math.random()).toString(16);
     }
@@ -775,6 +783,7 @@
     <div class="form-row">
         <label for="node-input-name"><i class="icon-tag"></i> Name </label>
         <input type="text" id="node-input-name" placeholder="Name">
+        <input type="hidden" id="node-input-outputs"/>
     </div>
         <div class="form-row">
         <label for="node-input-topicReply"><i class="fa fa-tasks"></i> Topic</label>
@@ -793,10 +802,10 @@
         <label for="node-input-timeoutReceiveSend"><i class="fa fa-hourglass-1"></i> Timeout</label>
         <input type="text" id="node-input-timeoutReceiveSend" placeholder="Timeout">
     </div>
-
-
-
-
+        <div class="form-row">
+        <label for="node-input-showDebug"><i class="fa fa-stack-exchange"></i> Show Debug</label>
+        <input type="checkbox" id="node-input-showDebug">
+    </div>
 
 </script>
 
@@ -811,7 +820,14 @@
             topicReply: {value: ''},
             priorityReceiveSend: {value: 0},
             timeoutReceiveSend: {value: -1},//TODO check with John,
-
+            showDebug: {value: false},
+            outputs: {value: 0},
+        },
+        outputLabels: function (index) {
+            const labels = getReplyOutputs({
+                debug: this.showDebug,
+            });
+            return labels[index];
         },
         icon: "arrow-in.png",
         align: "right",
@@ -836,6 +852,24 @@
                     }));
                 });
             });
+        },
+        oneditsave: function () {
+            let newDebug = $('#node-input-showDebug').is(":checked");
+            console.log('going to call getReplOutputs for existing ports with showDebug:', this.showDebug);
+            const existingOutputs = getReplyOutputs({
+                debug: this.showDebug,
+            });
+            console.log('got existing reply outputs as:', existingOutputs);
+            // getOutputs(!this.sendOnly, this.manualRead, true, this.showStats, this.showDebug);
+            console.log('going to call reply getoutputs for new with showDebug:', newDebug);
+            const newOutputs =  getReplyOutputs({
+                debug: newDebug,
+            });
+            console.log('got new reply outputs as:', newOutputs);
+            var nodeRedOutputsObject = getNodeRedOutputObject(existingOutputs, newOutputs);
+            console.log('nodeRedOutputsObject in reply save is:', nodeRedOutputsObject);
+            $("#node-input-outputs").val(JSON.stringify(nodeRedOutputsObject));
+            console.log('\n\n\n\n\n on editsave val of $("#node-input-outputs"):', $("#node-input-outputs").val());
         }
     });
 </script>
