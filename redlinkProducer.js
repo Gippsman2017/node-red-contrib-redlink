@@ -130,7 +130,7 @@ module.exports.RedLinkProducer = function (config) {
             return;
         }
         msg.redlinkMsgId = RED.util.generateId();
-        const preserved = msg.preserved;
+        const preserved = msg.preserved || '';
         delete msg.preserved;
         const encodedMessage   = base64Helper.encode(msg);
         const encodedPreserved = base64Helper.encode(preserved);
