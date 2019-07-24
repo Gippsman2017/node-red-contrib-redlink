@@ -11,10 +11,10 @@ module.exports.initRED = function (_RED) {
 module.exports.RedLinkConsumer = function (config) {
     RED.nodes.createNode(this, config);
     const node = this;
-    const log  = require('./log.js')(node).log;
-    node.name  = config.name;
+    const log = require('./log.js')(node).log;
+    node.name = config.name;
     node.consumerStoreName = config.consumerStoreName;
-    node.consumerMeshName  = config.consumerMeshName;
+    node.consumerMeshName = config.consumerMeshName;
     node.manualRead = config.manualReadReceiveSend;
     if (node.consumerMeshName) {
         node.consumerStoreName = node.consumerMeshName + ':' + node.consumerStoreName;
@@ -27,7 +27,8 @@ module.exports.RedLinkConsumer = function (config) {
 
     alasql.fn[newMsgNotifyTrigger] = () => {
         //check if the notify is for this consumer name with the registered store name
-        const notifiesSql = 'SELECT * from notify WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"' + ' AND notifySent NOT LIKE "%' + node.id + '%"';
+        const notifiesSql = 'SELECT * from notify WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' +
+            node.name + '"' + ' AND notifySent NOT LIKE "%' + node.id + '%"';
         log('in consumer notify trigger all notifies:', alasql('SELECT * from notify'));
         log('notifiesSql for consumer:', node.id, notifiesSql);
         const notifies = alasql(notifiesSql);
@@ -47,14 +48,22 @@ module.exports.RedLinkConsumer = function (config) {
         const notifyMessage = {
             redlinkMsgId: newNotify.redlinkMsgId,
             notifyType: 'producerNotification',
-            src:  { storeName: newNotify.storeName, address: newNotify.srcStoreIp + ':' + newNotify.srcStorePort, },
-            dest: { storeName: newNotify.storeName, serviceName: newNotify.serviceName }
+            src: {
+                storeName: newNotify.storeName,
+                address: newNotify.srcStoreIp + ':' + newNotify.srcStorePort,
+            },
+            dest: {
+                storeName: newNotify.storeName,
+                serviceName: newNotify.serviceName
+            }
         };
 
-        if (node.manualRead) { node.send([null, notifyMessage,notifyMessage]); } 
-     else { 
-            node.send([null, notifyMessage,notifyMessage]);    readMessage(notifyMessage.redlinkMsgId);
-          }
+        if (node.manualRead) {
+            node.send([null, notifyMessage]);
+        } else {
+            node.send([null, notifyMessage]);
+            readMessage(notifyMessage.redlinkMsgId);
+        }
     };
 
     const createTriggerSql = 'CREATE TRIGGER ' + msgNotifyTriggerId + ' AFTER INSERT ON notify CALL ' + newMsgNotifyTrigger + '()';
@@ -98,10 +107,9 @@ module.exports.RedLinkConsumer = function (config) {
     });
 
     function readMessage(redlinkMsgId) { //todo enforce rate limits here...
-    console.log('READMESSAGE =', node.consumerStoreName );
-        var  notifiesSql = 'SELECT * from notify WHERE storeName="'+node.consumerStoreName+'" AND redlinkMsgId="' + redlinkMsgId + '"';
-        var  notifies = alasql(notifiesSql);
-        console.log('%%%%%%%%%%%%%%%%%%%%%%%%%Consumer (',node.name,') notifiesSql in consumer:', notifies);
+        const notifiesSql = 'SELECT * from notify WHERE storeName="' + node.consumerStoreName + '" AND redlinkMsgId="' + redlinkMsgId + '"';
+        const notifies = alasql(notifiesSql);
+        log('%%%%%%%%%%%%%%%%%%%%%%%%%Consumer (',node.name,') notifiesSql in consumer:', notifies);
 //        if (true) {
         if (notifies.length > 0) {
             const sendingStoreName = notifies[0].storeName;
@@ -114,12 +122,14 @@ module.exports.RedLinkConsumer = function (config) {
                 },
                 json: true
             };
-            node.send([null,null,{storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'outBound',Data:options}]);
+            node.send([null,{storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'outBound',Data:options},null]);
 
             request(options, function (error, response) {
                 log(response ? response.statusCode : error);
                 if (response && response.statusCode === 200) {
-                    if (response.body.message) { response.body.message = base64Helper.decode(response.body.message); }
+                    if (response.body.message) {
+                        response.body.message = base64Helper.decode(response.body.message);
+                    }
                     const msg = response.body;
                     if(msg){
                         msg.payload = msg.message.payload;
@@ -128,18 +138,18 @@ module.exports.RedLinkConsumer = function (config) {
                         delete msg.message;
                         delete msg.read;
                         log('RESPONSE=', response.body);
-                        node.send([null,null,{storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',Data:msg,error:'none'}]);
-        
-                    log('Response Consumer sendingStore (',node.name,')=',sendingStoreName);
+                        node.send([null,{storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',Data:msg,error:'none'},null]);
                     }
-                    node.send(msg,null,null);
+                    node.send(msg);
                 } else {  // No message
                     let output = response? response.body: error;
-                    if (node.manualRead) { node.send([null,null,{storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',Data:output,error}]);} 
-                                    else { node.send([null,null,{storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',Data:output,error}]);}
-                    
-                    log('delete notifiesSql in consumer:', notifiesSql);
-                    notifies = alasql(notifiesSql);
+                    if (node.manualRead) {
+                        node.send([null, null, output]); //todo rationalise sending outputs- ||| to dlink
+                        node.send([null,{storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',Data:output,error},null]);
+                    } else {
+                        node.send([null, output]);
+                         node.send([null,{storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',Data:output,error},null]);
+                    }
                 }});
             }
         }

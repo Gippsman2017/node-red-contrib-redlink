@@ -1,8 +1,9 @@
 <script type="text/javascript">
     const outputNames = {
         receive: 'Receive',
-        manual: 'Manual Notify',
+        manual: 'Notify',
         failure: 'Failure',
+        config: 'Config',
         stats: 'Stats',
         debug: 'Debug'
     };
@@ -22,6 +23,35 @@
             outputs.push(outputNames.stats);
         }
         if (debug) {
+            outputs.push(outputNames.debug);
+        }
+        return outputs;
+    }
+
+    function getProducerOutputs(outputObj) { //receive, notify, failure, debug
+        const outputs = [];
+        if (!outputObj.sendOnly) { //show both receive and notify
+            outputs.push(outputNames.receive);
+            outputs.push(outputNames.manual); //todo rename this to notify- we are showing notify in both maul and auto read
+        }
+        if(outputObj.failure){
+            outputs.push(outputNames.failure);
+        }
+        if(outputObj.config){
+            outputs.push(outputNames.config);
+        }
+        if(outputObj.stats){
+            outputs.push(outputNames.stats);
+        }
+        if(outputObj.debug){
+            outputs.push(outputNames.debug);
+        }
+        return outputs;
+    }
+
+    function getReplyOutputs(outputObj){
+        const outputs = [];
+        if(outputObj.debug){
             outputs.push(outputNames.debug);
         }
         return outputs;
@@ -79,6 +109,7 @@
         <label for="node-input-notifyInterval"><i class="fa fa-hourglass-1"></i> Notify Interval (s)</label>
         <input type="text" id="node-input-notifyInterval" placeholder="Notify Interval in sec">
     </div>
+
 
 </script>
 
@@ -138,7 +169,7 @@
             return this.name ? "node_label_italic" : "";
         },
         oneditprepare: function () {
-            $.getJSON('hostname', hostname=>{
+            $.getJSON('hostname', hostname => {
                 console.log('got hostname as:', hostname);
                 this.listenAddress = this.listenAddress || hostname;
                 $('#node-input-listenAddress').val(this.listenAddress);
@@ -237,7 +268,7 @@
                 resizeItem: resizeRule,
                 removable: true
             });
-            if (this.headers && this.headers.length>0) {
+            if (this.headers && this.headers.length > 0) {
                 this.headers.forEach((header) => {
                     const ip = header.ip;
                     const port = header.port;
@@ -245,9 +276,9 @@
                 });
             } else if (!this.oldStore) {
                 console.log('newStore:', this.oldStore);
-                $.getJSON('north-peers', northies=>{
+                $.getJSON('north-peers', northies => {
                     console.log('northies:', northies);
-                    northies.map(northie=>{
+                    northies.map(northie => {
                         console.log(northie);
                         headerList.editableList('addItem', {h: northie.address, v: northie.port});
                     });
@@ -315,12 +346,6 @@
         <label style="width:100%; border-bottom:1px solid #eee;"><span>Advanced</span></label>
     </div>
         <div class="form-row">
-        <label for="node-input-showStats"><i class="fa fa-bar-chart"></i> Show Stats</label>
-        <input type="checkbox" id="node-input-showStats">
-        <div class="form-row" id="stats-frequency">
-            <label for="node-input-statsFrequency">Emit stats every </label>
-            <input type="text" id="node-input-statsFrequency" placeholder="1" style="text-align:end; width:40px !important"> second(s)
-        </div>
         <label for="node-input-showDebug"><i class="fa fa-stack-exchange"></i> Show Debug</label>
         <input type="checkbox" id="node-input-showDebug">
     </div>
@@ -343,34 +368,37 @@
         <label for="node-input-sendOnly"><i class="fa fa-angle-double-right"></i> Send Only</label>
         <input type="checkbox" id="node-input-sendOnly" placeholder="Send Only">
     </div>
-    <div class="form-row">
-        <label style="width:100%; border-bottom:1px solid #eee;"><em><span>Receive</span></em></label>
-    </div>
-    <div class="form-row">
-        <label for="node-input-manualRead"><i class="fa fa-male"></i> Manual Read</label>
-        <input type="checkbox" id="node-input-manualRead" placeholder="Manual Read">
-    </div>
-    <div id="rate-limit-send-receive">
+    <div id="producer-receive">
         <div class="form-row">
-            <label><i class="fa fa-sliders"></i> Rate Limit Received Messages</label>
-            <select id="node-input-rateTypeSendReceive" style="width:270px !important">
-                <option value="none" data-i18n="delay.limitall">None</option>
-                <option value="rateLimit" data-i18n="delay.limittopic">Rate Limit</option>
-            </select>
+            <label style="width:100%; border-bottom:1px solid #eee;"><em><span>Receive</span></em></label>
         </div>
-        <div class="form-row" id="rate-limit-details-send-receive">
-            <label for="node-input-rate-send-receive">Rate<i class="fa fa-clock-o"></i> <span data-i18n="delay.rate"></span></label>
-            <input type="text" id="node-input-rateSendReceive" placeholder="1" style="text-align:end; width:40px !important">
-            <label for="node-input-rateUnitsSendReceive">msg(s) per<span data-i18n="delay.msgper"></span></label>
-            <input type="text" id="node-input-nbRateUnitsSendReceive" placeholder="1" style="text-align:end; width:40px !important">
-            <select id="node-input-rateUnitsSendReceive" style="width:90px !important">
-              <option value="second" data-i18n="delay.label.units.second.singular">Seconds</option>
-              <option value="minute" data-i18n="delay.label.units.minute.singular">Minutes</option>
-              <option value="hour" data-i18n="delay.label.units.hour.singular">Hours</option>
-              <option value="day" data-i18n="delay.label.units.day.singular">Days</option>
-            </select>
+        <div class="form-row">
+            <label for="node-input-manualRead"><i class="fa fa-male"></i> Manual Read</label>
+            <input type="checkbox" id="node-input-manualRead" placeholder="Manual Read">
+        </div>
+        <div id="rate-limit-send-receive">
+            <div class="form-row">
+                <label><i class="fa fa-sliders"></i> Rate Limit Received Messages</label>
+                <select id="node-input-rateTypeSendReceive" style="width:270px !important">
+                    <option value="none" data-i18n="delay.limitall">None</option>
+                    <option value="rateLimit" data-i18n="delay.limittopic">Rate Limit</option>
+                </select>
+            </div>
+            <div class="form-row" id="rate-limit-details-send-receive">
+                <label for="node-input-rate-send-receive">Rate<i class="fa fa-clock-o"></i> <span data-i18n="delay.rate"></span></label>
+                <input type="text" id="node-input-rateSendReceive" placeholder="1" style="text-align:end; width:40px !important">
+                <label for="node-input-rateUnitsSendReceive">msg(s) per<span data-i18n="delay.msgper"></span></label>
+                <input type="text" id="node-input-nbRateUnitsSendReceive" placeholder="1" style="text-align:end; width:40px !important">
+                <select id="node-input-rateUnitsSendReceive" style="width:90px !important">
+                  <option value="second" data-i18n="delay.label.units.second.singular">Seconds</option>
+                  <option value="minute" data-i18n="delay.label.units.minute.singular">Minutes</option>
+                  <option value="hour" data-i18n="delay.label.units.hour.singular">Hours</option>
+                  <option value="day" data-i18n="delay.label.units.day.singular">Days</option>
+                </select>
+            </div>
         </div>
     </div>
+
 
 </script>
 <!--redlink producer-->
@@ -379,7 +407,7 @@
         category: 'redlink',
         color: "#f56042",
         inputs: 1,
-        outputs: 2,
+        outputs: 3,
         defaults: {
             name: {value: 'REDLink producer'},
             producerStoreName: {value: '', required: true},
@@ -401,17 +429,15 @@
             private: {value: false},
             ttl: {value: null},
             tba: {value: null},
-            showStats: {value: false},
-            statsFrequency: {
-                value: 0, validate: function (v) {
-                    return RED.validators.number(v) && (v >= 0);
-                }
-            },
             showDebug: {value: false},
-            outputs: {value: 2},
+            outputs: {value: 3},
         },
         outputLabels: function (index) {
-            var labels = getOutputs(!this.sendOnly, this.manualRead, true, this.showStats, this.showDebug);
+            const labels = getProducerOutputs({
+                sendOnly: this.sendOnly,
+                debug: this.showDebug,
+                failure: true
+            });
             return labels[index];
         },
         icon: "arrow-in.png",
@@ -423,14 +449,23 @@
             return this.name ? "node_label_italic" : "";
         },
         oneditsave: function () {
-            let newShowReceive = !$('#node-input-sendOnly').is(":checked");
-            let newManualRead = $('#node-input-manualRead').is(":checked");
-            let newShowStats = $('#node-input-showStats').is(":checked");
-            let newShowDebug = $('#node-input-showDebug').is(":checked");
-            console.log('going to call getoutputs for existing ports with receive: ', !this.sendOnly, 'manual:', this.manualRead, 'true(fail), stats:', this.showStats, 'showDebug:', this.showDebug);
-            const existingOutputs = getOutputs(!this.sendOnly, this.manualRead, true, this.showStats, this.showDebug);
-            console.log('going to call getoutputs for new with receive: ', newShowReceive, 'manual:', newManualRead, 'true(fail), stats:', newShowStats, 'showDebug:', newShowDebug);
-            const newOutputs = getOutputs(newShowReceive, newManualRead, true, newShowStats, newShowDebug);
+            let newSendOnly = $('#node-input-sendOnly').is(":checked");
+            let newDebug = $('#node-input-showDebug').is(":checked");
+            console.log('going to call getoutputs for existing ports with sendOnly: ', this.sendOnly, 'showDebug:', this.showDebug);
+            const existingOutputs = getProducerOutputs({
+                sendOnly: this.sendOnly,
+                debug: this.showDebug,
+                failure: true
+            });
+            console.log('got existing outputs as:', existingOutputs);
+            // getOutputs(!this.sendOnly, this.manualRead, true, this.showStats, this.showDebug);
+            console.log('going to call getoutputs for new with sendOnly: ', newSendOnly, 'showDebug:', newDebug);
+            const newOutputs =  getProducerOutputs({
+                sendOnly: newSendOnly,
+                debug: newDebug,
+                failure: true
+            });
+            console.log('got new outputs as:', newOutputs);
             var nodeRedOutputsObject = getNodeRedOutputObject(existingOutputs, newOutputs);
             $("#node-input-outputs").val(JSON.stringify(nodeRedOutputsObject));
             console.log('\n\n\n\n\n on editsave val of $("#node-input-outputs"):', $("#node-input-outputs").val());
@@ -438,6 +473,21 @@
         oneditprepare: function () {
             const selectedStore = this.producerStoreName;
             console.log('selectedStore:', selectedStore);
+
+            if (!this.sendOnly) {
+                $('#producer-receive').show();
+            } else {
+                $('#producer-receive').hide();
+            }
+            $('#node-input-sendOnly').click(function () {
+                console.log('this.checked:', this.checked);
+                if (!this.checked) {
+                    $('#producer-receive').show();
+                } else {
+                    $('#producer-receive').hide();
+                }
+            });
+
 
             function repopulateStores() { //todo refactor
                 let storeElement = $("#node-input-producerStoreName");
@@ -462,18 +512,19 @@
 
                         var options = $('#node-input-producerStoreName option');
 
-                        var values = $.map(options ,function(option) {
+                        var values = $.map(options, function (option) {
                             return option.value;
                         });
                         console.log('all store values:', values);
                         // $("#node-input-producerStoreName").prop("selectedIndex", 0);
-                        $("#node-input-producerStoreName option:first").attr('selected','selected');
+                        $("#node-input-producerStoreName option:first").attr('selected', 'selected');
                         console.log('after settign selected to zero, the selected store in producer is:', $("#node-input-producerMeshName").children("option:selected").val());
                         repopulateConsumers();
                     }
                 });
 
             }
+
             repopulateStores();
 
             $('#node-input-rateTypeSendReceive').change(function () {
@@ -510,20 +561,6 @@
             $("#node-input-producerStoreName").change(() => {
                 repopulateConsumers();
             });
-            if (this.showStats) {
-                $('#stats-frequency').show();
-            } else {
-                $('#stats-frequency').hide();
-            }
-            $('#node-input-showStats').click(function () {
-                console.log('this.checked:', this.checked);
-                if (this.checked) {
-                    $('#stats-frequency').show();
-                } else {
-                    $('#stats-frequency').hide();
-                }
-            });
-
         }
     });
 </script>
@@ -594,6 +631,7 @@
             </select>
         </div>
     </div>
+
 </script>
 <!--redlink consumer-->
 <script type="text/javascript">
@@ -604,7 +642,7 @@
         outputs: 2,
         defaults: {
             name: {value: '', required: true},
-            consumerMeshName:{value:'', required: true},
+            consumerMeshName: {value: '', required: true},
             consumerStoreName: {value: '', required: true},
             intransit: {
                 value: 1, validate: function (v) {
@@ -689,12 +727,12 @@
 
                     var options = $('#node-input-consumerMeshName option');
 
-                    var values = $.map(options ,function(option) {
+                    var values = $.map(options, function (option) {
                         return option.value;
                     });
                     console.log('all mesh values:', values);
                     // $("#node-input-producerStoreName").prop("selectedIndex", 0);
-                    $("#node-input-consumerMeshName option:first").attr('selected','selected');
+                    $("#node-input-consumerMeshName option:first").attr('selected', 'selected');
                     console.log('after settign selected to zero, the selected store in producer is:', $("#node-input-consumerMeshName").children("option:selected").val());
                     repopulateStores();
                 }
@@ -745,6 +783,7 @@
     <div class="form-row">
         <label for="node-input-name"><i class="icon-tag"></i> Name </label>
         <input type="text" id="node-input-name" placeholder="Name">
+        <input type="hidden" id="node-input-outputs"/>
     </div>
         <div class="form-row">
         <label for="node-input-topicReply"><i class="fa fa-tasks"></i> Topic</label>
@@ -763,9 +802,10 @@
         <label for="node-input-timeoutReceiveSend"><i class="fa fa-hourglass-1"></i> Timeout</label>
         <input type="text" id="node-input-timeoutReceiveSend" placeholder="Timeout">
     </div>
-
-
-
+        <div class="form-row">
+        <label for="node-input-showDebug"><i class="fa fa-stack-exchange"></i> Show Debug</label>
+        <input type="checkbox" id="node-input-showDebug">
+    </div>
 
 </script>
 
@@ -774,12 +814,20 @@
         category: 'redlink',
         color: "#f56042",
         inputs: 1,
-        outputs: 2,
+        outputs: 0,
         defaults: {
             name: {value: 'REDLink reply'},
             topicReply: {value: ''},
             priorityReceiveSend: {value: 0},
             timeoutReceiveSend: {value: -1},//TODO check with John,
+            showDebug: {value: false},
+            outputs: {value: 0},
+        },
+        outputLabels: function (index) {
+            const labels = getReplyOutputs({
+                debug: this.showDebug,
+            });
+            return labels[index];
         },
         icon: "arrow-in.png",
         align: "right",
@@ -804,6 +852,24 @@
                     }));
                 });
             });
+        },
+        oneditsave: function () {
+            let newDebug = $('#node-input-showDebug').is(":checked");
+            console.log('going to call getReplOutputs for existing ports with showDebug:', this.showDebug);
+            const existingOutputs = getReplyOutputs({
+                debug: this.showDebug,
+            });
+            console.log('got existing reply outputs as:', existingOutputs);
+            // getOutputs(!this.sendOnly, this.manualRead, true, this.showStats, this.showDebug);
+            console.log('going to call reply getoutputs for new with showDebug:', newDebug);
+            const newOutputs =  getReplyOutputs({
+                debug: newDebug,
+            });
+            console.log('got new reply outputs as:', newOutputs);
+            var nodeRedOutputsObject = getNodeRedOutputObject(existingOutputs, newOutputs);
+            console.log('nodeRedOutputsObject in reply save is:', nodeRedOutputsObject);
+            $("#node-input-outputs").val(JSON.stringify(nodeRedOutputsObject));
+            console.log('\n\n\n\n\n on editsave val of $("#node-input-outputs"):', $("#node-input-outputs").val());
         }
     });
 </script>
