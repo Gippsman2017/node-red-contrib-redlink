@@ -17,11 +17,8 @@ module.exports.RedLinkReply = function (config) {
     function sendMessage(msg) { //receive, notify, failure, debug
         const msgs = [];
         if (node.debug) {
-            if (msg.debug) {
-                msgs.push(msg.debug);
-            } else {
-                msgs.push(null);
-            }
+            if (msg.debug) { msgs.push(msg.debug); } 
+                      else { msgs.push(null);      }
         }
         node.send(msgs);
     }
@@ -29,15 +26,11 @@ module.exports.RedLinkReply = function (config) {
     node.on("input", msg => {
         if (msg.redlinkMsgId && !msg.sendOnly) {
            const msgSql = 'SELECT * FROM inMessages WHERE redlinkMsgId="' + msg.redlinkMsgId + '"';
-           log('$$$$$$$$$$$$$$',msgSql);
            const matchingMessages = alasql(msgSql);
-           log('REPLY MATCHING MESSAGE=',matchingMessages);
            node.send([{action:'replySend',direction:'inBound',message:matchingMessages}]);
-//           log('in reply matchingMessages:', matchingMessages);
            if (matchingMessages.length > 0) { //should have only one
               const replyStore   = matchingMessages[0].storeName;
               const replyService = matchingMessages[0].serviceName;
-              log('Reply notifiy=',  alasql('SELECT * FROM notify WHERE redlinkMsgId="' + msg.redlinkMsgId + '"')); // AND storeName="' + replyStore + '"';
               const notifySql    = 'SELECT * FROM notify WHERE redlinkMsgId="' + msg.redlinkMsgId + '"'; // AND storeName="' + replyStore + '"';
               const notifies     = alasql(notifySql); //should have only one
               if (notifies.length > 0) {
@@ -52,9 +45,9 @@ module.exports.RedLinkReply = function (config) {
                         //'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreIp + '",' + req.body.srcStorePort + ',"' + req.body.redlinkMsgId +  '")';
                  const options = {
                       method: 'POST',
-                      url: 'https://' + replyAddress + '/reply-message',
+                      url:    'https://' + replyAddress + '/reply-message',
                       body,
-                      json: true
+                      json:    true
                       };
                  request(options, function (error, response) {
                     body.payload = base64Helper.decode(body.payload);

@@ -30,15 +30,11 @@ module.exports.RedLinkProducer = function (config) {
         sendMessage({debug: {storeName: node.producerStoreName,consumerName:node.producerConsumer,action:'producerReplyRead',direction:'inBound'}});
         if (unreadReplies && unreadReplies.length > 0) {
             let unreadMsgIdsStr = '(';
-            unreadReplies.forEach(reply => {
-                unreadMsgIdsStr += '"' + reply.redlinkMsgId + '",'
-            });
+            unreadReplies.forEach(reply => { unreadMsgIdsStr += '"' + reply.redlinkMsgId + '",' });
             unreadMsgIdsStr = unreadMsgIdsStr.substring(0, unreadMsgIdsStr.length - 1) + ')';
-            log('unreadMsgIdsStr here 2 :', unreadMsgIdsStr);
+            
             const msgsByThisProducerSql = 'SELECT * FROM inMessages WHERE redlinkMsgId IN ' + unreadMsgIdsStr + ' AND producerId="' + node.id + '"';
-            log('msgsByThisProducerSql:', msgsByThisProducerSql);
             const msgsByThisProducer = alasql(msgsByThisProducerSql); //should be length one if reply got for message from this producer else zero
-            log('msgsByThisProducer :', msgsByThisProducer);
             if (msgsByThisProducer && msgsByThisProducer.length > 0) {
                 const daId = msgsByThisProducer[0].redlinkMsgId;
                 const relevanttReplySql = 'SELECT * FROM replyMessages WHERE redlinkMsgId="' + daId + '"';
@@ -64,7 +60,6 @@ module.exports.RedLinkProducer = function (config) {
     function getReply(daId, relevanttReplySql, relevantReplies, preserved) {
         const updateReplySql = 'UPDATE replyMessages SET READ=true WHERE redlinkMsgId="' + daId + '"';
         alasql(updateReplySql);
-        log('replies after updating:', alasql(relevanttReplySql));
         const replyMessage = relevantReplies[0].replyMessage;
         const reply = {
             payload: base64Helper.decode(replyMessage),
@@ -79,37 +74,22 @@ module.exports.RedLinkProducer = function (config) {
         const deleteReply = alasql(deleteReplyMsg);
         const deleteIn = alasql(deleteInMsg);
         const deleteNotify = alasql(deleteNotifyMsg);
-        log('Producer Delete Reply  = ', deleteReply);
-        log('Producer Delete inMsg  = ', deleteIn);
-        log('Delete Consumer Notify = ', deleteNotify);
         return reply;
     }
 
     function sendMessage(msg) { //receive, notify, failure, debug
         const msgs = [];
         if (!node.sendOnly) { //receive, notify
-            if (msg.receive) {
-                msgs.push(msg.receive);
-            } else {
-                msgs.push(null);
-            }
-            if (msg.notify) {
-                msgs.push(msg.notify);
-            } else {
-                msgs.push(null);
-            }
+            if (msg.receive) { msgs.push(msg.receive); } 
+                        else { msgs.push(null); }
+            if (msg.notify)  { msgs.push(msg.notify); } 
+                        else { msgs.push(null); }
         }
-        if (msg.failure) {
-            msgs.push(msg.failure);
-        } else {
-            msgs.push(null);
-        }
-        if (node.debug) {
-            if (msg.debug) {
-                msgs.push(msg.debug);
-            } else {
-                msgs.push(null);
-            }
+        if (msg.failure) { msgs.push(msg.failure); } 
+                    else { msgs.push(null); }
+        if (node.debug)  {
+            if (msg.debug)  {  msgs.push(msg.debug); } 
+                       else {  msgs.push(null); }
         }
         node.send(msgs);
     }
@@ -134,10 +114,8 @@ module.exports.RedLinkProducer = function (config) {
         delete msg.preserved;
         const encodedMessage   = base64Helper.encode(msg);
         const encodedPreserved = base64Helper.encode(preserved);
-//        log('the input message is:', stringify);
         const msgInsertSql = 'INSERT INTO inMessages VALUES ("' + msg.redlinkMsgId + '","' + node.producerStoreName + '","' + node.producerConsumer + '","' + encodedMessage +
                                                           '",'  + false            + ','   + node.sendOnly          + ',"' + node.id                + '","' + encodedPreserved + '")';
-        log('in the producer going to execute sql to insert into inmesasges: ', msgInsertSql);
         alasql(msgInsertSql);
     });
 };
