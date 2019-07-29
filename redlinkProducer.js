@@ -11,10 +11,11 @@ module.exports.initRED = function (_RED) {
 module.exports.RedLinkProducer = function (config) {
     RED.nodes.createNode(this, config);
     this.producerStoreName = config.producerStoreName;
-    this.producerConsumer = config.producerConsumer;
-    this.sendOnly = config.sendOnly;
-    this.debug = config.showDebug;
-    this.manualRead = config.manualRead;
+    this.producerConsumer  = config.producerConsumer;
+    this.sendOnly          = config.sendOnly;
+    this.debug             = config.showDebug;
+    this.manualRead        = config.manualRead;
+
     const node = this;
     const log = require('./log.js')(node).log;
 
@@ -26,14 +27,13 @@ module.exports.RedLinkProducer = function (config) {
         //look up inMessages table to see if this producer actually sent the message
         const unreadRepliesSql = 'SELECT redlinkMsgId FROM replyMessages WHERE read=false';
         const unreadReplies = alasql(unreadRepliesSql);
-        log('in trigger unread replies:', unreadReplies);
-        sendMessage({debug: {storeName: node.producerStoreName,consumerName:node.producerConsumer,action:'producerReplyRead',direction:'inBound'}});
+//        log('in trigger unread replies:', unreadReplies);
+        sendMessage({debug: {storeName: node.producerStoreName,consumerName:node.producerConsumer,action:'producerReplyRead',direction:'inBound','unreadReplies': unreadReplies}});
         if (unreadReplies && unreadReplies.length > 0) {
             let unreadMsgIdsStr = '(';
             unreadReplies.forEach(reply => { unreadMsgIdsStr += '"' + reply.redlinkMsgId + '",' });
             unreadMsgIdsStr = unreadMsgIdsStr.substring(0, unreadMsgIdsStr.length - 1) + ')';
-            
-            const msgsByThisProducerSql = 'SELECT * FROM inMessages WHERE redlinkMsgId IN ' + unreadMsgIdsStr + ' AND producerId="' + node.id + '"';
+            const msgsByThisProducerSql = 'SELECT * FROM inMessages WHERE redlinkMsgId IN ' + unreadMsgIdsStr + ' AND redlinkProducerId="' + node.id + '"';
             const msgsByThisProducer = alasql(msgsByThisProducerSql); //should be length one if reply got for message from this producer else zero
             if (msgsByThisProducer && msgsByThisProducer.length > 0) {
                 const daId = msgsByThisProducer[0].redlinkMsgId;
@@ -57,23 +57,26 @@ module.exports.RedLinkProducer = function (config) {
     const createReplyMsgTriggerSql = 'CREATE TRIGGER ' + replyMsgTriggerName + ' AFTER INSERT ON replyMessages CALL ' + replyMsgTriggerName + '()';
     alasql(createReplyMsgTriggerSql);
 
-    function getReply(daId, relevanttReplySql, relevantReplies, preserved) {
-        const updateReplySql = 'UPDATE replyMessages SET READ=true WHERE redlinkMsgId="' + daId + '"';
+    function getReply(daId, relevanttReplySql, relevantReplies) {
+        const updateReplySql  = 'UPDATE replyMessages SET READ=true WHERE redlinkMsgId="' + daId + '"';
         alasql(updateReplySql);
-        const replyMessage = relevantReplies[0].replyMessage;
+        const replyMessage    = relevantReplies[0].replyMessage;
+        const getPreservedSql = 'SELECT * from inMessages WHERE redlinkMsgId="' + daId + '"';
+        const preserved       = alasql(getPreservedSql)[0].preserved;
         const reply = {
-            payload: base64Helper.decode(replyMessage),
-            redlinkMsgId: daId,
-            topic: relevantReplies[0].topic,
-            preserved :  base64Helper.decode(preserved)
+            payload:           base64Helper.decode(replyMessage),
+            redlinkMsgId:      daId,
+            redlinkProducerId: relevantReplies[0].redlinkProducerId,
+            topic:             relevantReplies[0].topic,
+            preserved :        base64Helper.decode(preserved)
         };
-        log('in producer going to send out reply as:', JSON.stringify(reply, null, 2));
+//        log('in producer going to send out reply as:', JSON.stringify(reply, null, 2));
         const deleteReplyMsg  = 'DELETE from replyMessages WHERE storeName="'+node.producerStoreName+'" AND redlinkMsgId="' +  daId + '"';
         const deleteInMsg     = 'DELETE from inMessages    WHERE storeName="'+node.producerStoreName+'" AND redlinkMsgId="' +  daId + '"';
         const deleteNotifyMsg = 'DELETE from notify        WHERE redlinkMsgId="' +  daId + '"';
-        const deleteReply = alasql(deleteReplyMsg);
-        const deleteIn = alasql(deleteInMsg);
-        const deleteNotify = alasql(deleteNotifyMsg);
+        const deleteReply     = alasql(deleteReplyMsg);
+        const deleteIn        = alasql(deleteInMsg);
+        const deleteNotify    = alasql(deleteNotifyMsg);
         return reply;
     }
 
@@ -96,26 +99,64 @@ module.exports.RedLinkProducer = function (config) {
 
     node.on("input", msg => {
         if (msg.cmd === 'read') {
-            if (node.manualRead && msg.redlinkMsgId) {
-                const daId = msg.redlinkMsgId;
-                const relevanttReplySql = 'SELECT * FROM replyMessages WHERE redlinkMsgId="' + daId + '"';
-                const relevantReplies = alasql(relevanttReplySql); //should have just one result
-                if (relevantReplies && relevantReplies.length > 0) {
-                    const reply = getReply(daId, relevanttReplySql, relevantReplies);
-                    sendMessage({receive: reply});
-                }
-            } else { //todo error
-
-            }
+            if (node.manualRead) {
+              if (node.manualRead && msg.redlinkMsgId) { //redlinkMsgId specified
+                  const daId = msg.redlinkMsgId;
+                  const relevanttReplySql = 'SELECT * FROM replyMessages WHERE redlinkMsgId="' + daId + '"';
+                  const relevantReplies = alasql(relevanttReplySql); //should have just one result
+                  if (relevantReplies && relevantReplies.length > 0) {
+                      const reply = getReply(daId, relevanttReplySql, relevantReplies);
+                      sendMessage({receive: reply});
+                  }
+                else
+                 {
+                  sendMessage({ failure: {"error":"Store "+node.producerStoreName+" redlinkMsgId not found"}});
+                 }  
+              } 
+            else //No redlinkMsgId given, so assume any message from this Producer
+              if (node.manualRead) {
+                  const daId = node.id;
+                  const relevanttReplySql = 'SELECT * FROM replyMessages WHERE redlinkProducerId="' + daId + '"';
+                  const relevantReplies = alasql(relevanttReplySql); //should have just one result
+                  if (relevantReplies && relevantReplies.length > 0) {
+                      const reply = getReply(relevantReplies[0].redlinkMsgId, relevanttReplySql, relevantReplies);
+                      sendMessage({receive: reply});
+                  }
+                else
+                 {
+                  sendMessage({ failure: {"error":"Store "+node.producerStoreName+" redlinkProducerId does NOT have any messages"}});
+                 }  
+              }
+            else
+              { //todo error
+              }
+           } 
             return;
         }
+        // Assume that this is an insert Producer message
         msg.redlinkMsgId = RED.util.generateId();
-        const preserved = msg.preserved || '';
+        const preserved  = msg.preserved || '';
         delete msg.preserved;
         const encodedMessage   = base64Helper.encode(msg);
         const encodedPreserved = base64Helper.encode(preserved);
-        const msgInsertSql = 'INSERT INTO inMessages VALUES ("' + msg.redlinkMsgId + '","' + node.producerStoreName + '","' + node.producerConsumer + '","' + encodedMessage +
-                                                          '",'  + false            + ','   + node.sendOnly          + ',"' + node.id                + '","' + encodedPreserved + '")';
-        alasql(msgInsertSql);
+        let service =  node.producerConsumer;
+        if (msg.topic && node.producerConsumer === '') { 
+          // Verify Service first if msg.topic, the service must exist, you cannot produce to a non existent service
+          service = msg.topic;
+          const storeName = node.producerStoreName;
+          const meshName  = storeName.substring(0,storeName.indexOf(':')); // Producers can only send to Consumers on the same mesh
+          const consumer  = alasql('SELECT * from (SELECT distinct globalServiceName from ( select * from globalStoreConsumers WHERE localStoreName LIKE "' + meshName + '%"' +
+                                              ' union select * from localStoreConsumers  WHERE storeName      LIKE "' + meshName + '%") WHERE globalServiceName = "'+service+ '") ');
+          if (!consumer.length > 0) { service = ''; }
+        }
+        if (service.length > 0) {
+           const msgInsertSql = 'INSERT INTO inMessages VALUES ("' + msg.redlinkMsgId + '","' + node.producerStoreName + '","' + service + '","' + encodedMessage +
+                                                             '",'  + false            + ','   + node.sendOnly          + ',"'  + node.id + '","' + encodedPreserved + '")';
+           alasql(msgInsertSql);
+           }
+      else
+        {
+        sendMessage({ failure: {"error":"Store "+node.producerStoreName+" Does NOT know about this service"}});
+        }     
     });
 };

@@ -6,9 +6,9 @@ module.exports = function (RED) {
 
     const redlinkConsumer = require('./redlinkConsumer.js');
     const redlinkProducer = require('./redlinkProducer.js');
-    const redlinkReply = require('./redlinkReply.js');
-    const redlinkStore = require('./redlinkStore.js');
-    const log = require('./log.js')().log; //dont have node yet over here
+    const redlinkReply    = require('./redlinkReply.js');
+    const redlinkStore    = require('./redlinkStore.js');
+    const log             = require('./log.js')().log; //dont have node yet over here
 
     initTables();
     registerNodeRedTypes();
@@ -22,12 +22,12 @@ module.exports = function (RED) {
         alasql('DROP TABLE IF EXISTS stores');
         alasql('DROP TABLE IF EXISTS replyMessages');
         alasql('CREATE TABLE notify (storeName STRING, serviceName STRING, srcStoreIp STRING, srcStorePort INT , redlinkMsgId STRING, notifySent STRING)');//todo change this to list of consumer node ids
-        alasql('CREATE TABLE inMessages (redlinkMsgId STRING, storeName STRING, serviceName STRING, message STRING, read BOOLEAN, sendOnly BOOLEAN, producerId STRING,preserved STRING)');
+        alasql('CREATE TABLE inMessages (redlinkMsgId STRING, storeName STRING, serviceName STRING, message STRING, read BOOLEAN, sendOnly BOOLEAN, redlinkProducerId STRING,preserved STRING)');
         alasql('CREATE TABLE localStoreConsumers (storeName STRING, serviceName STRING)'); //can have multiple consumers with same name registered to the same store
         alasql('CREATE TABLE globalStoreConsumers (localStoreName STRING, globalServiceName STRING, globalStoreName STRING, globalStoreIp STRING, globalStorePort INT)');
         alasql('CREATE TABLE stores (storeName STRING, storeAddress STRING, storePort INT)');
-        alasql('CREATE TABLE replyMessages (storeName STRING, redlinkMsgId STRING, replyMessage STRING, read BOOLEAN, topic STRING)');
-        log('created tables...');
+        alasql('CREATE TABLE replyMessages (storeName STRING, redlinkMsgId STRING, redlinkProducerId STRING, replyMessage STRING, read BOOLEAN, topic STRING)');
+        //log('created tables...');
     }
 
     function registerNodeRedTypes() {
@@ -50,7 +50,7 @@ module.exports = function (RED) {
             const meshName = meshStorename.indexOf(':') !== -1 ? meshStorename.substring(0, meshStorename.indexOf(':')) : '';//todo this shouldnt happen
             if(meshName){  meshNames.add(meshName); }
         });
-        log('returning mesh names:', meshNames);
+        //log('returning mesh names:', meshNames);
         return Array.from(meshNames);
     }
 
@@ -99,12 +99,12 @@ module.exports = function (RED) {
         if (!storeName) { return {}; }
         
         const meshName = storeName.substring(0,storeName.indexOf(':')); // Producers can only send to Consumers on the same mesh
-
         const globalConsumers = alasql('SELECT distinct globalServiceName from ( select * from globalStoreConsumers WHERE localStoreName LIKE "' + meshName + '%"' +
                                                                          ' union select * from localStoreConsumers  WHERE storeName      LIKE "' + meshName + '%") ');
 
         const allConsumers = [... new Set([ ...globalConsumers ])];
         let consumersArray = [];
+        consumersArray.push('');
         allConsumers.forEach(consumer => { consumersArray.push(consumer.globalServiceName); });
         return consumersArray;
     }

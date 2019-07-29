@@ -1,30 +1,20 @@
 <script type="text/javascript">
     const outputNames = {
         receive: 'Receive',
-        manual: 'Notify',
+        manual:  'Notify',
         failure: 'Failure',
-        config: 'Config',
-        stats: 'Stats',
-        debug: 'Debug'
+        config:  'Config',
+        stats:   'Stats',
+        debug:   'Debug'
     };
 
     function getOutputs(receive, manual, failure, stats, debug) {
         const outputs = [];
-        if (receive) {
-            outputs.push(outputNames.receive);
-        }
-        if (manual) {
-            outputs.push(outputNames.manual);
-        }
-        if (failure) {
-            outputs.push(outputNames.failure);
-        }
-        if (stats) {
-            outputs.push(outputNames.stats);
-        }
-        if (debug) {
-            outputs.push(outputNames.debug);
-        }
+        if (receive) { outputs.push(outputNames.receive); }
+        if (manual)  { outputs.push(outputNames.manual);  }
+        if (failure) { outputs.push(outputNames.failure); }
+        if (stats)   { outputs.push(outputNames.stats);   }
+        if (debug)   { outputs.push(outputNames.debug);   }
         return outputs;
     }
 
@@ -34,26 +24,16 @@
             outputs.push(outputNames.receive);
             outputs.push(outputNames.manual); //todo rename this to notify- we are showing notify in both maul and auto read
         }
-        if(outputObj.failure){
-            outputs.push(outputNames.failure);
-        }
-        if(outputObj.config){
-            outputs.push(outputNames.config);
-        }
-        if(outputObj.stats){
-            outputs.push(outputNames.stats);
-        }
-        if(outputObj.debug){
-            outputs.push(outputNames.debug);
-        }
+        if(outputObj.failure){ outputs.push(outputNames.failure); }
+        if(outputObj.config) { outputs.push(outputNames.config);  }
+        if(outputObj.stats)  { outputs.push(outputNames.stats);   }
+        if(outputObj.debug)  { outputs.push(outputNames.debug);   }
         return outputs;
     }
 
     function getReplyOutputs(outputObj){
         const outputs = [];
-        if(outputObj.debug){
-            outputs.push(outputNames.debug);
-        }
+        if(outputObj.debug)  { outputs.push(outputNames.debug);   }
         return outputs;
     }
 
@@ -128,12 +108,12 @@
     ];
     var contentTypes = [ //TODO clean this up- copied from http-node most of these are not used
         {value: "application/json", label: "application/json", hasValue: false},
-        {value: "application/xml", label: "application/xml", hasValue: false},
-        {value: "text/css", label: "text/css", hasValue: false},
-        {value: "text/html", label: "text/html", hasValue: false},
-        {value: "text/plain", label: "text/plain", hasValue: false},
-        {value: "image/gif", label: "image/gif", hasValue: false},
-        {value: "image/png", label: "image/png", hasValue: false},
+        {value: "application/xml",  label: "application/xml", hasValue: false},
+        {value: "text/css",         label: "text/css", hasValue: false},
+        {value: "text/html",        label: "text/html", hasValue: false},
+        {value: "text/plain",       label: "text/plain", hasValue: false},
+        {value: "image/gif",        label: "image/gif", hasValue: false},
+        {value: "image/png",        label: "image/png", hasValue: false},
         {value: "other", label: RED._("node-red:httpin.label.other"), icon: "red/images/typedInput/09.png"}
     ];
 
@@ -143,23 +123,15 @@
         inputs: 1,
         outputs: 3, //debug
         defaults: {
-            listenAddress: {
-                value: ''
-            },
-            listenPort: {
-                value: 2000, required: true, validate: validatePositiveNumber
-            },
-            peerAddress: {
-                value: '0.0.0.0', required: true, validate: validateIpAddress
-            },
-            peerPort: {
-                value: 443, required: true, validate: validatePositiveNumber
-            },
-            headers: {value: []},
-            name: {value: '', required: true},
-            meshName: {value: 'mesh0', required: true},
-            notifyInterval: {value: 15, required: true/*, validate: validatePositiveNumber*/},
-            oldStore: {value: false}
+            listenAddress: { value: ''   },
+            listenPort:    { value: 2000, required: true, validate: validatePositiveNumber  },
+            peerAddress:   { value: '0.0.0.0', required: true, validate: validateIpAddress  },
+            peerPort:      { value: 443,  required: true, validate: validatePositiveNumber   },
+            headers:       { value: [] },
+            name:          { value: '',   required: true },
+            meshName:      { value: 'mesh0', required: true },
+            notifyInterval:{ value: 15, required: true/*, validate: validatePositiveNumber*/},
+            oldStore:      { value: false }
         },
         icon: "redis.png",
         label: function () {
@@ -182,7 +154,7 @@
                 rule.find('.red-ui-typedInput').typedInput("width", (newWidth - 15) / 2);
             }
 
-            var headerList = $("#node-input-headers-container").css('min-height', '150px').css('min-width', '400px').editableList({
+            var headerList = $("#node-input-headers-container").css('min-height', '10px').css('min-width', '400px').editableList({
                 addItem: function (container, i, header) {
                     if (!header.h) {
                         header.h = '127.0.0.1';
@@ -319,7 +291,7 @@
             }
             var editorRow = $("#dialog-form>div.node-input-headers-container-row");
             height -= (parseInt(editorRow.css("marginTop")) + parseInt(editorRow.css("marginBottom")));
-
+            height = 240; //Cludge for too many rows John 
             $("#node-input-headers-container").editableList('height', height);
         }
 
@@ -405,38 +377,37 @@
 <script type="text/javascript">
     RED.nodes.registerType('redlink producer', {
         category: 'redlink',
-        color: "#f56042",
-        inputs: 1,
-        outputs: 3,
+        color:    "#f56042",
+        inputs:   1,
+        outputs:  3,
         defaults: {
             name: {value: 'REDLink producer'},
-            producerStoreName: {value: '', required: true},
-            producerConsumer: {value: '', required: true},
-            producerTTL: {value: 15, required: true},
-            producerETT: {value: 5 * 60, required: true},
-
-            priority: {value: 0},
-            timeout: {value: -1},//TODO check with John,
-            sendOnly: {value: false},
-            manualRead: {value: false},
-            rateTypeSendReceive: {value: "none"},
-            rateSendReceive: {value: 1},
-            rateUnitsSendReceive: {value: "second"},
+            producerStoreName:      {value: '', required: true},
+            producerConsumer:       {value: '', required: false},
+            producerTTL:            {value: 15, required: true},
+            producerETT:            {value: 5 * 60, required: true},
+            priority:               {value: 0},
+            timeout:                {value: -1},//TODO check with John,
+            sendOnly:               {value: false},
+            manualRead:             {value: false},
+            rateTypeSendReceive:    {value: "none"},
+            rateSendReceive:        {value: 1},
+            rateUnitsSendReceive:   {value: "second"},
             nbRateUnitsSendReceive: {value: ''},
-            server: {value: "tcp://localhost:9660"},
-            topic: {value: ""},
-            cmd: {value: "send"},
-            private: {value: false},
-            ttl: {value: null},
-            tba: {value: null},
-            showDebug: {value: false},
-            outputs: {value: 3},
+//            server:                 {value: "tcp://localhost:9660"},
+            topic:                  {value: ""},
+            cmd:                    {value: "send"},
+            private:                {value: false},
+            ttl:                    {value: null},
+            tba:                    {value: null},
+            showDebug:              {value: false},
+            outputs:                {value: 3},
         },
         outputLabels: function (index) {
             const labels = getProducerOutputs({
                 sendOnly: this.sendOnly,
-                debug: this.showDebug,
-                failure: true
+                debug:    this.showDebug,
+                failure:  true
             });
             return labels[index];
         },
@@ -450,20 +421,20 @@
         },
         oneditsave: function () {
             let newSendOnly = $('#node-input-sendOnly').is(":checked");
-            let newDebug = $('#node-input-showDebug').is(":checked");
+            let newDebug    = $('#node-input-showDebug').is(":checked");
             console.log('going to call getoutputs for existing ports with sendOnly: ', this.sendOnly, 'showDebug:', this.showDebug);
             const existingOutputs = getProducerOutputs({
                 sendOnly: this.sendOnly,
-                debug: this.showDebug,
-                failure: true
+                debug:    this.showDebug,
+                failure:  true
             });
             console.log('got existing outputs as:', existingOutputs);
             // getOutputs(!this.sendOnly, this.manualRead, true, this.showStats, this.showDebug);
             console.log('going to call getoutputs for new with sendOnly: ', newSendOnly, 'showDebug:', newDebug);
             const newOutputs =  getProducerOutputs({
                 sendOnly: newSendOnly,
-                debug: newDebug,
-                failure: true
+                debug:    newDebug,
+                failure:  true
             });
             console.log('got new outputs as:', newOutputs);
             var nodeRedOutputsObject = getNodeRedOutputObject(existingOutputs, newOutputs);
@@ -474,18 +445,13 @@
             const selectedStore = this.producerStoreName;
             console.log('selectedStore:', selectedStore);
 
-            if (!this.sendOnly) {
-                $('#producer-receive').show();
-            } else {
-                $('#producer-receive').hide();
-            }
+            if (!this.sendOnly) { $('#producer-receive').show(); }
+                           else { $('#producer-receive').hide(); }
+            
             $('#node-input-sendOnly').click(function () {
                 console.log('this.checked:', this.checked);
-                if (!this.checked) {
-                    $('#producer-receive').show();
-                } else {
-                    $('#producer-receive').hide();
-                }
+                if (!this.checked) { $('#producer-receive').show(); } 
+                              else { $('#producer-receive').hide(); }
             });
 
 
@@ -518,7 +484,7 @@
                         console.log('all store values:', values);
                         // $("#node-input-producerStoreName").prop("selectedIndex", 0);
                         $("#node-input-producerStoreName option:first").attr('selected', 'selected');
-                        console.log('after settign selected to zero, the selected store in producer is:', $("#node-input-producerMeshName").children("option:selected").val());
+                        console.log('after setting selected to zero, the selected store in producer is:', $("#node-input-producerMeshName").children("option:selected").val());
                         repopulateConsumers();
                     }
                 });
@@ -528,10 +494,8 @@
             repopulateStores();
 
             $('#node-input-rateTypeSendReceive').change(function () {
-                if (this.value === 'none') {
-                    $('#rate-limit-details-send-receive').hide();
-                } else if (this.value === 'rateLimit') {
-                    $('#rate-limit-details-send-receive').show();
+                if (this.value === 'none')      { $('#rate-limit-details-send-receive').hide(); }
+           else if (this.value === 'rateLimit') { $('#rate-limit-details-send-receive').show();
                 }
             });
 
@@ -558,9 +522,7 @@
                 });
             }
 
-            $("#node-input-producerStoreName").change(() => {
-                repopulateConsumers();
-            });
+            $("#node-input-producerStoreName").change(() => { repopulateConsumers(); });
         }
     });
 </script>
@@ -784,13 +746,6 @@
         <label for="node-input-name"><i class="icon-tag"></i> Name </label>
         <input type="text" id="node-input-name" placeholder="Name">
         <input type="hidden" id="node-input-outputs"/>
-    </div>
-        <div class="form-row">
-        <label for="node-input-topicReply"><i class="fa fa-tasks"></i> Topic</label>
-        <input type="text" id="node-input-topicReply" placeholder="Topic">
-    </div>
-
-
     <div class="form-row">
         <label style="width:100%; border-bottom:1px solid #eee;"><em><span>Send</span></em></label>
     </div>
@@ -817,7 +772,7 @@
         outputs: 0,
         defaults: {
             name: {value: 'REDLink reply'},
-            topicReply: {value: ''},
+//            topicReply: {value: ''},
             priorityReceiveSend: {value: 0},
             timeoutReceiveSend: {value: -1},//TODO check with John,
             showDebug: {value: false},

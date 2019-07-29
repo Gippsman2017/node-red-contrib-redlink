@@ -62,10 +62,10 @@ module.exports.RedLinkConsumer = function (config) {
         const dropNotifyTriggerSql = 'DROP TRIGGER ' + msgNotifyTriggerId; //todo this wont work- see https://github.com/agershun/alasql/issues/1113
         //clean up like in the redlinkStore- reinit trigger function to empty
         alasql(dropNotifyTriggerSql);
-        log('dropped notify trigger...');
+//        log('dropped notify trigger...');
         const deleteConsumerSql = 'DELETE FROM localStoreConsumers WHERE storeName="' + node.consumerStoreName + +'"' + 'AND serviceName="' + node.name + '"';
         alasql(deleteConsumerSql); //can have multiple consumers with same name registered to the same store
-        log('removed consumer from local store...');
+//        log('removed consumer from local store...');
         //TODO use the getlocalNorthSouthConsumers function
         const localConsumersSql  = 'SELECT * FROM localStoreConsumers';
         const globalConsumersSql = 'SELECT * FROM globalStoreConsumers';
@@ -74,6 +74,9 @@ module.exports.RedLinkConsumer = function (config) {
         done();
     });
 
+
+
+
     node.on("input", msg => {
         if (msg.cmd === 'read' && node.manualRead) {
             if (msg.redlinkMsgId) {
@@ -81,6 +84,11 @@ module.exports.RedLinkConsumer = function (config) {
             }
         }
     });
+
+
+
+
+
 
     function readMessage(redlinkMsgId) { //todo enforce rate limits here...
         const notifiesSql = 'SELECT * from notify WHERE storeName="' + node.consumerStoreName + '" AND redlinkMsgId="' + redlinkMsgId + '"';

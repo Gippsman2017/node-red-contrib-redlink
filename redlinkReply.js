@@ -27,20 +27,23 @@ module.exports.RedLinkReply = function (config) {
         if (msg.redlinkMsgId && !msg.sendOnly) {
            const msgSql = 'SELECT * FROM inMessages WHERE redlinkMsgId="' + msg.redlinkMsgId + '"';
            const matchingMessages = alasql(msgSql);
+    //     console.log(matchingMessages);      
            node.send([{action:'replySend',direction:'inBound',message:matchingMessages}]);
            if (matchingMessages.length > 0) { //should have only one
-              const replyStore   = matchingMessages[0].storeName;
-              const replyService = matchingMessages[0].serviceName;
-              const notifySql    = 'SELECT * FROM notify WHERE redlinkMsgId="' + msg.redlinkMsgId + '"'; // AND storeName="' + replyStore + '"';
-              const notifies     = alasql(notifySql); //should have only one
+              const replyStore        = matchingMessages[0].storeName;
+              const replyService      = matchingMessages[0].serviceName;
+              const redlinkProducerId = matchingMessages[0].redlinkProducerId;
+              const notifySql         = 'SELECT * FROM notify WHERE redlinkMsgId="' + msg.redlinkMsgId + '"'; // AND storeName="' + replyStore + '"';
+              const notifies          = alasql(notifySql); //should have only one
               if (notifies.length > 0) {
                  const replyAddress = notifies[0].srcStoreIp + ':' + notifies[0].srcStorePort;
                  delete msg.preserved;
                  const body = {
                       topic : node.topic,
-                      replyingService: replyService,
-                      redlinkMsgId: msg.redlinkMsgId,
-                      payload: base64Helper.encode(msg.payload)
+                      replyingService:   replyService,
+                      redlinkMsgId:      msg.redlinkMsgId,
+                      redlinkProducerId: redlinkProducerId,
+                      payload:           base64Helper.encode(msg.payload)
                       };
                         //'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreIp + '",' + req.body.srcStorePort + ',"' + req.body.redlinkMsgId +  '")';
                  const options = {

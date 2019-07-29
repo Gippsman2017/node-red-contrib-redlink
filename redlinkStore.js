@@ -326,12 +326,13 @@ module.exports.RedLinkStore = function (config) {
     });
     app.post('/reply-message', (req, res)=>{
         const redlinkMsgId = req.body.redlinkMsgId;
+        const redlinkProducerId = req.body.redlinkProducerId;
         // const replyingService = req.body.replyingService;
         const message = req.body.payload;
         const topic = req.body.topic;
         const host = req.headers.host;//store address of replying store
         node.send([null,null,{storeName:node.name,action:'reply-message',direction:'inBound',Data:req.body}]);
-        const insertReplySql = 'INSERT INTO replyMessages ("'+node.name+'","'+redlinkMsgId+'","'+message+'", false,"'+topic+'")';
+        const insertReplySql = 'INSERT INTO replyMessages ("'+node.name+'","'+redlinkMsgId+'","'+redlinkProducerId+'","'+message+'", false,"'+topic+'")';
         alasql(insertReplySql);
         res.status(200).send({msg:'Reply received for '+redlinkMsgId});
     });
@@ -342,29 +343,42 @@ module.exports.RedLinkStore = function (config) {
     function getAllVisibleConsumers() {
         const localConsumersSql  = 'SELECT DISTINCT * FROM localStoreConsumers WHERE storeName="' + node.name + '"';
         const globalConsumersSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND globalStoreName<>localStoreName';
-        const localConsumers  = alasql(localConsumersSql);
-        const globalConsumers = alasql(globalConsumersSql);
+        const storesSql          = 'SELECT * FROM stores where storeName ="'+node.name+'"';
+        const localConsumers     = alasql(localConsumersSql);
+        const globalConsumers    = alasql(globalConsumersSql);
+        const store              = alasql(storesSql);
+        const peers              = {"northPeers": node.northPeers, "southPeers": node.southPeers}; 
         return {
             localConsumers,
-            globalConsumers
+            globalConsumers,
+            store,
+            peers
         };
     }
 
+   function getCurrentStoreData() {
+        const messagesSql = 'SELECT * FROM inMessages    where storeName ="' +node.name+'"'; 
+        const notifiesSql = 'SELECT * FROM notify        where storeName ="' +node.name+'"'; 
+        const repliesSql  = 'SELECT * FROM replyMessages where storeName ="' +node.name+'"'; 
+        const storeSql    = 'SELECT * FROM stores        where storeName ="' +node.name+'"';
+        const messages    = alasql(messagesSql);
+        const notifies    = alasql(notifiesSql);
+        const replies     = alasql(repliesSql);
+        const store       = alasql(storeSql);
+        return {
+            store,
+            messages,
+            notifies,
+            replies
+        };    
+   }
     node.on("input", msg => {
         log(msg);
-             if (msg && msg.cmd === 'listConsumers')  { const allConsumers = getAllVisibleConsumers();          node.send(allConsumers); } 
-        else if (msg && msg.cmd === 'listStores')     { const stores   = alasql('SELECT * FROM stores');        node.send({stores});     } 
-        else if (msg && msg.cmd === 'listInMessages') { const messages = alasql('SELECT * FROM inMessages');    node.send({messages});   } 
-        else if (msg && msg.cmd === 'listNotifies')   { const notifies = alasql('SELECT * FROM notify');        node.send({notifies});   }
-        else if (msg && msg.cmd === 'listReplies')    { const replies  = alasql('SELECT * FROM replyMessages'); node.send({replies});   }
-        else if (msg && msg.cmd === 'listPeers')      { node.send({northPeers: node.northPeers, southPeers: node.southPeers});        } 
-        else if (msg && msg.cmd === 'listAllStoreConsumers')     { 
-            node.send({
-                localStoreConsumers: alasql('SELECT * FROM localStoreConsumers'),
-                globalStoreConsumers: alasql('SELECT * FROM globalStoreConsumers'),
-                stores: alasql('SELECT * FROM stores')
-            });
-        }
+        switch(msg.payload) {
+           case 'listRegistrations' : { const allConsumers = getAllVisibleConsumers(); node.send(allConsumers); break; };
+           case 'listStore'         : { const storeData = getCurrentStoreData(); node.send(storeData); break; };
+        default                     : { node.send({help:"msg.payload can be listRegistrations listStore"}); break; };
+        } 
         //todo what messages should we allow? register and notify are handled via endpoints
     });
 
