@@ -27,7 +27,6 @@ module.exports.RedLinkProducer = function (config) {
         //look up inMessages table to see if this producer actually sent the message
         const unreadRepliesSql = 'SELECT redlinkMsgId FROM replyMessages WHERE read=false';
         const unreadReplies = alasql(unreadRepliesSql);
-//        log('in trigger unread replies:', unreadReplies);
         sendMessage({debug: {storeName: node.producerStoreName,consumerName:node.producerConsumer,action:'producerReplyRead',direction:'inBound','unreadReplies': unreadReplies}});
         if (unreadReplies && unreadReplies.length > 0) {
             let unreadMsgIdsStr = '(';
@@ -67,16 +66,12 @@ module.exports.RedLinkProducer = function (config) {
             payload:           base64Helper.decode(replyMessage),
             redlinkMsgId:      daId,
             redlinkProducerId: relevantReplies[0].redlinkProducerId,
-            topic:             relevantReplies[0].topic,
             preserved :        base64Helper.decode(preserved)
         };
-//        log('in producer going to send out reply as:', JSON.stringify(reply, null, 2));
         const deleteReplyMsg  = 'DELETE from replyMessages WHERE storeName="'+node.producerStoreName+'" AND redlinkMsgId="' +  daId + '"';
         const deleteInMsg     = 'DELETE from inMessages    WHERE storeName="'+node.producerStoreName+'" AND redlinkMsgId="' +  daId + '"';
-        const deleteNotifyMsg = 'DELETE from notify        WHERE redlinkMsgId="' +  daId + '"';
         const deleteReply     = alasql(deleteReplyMsg);
         const deleteIn        = alasql(deleteInMsg);
-        const deleteNotify    = alasql(deleteNotifyMsg);
         return reply;
     }
 

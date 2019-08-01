@@ -6,7 +6,7 @@ module.exports = function (RED) {
 
     const redlinkConsumer = require('./redlinkConsumer.js');
     const redlinkProducer = require('./redlinkProducer.js');
-    const redlinkReply    = require('./redlinkReply.js');
+//    const redlinkReply    = require('./redlinkReply.js');
     const redlinkStore    = require('./redlinkStore.js');
     const log             = require('./log.js')().log; //dont have node yet over here
 
@@ -26,7 +26,7 @@ module.exports = function (RED) {
         alasql('CREATE TABLE localStoreConsumers (storeName STRING, serviceName STRING)'); //can have multiple consumers with same name registered to the same store
         alasql('CREATE TABLE globalStoreConsumers (localStoreName STRING, globalServiceName STRING, globalStoreName STRING, globalStoreIp STRING, globalStorePort INT)');
         alasql('CREATE TABLE stores (storeName STRING, storeAddress STRING, storePort INT)');
-        alasql('CREATE TABLE replyMessages (storeName STRING, redlinkMsgId STRING, redlinkProducerId STRING, replyMessage STRING, read BOOLEAN, topic STRING)');
+        alasql('CREATE TABLE replyMessages (storeName STRING, redlinkMsgId STRING, redlinkProducerId STRING, replyMessage STRING, read BOOLEAN)');
         //log('created tables...');
     }
 
@@ -38,7 +38,7 @@ module.exports = function (RED) {
         //Producer
         redlinkProducer.initRED(RED); RED.nodes.registerType("redlink producer", redlinkProducer.RedLinkProducer);
         //Reply
-        redlinkReply.initRED(RED);    RED.nodes.registerType("redlink reply", redlinkReply.RedLinkReply);
+//        redlinkReply.initRED(RED);    RED.nodes.registerType("redlink reply", redlinkReply.RedLinkReply);
     }
 
     function getMeshNames() {

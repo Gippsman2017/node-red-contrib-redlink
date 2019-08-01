@@ -31,10 +31,13 @@ module.exports.RedLinkReply = function (config) {
            node.send([{action:'replySend',direction:'inBound',message:matchingMessages}]);
            if (matchingMessages.length > 0) { //should have only one
               const replyStore        = matchingMessages[0].storeName;
+              console.log('replyStore=',replyStore);
               const replyService      = matchingMessages[0].serviceName;
               const redlinkProducerId = matchingMessages[0].redlinkProducerId;
-              const notifySql         = 'SELECT * FROM notify WHERE redlinkMsgId="' + msg.redlinkMsgId + '"'; // AND storeName="' + replyStore + '"';
+//console.log('Producer=',redlinkProducerId);
+              const notifySql         = 'SELECT * FROM notify WHERE redlinkMsgId="' + msg.redlinkMsgId + '"';
               const notifies          = alasql(notifySql); //should have only one
+console.log('ReplyNotify=',notifies);
               if (notifies.length > 0) {
                  const replyAddress = notifies[0].srcStoreIp + ':' + notifies[0].srcStorePort;
                  delete msg.preserved;
@@ -53,7 +56,12 @@ module.exports.RedLinkReply = function (config) {
                       json:    true
                       };
                  request(options, function (error, response) {
+console.log('Body=',response.body);
                     body.payload = base64Helper.decode(body.payload);
+//                    console.log('RESULT=',response.body.redlinkMsgId);
+                    const deleteNotifyMsg = 'DELETE from notify WHERE redlinkMsgId = "' +  response.body.redlinkMsgId + '" and notifySent = "'+redlinkProducerId+'"';
+                    const deleteNotify    = alasql(deleteNotifyMsg);
+console.log('DELETE R-Notify = ',deleteNotifyMsg,' = ',deleteNotify);
                     sendMessage({debug: {storeName: replyStore,serviceName:replyService,action:'replySend',direction:'outBound',Data:body,error}})
                   });
                }
