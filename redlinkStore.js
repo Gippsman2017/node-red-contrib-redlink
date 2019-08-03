@@ -331,20 +331,19 @@ module.exports.RedLinkStore = function (config) {
         const redlinkProducerId = req.body.redlinkProducerId;
         // const replyingService = req.body.replyingService;
         const message = req.body.payload;
-//        const topic = req.body.topic;
         const host = req.headers.host;//store address of replying store
         node.send([null,null,{storeName:node.name,action:'reply-message',direction:'inBound',Data:req.body}]);
         const replyMsgSql = 'SELECT DISTINCT * FROM replyMessages WHERE redlinkMsgId="'+redlinkMsgId+'"';
         const replyMsg = alasql(replyMsgSql);
-        if (replyMsg.length > 0) {
-        
+        if (replyMsg.length == 0) {
+          const insertReplySql = 'INSERT INTO replyMessages ("'+node.name+'","'+redlinkMsgId+'","'+redlinkProducerId+'","'+message+'", false)';
+          const inserteply = alasql(insertReplySql);
+        res.status(200).send({msg:'Reply received for ',redlinkMsgId:redlinkMsgId});
         }
         else
         {
-        const insertReplySql = 'INSERT INTO replyMessages ("'+node.name+'","'+redlinkMsgId+'","'+redlinkProducerId+'","'+message+'", false)';
-        alasql(insertReplySql);
+        res.status(404).send({msg:'Reply Rejected for ',redlinkMsgId:redlinkMsgId});
         }
-        res.status(200).send({msg:'Reply received for',redlinkMsgId:redlinkMsgId});
     });
 
 
@@ -368,8 +367,8 @@ module.exports.RedLinkStore = function (config) {
 
    function getCurrentStoreData() {
         const messagesSql = 'SELECT * FROM inMessages    where storeName ="' +node.name+'"'; 
-        const notifiesSql = 'SELECT * FROM notify        '; 
-//        const notifiesSql = 'SELECT * FROM notify        where storeName ="' +node.name+'"'; 
+//        const notifiesSql = 'SELECT * FROM notify        '; 
+        const notifiesSql = 'SELECT * FROM notify        where storeName ="' +node.name+'"'; 
         const repliesSql  = 'SELECT * FROM replyMessages where storeName ="' +node.name+'"'; 
         const storeSql    = 'SELECT * FROM stores        where storeName ="' +node.name+'"';
         const messages    = alasql(messagesSql);
@@ -388,14 +387,25 @@ module.exports.RedLinkStore = function (config) {
         switch(msg.payload) {
            case 'listRegistrations' : { const allConsumers = getAllVisibleConsumers(); node.send(allConsumers); break; };
            case 'listStore'         : { const storeData = getCurrentStoreData(); node.send(storeData); break; };
-        default                     : { node.send({help:"msg.payload can be listRegistrations listStore"}); break; };
+           case 'flushStore'        : { const removeReplySql      = 'DELETE FROM replyMessages WHERE storeName="' + node.name + '"';
+                                        const removeNotifySql     = 'DELETE FROM notify        WHERE storeName="' + node.name + '"';
+                                        const removeInMessagesSql = 'DELETE FROM inMessages    WHERE storeName="' + node.name + '"';
+                                        alasql(removeReplySql);
+                                        alasql(removeNotifySql);
+                                        alasql(removeInMessagesSql);
+                                        const storeData = getCurrentStoreData(); node.send(storeData); 
+                                        break; 
+                                        };
+        default                     : { node.send({help:"msg.payload can be listRegistrations listStore flushStore"}); break; };
         } 
         //todo what messages should we allow? register and notify are handled via endpoints
     });
 
     node.on('close', (removed, done) => {
-        const removeNotifySql     = 'DELETE FROM notify     WHERE storeName="' + node.name + '"';
-        const removeInMessagesSql = 'DELETE FROM inMessages WHERE storeName="' + node.name + '"';
+        const removeReplySql      = 'DELETE FROM replyMessages WHERE storeName="' + node.name + '"';
+        const removeNotifySql     = 'DELETE FROM notify     WHERE storeName="'    + node.name + '"';
+        const removeInMessagesSql = 'DELETE FROM inMessages WHERE storeName="'    + node.name + '"';
+        alasql(removeReplySql);
         alasql(removeNotifySql);
         alasql(removeInMessagesSql);
 

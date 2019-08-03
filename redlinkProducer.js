@@ -25,7 +25,7 @@ module.exports.RedLinkProducer = function (config) {
 
     alasql.fn[replyMsgTriggerName] = () => {
         //look up inMessages table to see if this producer actually sent the message
-        const unreadRepliesSql = 'SELECT redlinkMsgId FROM replyMessages WHERE read=false';
+        const unreadRepliesSql = 'SELECT redlinkMsgId FROM replyMessages WHERE  storeName="'+node.producerStoreName+'" AND read=false AND redlinkProducerId="' + node.id + '"';
         const unreadReplies = alasql(unreadRepliesSql);
         sendMessage({debug: {storeName: node.producerStoreName,consumerName:node.producerConsumer,action:'producerReplyRead',direction:'inBound','unreadReplies': unreadReplies}});
         if (unreadReplies && unreadReplies.length > 0) {
@@ -34,31 +34,37 @@ module.exports.RedLinkProducer = function (config) {
             unreadMsgIdsStr = unreadMsgIdsStr.substring(0, unreadMsgIdsStr.length - 1) + ')';
             const msgsByThisProducerSql = 'SELECT * FROM inMessages WHERE redlinkMsgId IN ' + unreadMsgIdsStr + ' AND redlinkProducerId="' + node.id + '"';
             const msgsByThisProducer = alasql(msgsByThisProducerSql); //should be length one if reply got for message from this producer else zero
-            if (msgsByThisProducer && msgsByThisProducer.length > 0) {
-                const daId = msgsByThisProducer[0].redlinkMsgId;
-                const relevanttReplySql = 'SELECT * FROM replyMessages WHERE redlinkMsgId="' + daId + '"';
-                const relevantReplies = alasql(relevanttReplySql); //should have just one result
-                if(relevantReplies && relevantReplies.length >0){
-                    const notifyMessage = { //todo store more info in replyMesssages- store, etc and populate in notify msg
-                        redlinkMsgId: daId,
-                        notifyType: 'producerReplyNotification',
-                    };
-                    if (node.manualRead) {
-                        sendMessage({notify: notifyMessage})
-                    } else {
-                        const reply = getReply(daId, relevanttReplySql, relevantReplies, msgsByThisProducer[0].preserved);
-                        sendMessage({receive: reply}, {notify: notifyMessage});
-                    }
-                }
+            if (msgsByThisProducer && msgsByThisProducer.length == 0) {
+               //Strange problem, If I end up here, the message has already been processed and the reply needs to be removed, its usually caused by multiple high traffic triggers at the same time
+               const deleteReplyMsg  = 'DELETE from replyMessages WHERE storeName="'+node.producerStoreName+'" AND redlinkMsgId="' + unreadReplies[0].redlinkMsgId + '"';
+               const deleteReply     = alasql(deleteReplyMsg);
+              }
+           else
+              {
+               const daId = msgsByThisProducer[0].redlinkMsgId;
+               const relevanttReplySql = 'SELECT * FROM replyMessages WHERE redlinkMsgId="' + daId + '"';
+               const relevantReplies = alasql(relevanttReplySql); //should have just one result
+               if(relevantReplies && relevantReplies.length >0){
+                   const notifyMessage = { //todo store more info in replyMesssages- store, etc and populate in notify msg
+                       redlinkMsgId: daId,
+                       notifyType: 'producerReplyNotification',
+                   };
+                   if (node.manualRead) {
+                       sendMessage({notify: notifyMessage})
+                   } else {
+                       const reply = getReply(daId, relevanttReplySql, relevantReplies, msgsByThisProducer[0].preserved);
+                       sendMessage({receive: reply}, {notify: notifyMessage});
+                   }
+               }
             }
         }
     };
+    
+
     const createReplyMsgTriggerSql = 'CREATE TRIGGER ' + replyMsgTriggerName + ' AFTER INSERT ON replyMessages CALL ' + replyMsgTriggerName + '()';
     alasql(createReplyMsgTriggerSql);
 
     function getReply(daId, relevanttReplySql, relevantReplies) {
-        const updateReplySql  = 'UPDATE replyMessages SET READ=true WHERE redlinkMsgId="' + daId + '"';
-        alasql(updateReplySql);
         const replyMessage    = relevantReplies[0].replyMessage;
         const getPreservedSql = 'SELECT * from inMessages WHERE redlinkMsgId="' + daId + '"';
         const preserved       = alasql(getPreservedSql)[0].preserved;
@@ -93,7 +99,7 @@ module.exports.RedLinkProducer = function (config) {
     }
 
     node.on("input", msg => {
-        if (msg.cmd === 'read') {
+        if (msg.cmd === 'read'||msg.cmd === 'producerReplyRead') {
             if (node.manualRead) {
               if (node.manualRead && msg.redlinkMsgId) { //redlinkMsgId specified
                   const daId = msg.redlinkMsgId;
