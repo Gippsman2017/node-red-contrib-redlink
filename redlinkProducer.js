@@ -157,7 +157,7 @@ module.exports.RedLinkProducer = function (config) {
            }
       else
         {
-        sendMessage({ failure: {"error":"Store "+node.producerStoreName+" Does NOT know about this service"}});
+          sendMessage({ failure: {"error":"Store "+node.producerStoreName+" Does NOT know about this service"}});
         }     
     });
 };

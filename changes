@@ -1,3 +1,4 @@
+v 0.1.0 Total rewrite of producer / consumer and removed reply node.
 v 0.0.5 Lost of changes to consolidate producer, consumer and replies
 v 0.0.4 add mesh support for consumers, store; merge John's changes
 v 0.0.3 Coding, Colours, Logging Updates

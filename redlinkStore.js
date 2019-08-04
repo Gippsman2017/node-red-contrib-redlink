@@ -28,7 +28,7 @@ module.exports.RedLinkStore = function (config) {
 
     const insertStoreSql = 'INSERT INTO stores("' + node.name + '","' + node.listenAddress + '",' + node.listenPort + ')';
     alasql(insertStoreSql);
-    const allStoresSql = 'SELECT * FROM stores';
+//    const allStoresSql = 'SELECT * FROM stores';
 
     function getConsumersOfType() {
         const globalConsumersSql = 'SELECT DISTINCT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '"';
@@ -304,6 +304,7 @@ module.exports.RedLinkStore = function (config) {
                 break;
         } //case
     }); // notify
+
     app.post('/read-message', (req, res)=>{
         const redlinkMsgId = req.body.redlinkMsgId;
         node.send([null,null,{storeName:node.name,action:'read-message',direction:'inBound',Data:req.body}]);
@@ -326,6 +327,7 @@ module.exports.RedLinkStore = function (config) {
             res.status(404).send({error:true,msg:'Message Already Read',redlinkMsgId:redlinkMsgId});
         }
     });
+
     app.post('/reply-message', (req, res)=>{
         const redlinkMsgId = req.body.redlinkMsgId;
         const redlinkProducerId = req.body.redlinkProducerId;
@@ -367,7 +369,6 @@ module.exports.RedLinkStore = function (config) {
 
    function getCurrentStoreData() {
         const messagesSql = 'SELECT * FROM inMessages    where storeName ="' +node.name+'"'; 
-//        const notifiesSql = 'SELECT * FROM notify        '; 
         const notifiesSql = 'SELECT * FROM notify        where storeName ="' +node.name+'"'; 
         const repliesSql  = 'SELECT * FROM replyMessages where storeName ="' +node.name+'"'; 
         const storeSql    = 'SELECT * FROM stores        where storeName ="' +node.name+'"';

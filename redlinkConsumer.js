@@ -56,12 +56,11 @@ module.exports.RedLinkConsumer = function (config) {
 
         if (node.manualRead) {
            sendMessage({ notify: notifyMessage });
-//           {"error":"Store "+node.producerStoreName+" Does NOT know about this service"}});
 //             sendMessage(msgnode.send([null, notifyMessage]);
         } else {
             node.send([null, notifyMessage]);
             readMessage(notifyMessage.redlinkMsgId);
-        }
+            }
     };
 
     const createTriggerSql = 'CREATE TRIGGER ' + msgNotifyTriggerId + ' AFTER INSERT ON notify CALL ' + newMsgNotifyTrigger + '()';
@@ -95,8 +94,10 @@ module.exports.RedLinkConsumer = function (config) {
     node.on("input", msg => {
         if (msg.cmd === 'read') {
           if (node.manualRead) {
+               let mycb='0';
+
             if (msg.redlinkMsgId) { 
-              readMessage(msg.redlinkMsgId); 
+               readMessage(notifies[0].redlinkMsgId);
               }
          else
              {// should be here for a normal read
@@ -105,9 +106,7 @@ module.exports.RedLinkConsumer = function (config) {
                  console.log('Notifies = ',notifies);
                const numberOfNotifies = notifies.length;
                if (numberOfNotifies > 0) {
-//                 while (notifies[0].notifySent != node.name) { 
-                   readMessage(notifies[0].redlinkMsgId);  
-//                  }
+                    readMessage(notifies[0].redlinkMsgId);
                }    
              else
                {
@@ -155,9 +154,9 @@ module.exports.RedLinkConsumer = function (config) {
                   });
                }
             }   
+          // OK, I have completed the whole job and sent the reply, now to finally remove the original Notifiy for thi job.
           const deleteNotifyMsg = 'DELETE from notify WHERE redlinkMsgId = "' +  msg.redlinkMsgId + '" and storeName = "'+node.consumerStoreName+ '" and notifySent = "'+node.id+'"';
           const deleteNotify    = alasql(deleteNotifyMsg);
-//          console.log('DELETEING Read NOTIFY (READMSG)=',deleteNotifyMsg,' = ',deleteNotify);                   
         }
      }        
 
@@ -211,9 +210,10 @@ module.exports.RedLinkConsumer = function (config) {
                     if (response.body.message) { response.body.message = base64Helper.decode(response.body.message); }
                     const msg = response.body;
                     if(msg){
-                        node.send([null,{storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',msg:msg,redlinkMsgId:redlinkMsgId,error:true},null]);
-                    const deleteNotifyMsg = 'DELETE from notify WHERE redlinkMsgId = "' +  redlinkMsgId + '" and storeName = "'+node.consumerStoreName+ '" and notifySent = "'+node.id+'"';
-                    const deleteNotify    = alasql(deleteNotifyMsg);
+                       // OK the store has told me the message is no longer available, so I will remove this notify 
+                       node.send([null,{storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',msg:msg,redlinkMsgId:redlinkMsgId,error:true},null]);
+                       const deleteNotifyMsg = 'DELETE from notify WHERE redlinkMsgId = "' +  redlinkMsgId + '" and storeName = "'+node.consumerStoreName+ '" and notifySent = "'+node.id+'"';
+                       const deleteNotify    = alasql(deleteNotifyMsg);
 //                    console.log('DELETEING Already Read NOTIFY (READMSG)=',deleteNotifyMsg,' = ',deleteNotify);                   
                     }
                 } 
@@ -227,12 +227,12 @@ module.exports.RedLinkConsumer = function (config) {
                     {
                          node.send([output,{storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',msg:output.msg,redlinkMsgId:output.redlinkMsgId,error:output.error},null]);
                     }
+                   // OK the store has told me the message is no longer available, so I will remove this notify 
                    const deleteNotifyMsg = 'DELETE from notify WHERE redlinkMsgId = "' +  redlinkMsgId + '" and storeName = "'+node.consumerStoreName+ '" and notifySent = "'+node.id+'"';
                    const deleteNotify    = alasql(deleteNotifyMsg);
-  //                 console.log('DELETEING Already Read NOTIFY (READMSG)=',deleteNotifyMsg,' = ',deleteNotify);                   
 //                   sendMessage({ failure: {"error":"Store " + node.consumerStoreName + " Does NOT have any notifies for this service " + node.name + " consumer "+node.id}});
                 }
             }); //request
-        }
-    }
+        } //notifies
+    } //readMessage
 };
