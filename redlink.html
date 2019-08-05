@@ -493,6 +493,22 @@
 
             repopulateStores();
 
+
+            $('#node-input-manualRead').change(function () {
+                if (this.checked) {
+                    $('#rate-limit-send-receive').hide();
+                } else {
+                    $('#rate-limit-send-receive').show();
+                }
+            });
+            if (this.manualReadReceiveSend) {
+                $('#rate-limit-send-receive').hide();
+            } else {
+                $('#rate-limit-send-receive').show();
+            }
+
+
+
             $('#node-input-rateTypeSendReceive').change(function () {
                 if (this.value === 'none')      { $('#rate-limit-details-send-receive').hide(); }
            else if (this.value === 'rateLimit') { $('#rate-limit-details-send-receive').show();
@@ -699,6 +715,21 @@
                     repopulateStores();
                 }
             });
+
+
+            $('#node-input-manualReadReceiveSend').change(function () {
+                console.log('in change listener of manualRead, the current value is:', this.checked);
+                if (this.checked) {
+                    $('#rate-limit-receive-send').hide();
+                } else {
+                    $('#rate-limit-receive-send').show();
+                }
+            });
+            if (this.manualReadReceiveSend) {
+                $('#rate-limit-receive-send').hide();
+            } else {
+                $('#rate-limit-receive-send').show();
+            }
 
 
             $('#node-input-rateTypeReceiveSend').change(function () {
