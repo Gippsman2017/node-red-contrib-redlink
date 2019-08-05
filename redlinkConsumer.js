@@ -97,10 +97,11 @@ module.exports.RedLinkConsumer = function (config) {
                let mycb='0'; //todo remvoe this?
 
             if (msg.redlinkMsgId) { 
-               readMessage(notifies[0].redlinkMsgId);
+               readMessage(notifies[0].redlinkMsgId); //todo ask John- why are we reding the first notify instead of msg.redlinkMsgId?
               }
          else
              {// should be here for a normal read
+                 //TODO ask John- auto read should happen automatically from the triggers- why is this needed?
                const notifiesSql = 'SELECT redlinkMsgId from notify WHERE storeName="' + node.consumerStoreName + '"  and notifySent = "'+node.id+'"';
                const notifies    = alasql(notifiesSql);
                  console.log('Notifies = ',notifies);
@@ -180,6 +181,7 @@ module.exports.RedLinkConsumer = function (config) {
     }
 
     function readMessage(redlinkMsgId) { //todo enforce rate limits here...
+        //todo make readMessage just return the message- dont send to outputs- will need to promisify as we are doing a http call
         const notifiesSql = 'SELECT * from notify WHERE storeName="' + node.consumerStoreName + '" AND redlinkMsgId="' + redlinkMsgId + '" and notifySent = "'+node.id+'"';
         const notifies    = alasql(notifiesSql);
         if (notifies.length > 0) {
