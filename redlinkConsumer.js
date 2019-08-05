@@ -39,7 +39,7 @@ module.exports.RedLinkConsumer = function (config) {
 
         const notifiesSql3 = 'SELECT * from notify WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' +
                                                                        node.name + '"' ;
-        const notifies3 = alasql(notifiesSql3);
+        const notifies3 = alasql(notifiesSql3); //todo- remove this?
 
         // OK, this consumer will now add its own node.id to the notify trigger message since it comes in without one.
         const existingNotifiedNodes = newNotify.notifySent.trim();
@@ -58,7 +58,7 @@ module.exports.RedLinkConsumer = function (config) {
            sendMessage({ notify: notifyMessage });
 //             sendMessage(msgnode.send([null, notifyMessage]);
         } else {
-            node.send([null, notifyMessage]);
+            sendMessage({ notify: notifyMessage }); //send notify regardless of whether it is manual or auto read
             readMessage(notifyMessage.redlinkMsgId);
             }
     };
@@ -94,7 +94,7 @@ module.exports.RedLinkConsumer = function (config) {
     node.on("input", msg => {
         if (msg.cmd === 'read') {
           if (node.manualRead) {
-               let mycb='0';
+               let mycb='0'; //todo remvoe this?
 
             if (msg.redlinkMsgId) { 
                readMessage(notifies[0].redlinkMsgId);
@@ -126,7 +126,8 @@ module.exports.RedLinkConsumer = function (config) {
 
             const msgSql = 'SELECT * FROM inMessages WHERE redlinkMsgId="' + msg.redlinkMsgId + '"';
             const matchingMessages = alasql(msgSql);
-            node.send([{action:'replySend',direction:'inBound',message:matchingMessages}]);
+            sendMessage({debug: {action:'replySend',direction:'inBound',message:matchingMessages}});
+            // node.send([]);
             if (matchingMessages.length > 0) { //should have only one
               const replyStore        = matchingMessages[0].storeName;
               const replyService      = matchingMessages[0].serviceName;
@@ -201,17 +202,22 @@ module.exports.RedLinkConsumer = function (config) {
                         delete msg.preserved;
                         delete msg.message;
                         delete msg.read;
-                        node.send([null,{storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',msg:msg,redlinkMsgId:redlinkMsgId,error:false},null]);
+                        const receiveMsg = {storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',msg:msg,redlinkMsgId:redlinkMsgId,error:false};
+                        // node.send([null,{storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',msg:msg,redlinkMsgId:redlinkMsgId,error:false},null]);
+                        //receive, notify, failure, debug
+                        sendMessage({receive: receiveMsg})
                     }
-                    node.send(msg);
+                    sendMessage({failure: {error:'Empty response got when reading message'}})
+                    // node.send(msg);
                 } 
               else 
                 if (response && response.statusCode === 404) {
                     if (response.body.message) { response.body.message = base64Helper.decode(response.body.message); }
                     const msg = response.body;
                     if(msg){
-                       // OK the store has told me the message is no longer available, so I will remove this notify 
-                       node.send([null,{storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',msg:msg,redlinkMsgId:redlinkMsgId,error:true},null]);
+                       // OK the store has told me the message is no longer available, so I will remove this notify
+                       const errorMessage = {storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',msg:msg,redlinkMsgId:redlinkMsgId,error:true};
+                       sendMessage({failure: errorMessage});
                        const deleteNotifyMsg = 'DELETE from notify WHERE redlinkMsgId = "' +  redlinkMsgId + '" and storeName = "'+node.consumerStoreName+ '" and notifySent = "'+node.id+'"';
                        const deleteNotify    = alasql(deleteNotifyMsg);
 //                    console.log('DELETEING Already Read NOTIFY (READMSG)=',deleteNotifyMsg,' = ',deleteNotify);                   
@@ -220,14 +226,18 @@ module.exports.RedLinkConsumer = function (config) {
               else 
                 {  // No message
                     let output = response? response.body: error;
-                    if (node.manualRead) {
-                        node.send([output,{storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',msg:output.msg,redlinkMsgId:output.redlinkMsgId,error:output.error},null]);
+                    if (true/*node.manualRead*/) { //todo- discuss with John and remove else block
+                        const errorMessge = {storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',msg:output.msg,redlinkMsgId:output.redlinkMsgId,error:output.error};
+                        sendMessage({failure: errorMessge})
+                        // node.send([output,,null]);
                     } 
-                  else 
+/*
+                  else
                     {
                          node.send([output,{storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'inBound',msg:output.msg,redlinkMsgId:output.redlinkMsgId,error:output.error},null]);
                     }
-                   // OK the store has told me the message is no longer available, so I will remove this notify 
+*/
+                   // OK the store has told me the message is no longer available, so I will remove this notify
                    const deleteNotifyMsg = 'DELETE from notify WHERE redlinkMsgId = "' +  redlinkMsgId + '" and storeName = "'+node.consumerStoreName+ '" and notifySent = "'+node.id+'"';
                    const deleteNotify    = alasql(deleteNotifyMsg);
 //                   sendMessage({ failure: {"error":"Store " + node.consumerStoreName + " Does NOT have any notifies for this service " + node.name + " consumer "+node.id}});
