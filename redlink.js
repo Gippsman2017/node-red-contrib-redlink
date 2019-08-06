@@ -101,10 +101,9 @@ module.exports = function (RED) {
         const meshName = storeName.substring(0,storeName.indexOf(':')); // Producers can only send to Consumers on the same mesh
         const globalConsumers = alasql('SELECT distinct globalServiceName from ( select * from globalStoreConsumers WHERE localStoreName LIKE "' + meshName + '%"' +
                                                                          ' union select * from localStoreConsumers  WHERE storeName      LIKE "' + meshName + '%") ');
-
         const allConsumers = [... new Set([ ...globalConsumers ])];
         let consumersArray = [];
-        consumersArray.push('');
+        consumersArray.push(''); //todo ask John why do we need this?
         allConsumers.forEach(consumer => { consumersArray.push(consumer.globalServiceName); });
         return consumersArray;
     }
