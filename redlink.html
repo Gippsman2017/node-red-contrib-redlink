@@ -617,7 +617,7 @@
         category: 'redlink',
         color: "#f56042",
         inputs: 1,
-        outputs: 2,
+        outputs: 3,
         defaults: {
             name: {value: '', required: true},
             consumerMeshName: {value: '', required: true},
@@ -642,10 +642,10 @@
                 }
             },
             showDebugReceiveSend: {value: false},
-            outputs: {value: 2}
+            outputs: {value: 3}
         },
         outputLabels: function (index) {
-            var labels = getOutputs(true, this.manualReadReceiveSend, true, this.showStatsReceiveSend, this.showDebugReceiveSend);
+            var labels = getOutputs(true, true, true, this.showStatsReceiveSend, this.showDebugReceiveSend);
             return labels[index];
         },
         icon: "arrow-in.png",
@@ -759,11 +759,10 @@
 
         },
         oneditsave: function () {
-            const newManualRead = $('#node-input-manualReadReceiveSend').is(":checked");
             const newShowStats = $('#node-input-showStatsReceiveSend').is(":checked");
             const newShowDebug = $('#node-input-showDebugReceiveSend').is(":checked");
             const existingOutputs = getOutputs(true, this.manualReadReceiveSend, true, this.showStatsReceiveSend, this.showDebugReceiveSend);
-            const newOutputs = getOutputs(true, newManualRead, true, newShowStats, newShowDebug);
+            const newOutputs = getOutputs(true, true, true, newShowStats, newShowDebug);
             var nodeRedOutputsObject = getNodeRedOutputObject(existingOutputs, newOutputs);
             $("#node-input-outputs").val(JSON.stringify(nodeRedOutputsObject));
             console.log('\n\n\n\n\n on editsave val of $("#node-input-outputs"):', $("#node-input-outputs").val());
