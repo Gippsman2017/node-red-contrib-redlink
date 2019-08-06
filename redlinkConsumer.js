@@ -134,10 +134,13 @@ module.exports.RedLinkConsumer = function (config) {
     node.on("input", msg => {
         if (msg.cmd === 'read') {
             if (node.manualRead) {
-                let mycb = '0'; //todo remvoe this?
-
                 if (msg.redlinkMsgId) {
-                    readMessage(notifies[0].redlinkMsgId); //todo ask John- why are we reding the first notify instead of msg.redlinkMsgId?
+                    readMessage(msg.redlinkMsgId).then(response => {
+                        sendMessage(response);
+                    }).catch(err => {
+                        sendMessage(err);
+                        //todo ask John retry readMessage?
+                    });
                 } else {// should be here for a normal read
                     //TODO ask John- auto read should happen automatically from the triggers- why is this needed?
                     const notifiesSql = 'SELECT redlinkMsgId from notify WHERE storeName="' + node.consumerStoreName + '"  and notifySent = "' + node.id + '"';
