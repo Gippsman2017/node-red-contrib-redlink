@@ -85,7 +85,14 @@ module.exports.RedLinkConsumer = function (config) {
         } else {
             sendMessage({notify: notifyMessage}); //send notify regardless of whether it is manual or auto read
             //todo check if rateType is none
-            if (rateType !== 'none') {
+            if (rateType === 'none') {
+                readMessage(notifyMessage.redlinkMsgId).then(response => {
+                    sendMessage(response);
+                }).catch(err => {
+                    sendMessage(err);
+                    //todo ask John retry readMessage?
+                });
+            } else {
                 limiter.removeTokens(1, function (err, remainingRequests) {
                     console.log('inside rate limiter... err is:', err, 'remainingRequests:', remainingRequests);
                     readMessage(notifyMessage.redlinkMsgId).then(response => {
@@ -94,16 +101,6 @@ module.exports.RedLinkConsumer = function (config) {
                         sendMessage(err);
                         //todo ask John retry readMessage?
                     });
-                    if (!err && remainingRequests > 0) {
-
-                    }
-                });
-            } else {
-                readMessage(notifyMessage.redlinkMsgId).then(response => {
-                    sendMessage(response);
-                }).catch(err => {
-                    sendMessage(err);
-                    //todo ask John retry readMessage?
                 });
             }
         }
