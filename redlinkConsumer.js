@@ -168,7 +168,7 @@ module.exports.RedLinkConsumer = function (config) {
                     const replyStore = matchingMessages[0].storeName;
                     const replyService = matchingMessages[0].serviceName;
                     const redlinkProducerId = matchingMessages[0].redlinkProducerId;
-                    const notifySql = 'SELECT * FROM notify WHERE redlinkMsgId="' + msg.redlinkMsgId + '"and notifySent="' + node.id + '"'; //todo replace with like see line 53
+                    const notifySql = 'SELECT * FROM notify WHERE redlinkMsgId="' + msg.redlinkMsgId + '"and notifySent LIKE "%' + node.id + '%"';
                     const notifies = alasql(notifySql); //should have only one
 
                     if (notifies.length > 0) {
@@ -192,7 +192,7 @@ module.exports.RedLinkConsumer = function (config) {
                     }
                 }
                 // OK, I have completed the whole job and sent the reply, now to finally remove the original Notifiy for thi job.
-                const deleteNotifyMsg = 'DELETE from notify WHERE redlinkMsgId = "' + msg.redlinkMsgId + '" and storeName = "' + node.consumerStoreName + '" and notifySent = "' + node.id + '"'; //todo should be notifySent like- not notifySent =
+                const deleteNotifyMsg = 'DELETE from notify WHERE redlinkMsgId = "' + msg.redlinkMsgId + '" and storeName = "' + node.consumerStoreName + '" and notifySent LIKE "%' + node.id + '%"';
                 const deleteNotify = alasql(deleteNotifyMsg);
             }
         }
