@@ -21,7 +21,7 @@ module.exports = function (RED) {
         alasql('DROP TABLE IF EXISTS globalStoreConsumers');
         alasql('DROP TABLE IF EXISTS stores');
         alasql('DROP TABLE IF EXISTS replyMessages');
-        alasql('CREATE TABLE notify (storeName STRING, serviceName STRING, srcStoreIp STRING, srcStorePort INT , redlinkMsgId STRING, notifySent STRING)');//todo change this to list of consumer node ids
+        alasql('CREATE TABLE notify (storeName STRING, serviceName STRING, srcStoreIp STRING, srcStorePort INT , redlinkMsgId STRING, notifySent STRING)');
         alasql('CREATE TABLE inMessages (redlinkMsgId STRING, storeName STRING, serviceName STRING, message STRING, read BOOLEAN, sendOnly BOOLEAN, redlinkProducerId STRING,preserved STRING)');
         alasql('CREATE TABLE localStoreConsumers (storeName STRING, serviceName STRING)'); //can have multiple consumers with same name registered to the same store
         alasql('CREATE TABLE globalStoreConsumers (localStoreName STRING, globalServiceName STRING, globalStoreName STRING, globalStoreIp STRING, globalStorePort INT)');
@@ -103,7 +103,7 @@ module.exports = function (RED) {
                                                                          ' union select * from localStoreConsumers  WHERE storeName      LIKE "' + meshName + '%") ');
         const allConsumers = [... new Set([ ...globalConsumers ])];
         let consumersArray = [];
-        consumersArray.push(''); //todo ask John why do we need this?
+        consumersArray.push(''); //for dynamically specifying destination consumer- specify in msg.topic
         allConsumers.forEach(consumer => { consumersArray.push(consumer.globalServiceName); });
         return consumersArray;
     }
