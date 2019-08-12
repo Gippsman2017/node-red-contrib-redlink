@@ -18,9 +18,12 @@ module.exports.RedLinkConsumer = function (config) {
     node.consumerStoreName = config.consumerStoreName;
     node.consumerMeshName = config.consumerMeshName;
     node.manualRead = config.manualReadReceiveSend;
+    node.inTransitLimit = config.intransit;
+    console.log('\n\n\n the intransit limit for the consumer is:', node.inTransitLimit);
     if (node.consumerMeshName) {
         node.consumerStoreName = node.consumerMeshName + ':' + node.consumerStoreName;
     }
+    let watermark = 0;
     node.rateTypeReceiveSend = config.rateTypeReceiveSend;
     node.rateReceiveSend = config.rateReceiveSend;
     node.rateUnitsReceiveSend = config.rateUnitsReceiveSend;
@@ -47,14 +50,16 @@ module.exports.RedLinkConsumer = function (config) {
     const msgNotifyTriggerId = 'a' + config.id.replace('.', '');
     const newMsgNotifyTrigger = 'onNotify' + msgNotifyTriggerId;
 
-    function getNewNotify() {
+    function getNewNotifyAndCount() {
         //check if the notify is for this consumer name with the registered store name
         const notifiesSql = 'SELECT * from notify WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' +
             node.name + '"' + ' AND notifySent NOT LIKE "%' + node.id + '%"';
         const notifies = alasql(notifiesSql);
         let newNotify = null;
+        const notifiesSqlCount = alasql('SELECT COUNT(*) from notify WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' +
+            node.name + '"');
         if (notifies.length > 0) {
-            newNotify = notifies[notifies.length - 1];
+            newNotify = {notify: notifies[notifies.length - 1], notifyCount: notifiesSqlCount[0]['COUNT(*)']};
         }
         return newNotify;
     }
@@ -66,39 +71,47 @@ module.exports.RedLinkConsumer = function (config) {
         alasql(updateNotifySql);
     }
 
+    function readMessageAndSendToOutput(redlinkMsgId) {
+        readMessage(redlinkMsgId).then(response => sendMessage(response)).catch(err => sendMessage(err));
+    }
+
     alasql.fn[newMsgNotifyTrigger] = () => {
         // OK, this consumer will now add its own node.id to the notify trigger message since it comes in without one.
-        const newNotify = getNewNotify();
-        if (!newNotify) {
+        const notifyAndCount =  getNewNotifyAndCount();
+        if (!notifyAndCount) {
             return;
         }
+        const newNotify = notifyAndCount.notify;
+        const notifyCount = notifyAndCount.notifyCount;
         updateNotifyTable(newNotify);
         const notifyMessage = {
             redlinkMsgId: newNotify.redlinkMsgId,
             notifyType: 'producerNotification',
             src: {storeName: newNotify.storeName, address: newNotify.srcStoreIp + ':' + newNotify.srcStorePort,},
-            dest: {storeName: newNotify.storeName, serviceName: newNotify.serviceName, consumer: node.id}
+            dest: {storeName: newNotify.storeName, serviceName: newNotify.serviceName, consumer: node.id},
+            notifyCount
         };
 
         if (node.manualRead) {
             sendMessage({notify: notifyMessage});
         } else {
-            sendMessage({notify: notifyMessage}); //send notify regardless of whether it is manual or auto read
-            //todo check if rateType is none
-            if (rateType === 'none') {
-                readMessage(notifyMessage.redlinkMsgId).then(response => {
-                    sendMessage(response);
-                }).catch(err => {
-                    sendMessage(err);
-                });
-            } else {
-                limiter.removeTokens(1, function (err, remainingRequests) {
-                    readMessage(notifyMessage.redlinkMsgId).then(response => {
-                        sendMessage(response);
-                    }).catch(err => {
-                        sendMessage(err);
+            //check inTransitLimit first
+            // console.log
+            if(watermark<node.inTransitLimit){
+                sendMessage({notify: notifyMessage}); //send notify regardless of whether it is manual or auto read
+                if (rateType === 'none') {
+                    readMessageAndSendToOutput(notifyMessage.redlinkMsgId);
+                } else {
+                    limiter.removeTokens(1, function (err, remainingRequests) {
+                        readMessageAndSendToOutput(notifyMessage.redlinkMsgId);
                     });
-                });
+                }
+            }else{
+                notifyMessage.warning = 'inTransitLimit '+node.inTransitLimit+' exceeded. This notify will be discarded';
+                sendMessage({notify: notifyMessage});  //TODO- still send the notify out?
+                const deleteNotifySql = 'DELETE FROM notify WHERE redlinkMsgId="'+newNotify.redlinkMsgId+'"';
+                const deleteNotifycount = alasql(deleteNotifySql);
+                console.log('deleted notifies from store as inTransitLimit exceeded...', deleteNotifycount);
             }
         }
     };
@@ -148,26 +161,22 @@ module.exports.RedLinkConsumer = function (config) {
         }  //cmd read
         else {  // Reply message, this is where the reply is actually sent back to the replyMessages on the Producer.
             if (msg.redlinkMsgId && !msg.sendOnly) { //todo delete notify if sendOnly
-                const notifiesSql = 'SELECT redlinkMsgId from notify WHERE redlinkMsgId="' + msg.redlinkMsgId + '" and storeName="' + node.consumerStoreName + '"  and notifySent = "' + node.id + '"';
-                const notifies = alasql(notifiesSql);
-                const msgSql = 'SELECT * FROM inMessages WHERE redlinkMsgId="' + msg.redlinkMsgId + '"';
-                const matchingMessages = alasql(msgSql);
-                sendMessage({debug: {action: 'replySend', direction: 'inBound', message: matchingMessages}});
+                // const msgSql = 'SELECT * FROM inMessages WHERE redlinkMsgId="' + msg.redlinkMsgId + '"';
+                // const matchingMessages = alasql(msgSql);
+                // sendMessage({debug: {action: 'replySend', direction: 'inBound', message: matchingMessages}});
                 // node.send([]);
-                if (matchingMessages.length > 0) { //should have only one
-                    const replyStore = matchingMessages[0].storeName;
-                    const replyService = matchingMessages[0].serviceName;
-                    const redlinkProducerId = matchingMessages[0].redlinkProducerId;
+                if (/*matchingMessages.length > 0*/true) { //should have only one
                     const notifySql = 'SELECT * FROM notify WHERE redlinkMsgId="' + msg.redlinkMsgId + '"and notifySent LIKE "%' + node.id + '%"';
                     const notifies = alasql(notifySql); //should have only one
-
                     if (notifies.length > 0) {
+                        const replyService = notifies[0].serviceName;
+                        const redlinkProducerId = notifies[0].redlinkProducerId;
                         const replyAddress = notifies[0].srcStoreIp + ':' + notifies[0].srcStorePort;
                         //                 delete msg.preserved;
                         const body = {
+                            redlinkProducerId,
                             replyingService: replyService,
                             redlinkMsgId: msg.redlinkMsgId,
-                            redlinkProducerId: redlinkProducerId,
                             payload: base64Helper.encode(msg.payload)
                         };
                         const options = {
@@ -183,6 +192,7 @@ module.exports.RedLinkConsumer = function (config) {
                 }
                 // OK, I have completed the whole job and sent the reply, now to finally remove the original Notifiy for thi job.
                 deleteNotify(msg.redlinkMsgId);
+                watermark--;
             }
         }
     });
@@ -253,6 +263,7 @@ module.exports.RedLinkConsumer = function (config) {
                                 direction: 'inBound',
                                 error: false
                             };
+                            watermark++;
                             resolve({receive: receiveMsg});
                             if (msg.sendOnly) {
                                 deleteNotify(redlinkMsgId);
