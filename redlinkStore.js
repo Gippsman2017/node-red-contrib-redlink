@@ -193,7 +193,7 @@ module.exports.RedLinkStore = function (config) {
                 //insert one notify for local
                 for (const localConsumer of allVisibleConsumers.localConsumers) {
                     if (localConsumer.serviceName === newMessage.serviceName) {
-                        const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + newMessage.serviceName + '","' + node.listenAddress + '",' + node.listenPort + ',"' + newMessage.redlinkMsgId + '","",false)';
+                        const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + newMessage.serviceName + '","' + node.listenAddress + '",' + node.listenPort + ',"' + newMessage.redlinkMsgId + '","",false,"'+newMessage.redlinkProducerId+'")';
                         alasql(notifyInsertSql);
                         break; //should get only one local consumer with the same name- this is a just in case
                     }
@@ -207,7 +207,7 @@ module.exports.RedLinkStore = function (config) {
                 });
                 remoteStores.forEach(store => {
                     //notify (storeName STRING, serviceName STRING, srcStoreIp STRING, srcStorePort INT , redlinkMsgId STRING, notifySent STRING)')
-                    const notifyInsertSql = 'INSERT INTO notify VALUES ("' + store + '","' + newMessage.serviceName + '","' + node.listenAddress + '",' + node.listenPort + ',"' + newMessage.redlinkMsgId + '","",false)';
+                    const notifyInsertSql = 'INSERT INTO notify VALUES ("' + store + '","' + newMessage.serviceName + '","' + node.listenAddress + '",' + node.listenPort + ',"' + newMessage.redlinkMsgId + '","",false,"'+newMessage.redlinkProducerId+'")';
                     alasql(notifyInsertSql);
                 });
 
@@ -221,7 +221,8 @@ module.exports.RedLinkStore = function (config) {
                         srcStoreIp: node.listenAddress,
                         srcStorePort: node.listenPort,
                         redlinkMsgId: newMessage.redlinkMsgId,
-                        notifyType: 'producerNotification'
+                        notifyType: 'producerNotification',
+                        redlinkProducerId: newMessage.redlinkProducerId
                     };
                     //'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreIp + '",' + req.body.srcStorePort + ',"' + req.body.redlinkMsgId +  '")';
                     const options = {
@@ -343,7 +344,7 @@ module.exports.RedLinkStore = function (config) {
                     if (!existingNotify || existingNotify.length === 0) {
                         const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name +
                             '","' + req.body.service + '","' + req.body.srcStoreIp +
-                            '",' + req.body.srcStorePort + ',"' + req.body.redlinkMsgId + '","",false)';
+                            '",' + req.body.srcStorePort + ',"' + req.body.redlinkMsgId + '","",false,"'+req.body.redlinkProducerId+'")';
                         //(storeName STRING, serviceName STRING, srcStoreIp STRING, srcStorePort INT , redlinkMsgId STRING, notifySent STRING)
                         alasql(notifyInsertSql);
                         const allNotifies = alasql('SELECT * FROM notify');
