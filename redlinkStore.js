@@ -455,13 +455,11 @@ module.exports.RedLinkStore = function (config) {
                 node.send(allConsumers);
                 break;
             }
-                ;
             case 'listStore'         : {
                 const storeData = getCurrentStoreData();
                 node.send(storeData);
                 break;
             }
-                ;
             case 'flushStore'        : {
                 const removeReplySql = 'DELETE FROM replyMessages WHERE storeName="' + node.name + '"';
                 const removeNotifySql = 'DELETE FROM notify        WHERE storeName="' + node.name + '"';
@@ -473,12 +471,10 @@ module.exports.RedLinkStore = function (config) {
                 node.send(storeData);
                 break;
             }
-                ;
             default                     : {
                 node.send({help: "msg.payload can be listRegistrations listStore flushStore"});
                 break;
             }
-                ;
         }
         //todo what messages should we allow? register and notify are handled via endpoints
     });
@@ -492,7 +488,7 @@ module.exports.RedLinkStore = function (config) {
         alasql(removeInMessagesSql);
 
         const removeStoreSql = 'DELETE FROM stores WHERE storeName="' + node.name + '"';
-        const removeDirectConsumersSql = 'DELETE FROM localStoreConsumers WHERE storeName="' + node.name + '"';
+        const removeDirectConsumersSql = 'DELETE FROM   localStoreConsumers WHERE storeName="' + node.name + '"';
         const removeGlobalConsumersSql = 'DELETE FROM globalStoreConsumers WHERE globalStoreName="' + node.name + '"';
         alasql(removeStoreSql);
         alasql(removeDirectConsumersSql);
