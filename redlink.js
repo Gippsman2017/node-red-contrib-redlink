@@ -23,7 +23,7 @@ module.exports = function (RED) {
         alasql('DROP TABLE IF EXISTS replyMessages');
         alasql('CREATE TABLE notify (storeName STRING, serviceName STRING, srcStoreIp STRING, srcStorePort INT , redlinkMsgId STRING, notifySent STRING, read BOOLEAN, redlinkProducerId STRING)');
         alasql('CREATE TABLE inMessages (redlinkMsgId STRING, storeName STRING, serviceName STRING, message STRING, read BOOLEAN, sendOnly BOOLEAN, redlinkProducerId STRING,preserved STRING)');
-        alasql('CREATE TABLE localStoreConsumers (storeName STRING, serviceName STRING)'); //can have multiple consumers with same name registered to the same store
+        alasql('CREATE TABLE localStoreConsumers (storeName STRING, serviceName STRING, consumerId STRING)'); //can have multiple consumers with same name registered to the same store
         alasql('CREATE TABLE globalStoreConsumers (localStoreName STRING, globalServiceName STRING, globalStoreName STRING, globalStoreIp STRING, globalStorePort INT)');
         alasql('CREATE TABLE stores (storeName STRING, storeAddress STRING, storePort INT)');
         alasql('CREATE TABLE replyMessages (storeName STRING, redlinkMsgId STRING, redlinkProducerId STRING, replyMessage STRING, read BOOLEAN)');
