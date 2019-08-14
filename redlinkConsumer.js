@@ -256,11 +256,14 @@ module.exports.RedLinkConsumer = function (config) {
                             delete msg.read;
                             const receiveMsg = {
                                 redlinkMsgId,
-                                msg,
-                                storeName: sendingStoreName,
                                 consumerName: node.name,
+                                localStoreName: sendingStoreName,
                                 action: 'consumerRead',
                                 direction: 'inBound',
+                                redlinkProducerId: msg.redlinkProducerId,
+                                producerStoreName: msg.storeName,
+                                sendOnly: msg.sendOnly,
+                                payload:msg.payload,
                                 error: false
                             };
                             watermark++;
@@ -273,24 +276,22 @@ module.exports.RedLinkConsumer = function (config) {
                             deleteNotify(redlinkMsgId);
                         }
                     } else { //not 200- error case
-                        if (response.body.message) {
+                        if (response && response.body && response.body.message) {
                             response.body.message = base64Helper.decode(response.body.message);
                         }
-                        const msg = response.body;
-                        if (msg) {
-                            // OK the store has told me the message is no longer available, so I will remove this notify
-                            const errorMessage = {
-                                storeName: sendingStoreName,
-                                consumerName: node.name,
-                                action: 'consumerRead',
-                                direction: 'inBound',
-                                msg: msg,
-                                redlinkMsgId: redlinkMsgId,
-                                error: true
-                            };
-                            reject({failure: errorMessage});
-                            deleteNotify(redlinkMsgId);
-                        }
+                        const msg = response? response.body : null;
+                        // OK the store has told me the message is no longer available, so I will remove this notify
+                        const errorMessage = {
+                            storeName: sendingStoreName,
+                            consumerName: node.name,
+                            action: 'consumerRead',
+                            direction: 'inBound',
+                            msg: msg,
+                            redlinkMsgId: redlinkMsgId,
+                            error: true
+                        };
+                        reject({failure: errorMessage});
+                        deleteNotify(redlinkMsgId);
                     }
                 }); //request
             } else {
