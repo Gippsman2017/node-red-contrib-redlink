@@ -77,7 +77,7 @@ module.exports.RedLinkConsumer = function (config) {
 
     alasql.fn[newMsgNotifyTrigger] = () => {
         // OK, this consumer will now add its own node.id to the notify trigger message since it comes in without one.
-        const notifyAndCount =  getNewNotifyAndCount();
+        const notifyAndCount = getNewNotifyAndCount();
         if (!notifyAndCount) {
             return;
         }
@@ -97,7 +97,7 @@ module.exports.RedLinkConsumer = function (config) {
         } else {
             //check inTransitLimit first
             // console.log
-            if(watermark<node.inTransitLimit){
+            if (watermark < node.inTransitLimit) {
                 sendMessage({notify: notifyMessage}); //send notify regardless of whether it is manual or auto read
                 if (rateType === 'none') {
                     readMessageAndSendToOutput(notifyMessage.redlinkMsgId);
@@ -106,12 +106,11 @@ module.exports.RedLinkConsumer = function (config) {
                         readMessageAndSendToOutput(notifyMessage.redlinkMsgId);
                     });
                 }
-            }else{
-                notifyMessage.warning = 'inTransitLimit '+node.inTransitLimit+' exceeded. This notify will be discarded';
+            } else {
+                notifyMessage.warning = 'inTransitLimit ' + node.inTransitLimit + ' exceeded. This notify will be discarded';
                 sendMessage({notify: notifyMessage});  //TODO- still send the notify out?
-                const deleteNotifySql = 'DELETE FROM notify WHERE redlinkMsgId="'+newNotify.redlinkMsgId+'"';
-                const deleteNotifycount = alasql(deleteNotifySql);
-                console.log('deleted notifies from store as inTransitLimit exceeded...', deleteNotifycount);
+                const deleteNotify1 = deleteNotify(newNotify.redlinkMsgId);
+                console.log('deleted notifies from store as inTransitLimit exceeded...', deleteNotify1);
             }
         }
     };
@@ -121,7 +120,7 @@ module.exports.RedLinkConsumer = function (config) {
 
     //localStoreConsumers (storeName STRING, serviceName STRING)'); 
     //can have multiple consumers with same name registered to the same store
-    const insertIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.consumerStoreName + '","' + node.name + '")';
+    const insertIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.consumerStoreName + '","' + node.name + '","' + node.id +'")';
     alasql(insertIntoConsumerSql);
 
     node.on('close', (removed, done) => {
@@ -130,7 +129,7 @@ module.exports.RedLinkConsumer = function (config) {
         //clean up like in the redlinkStore- reinit trigger function to empty
         alasql(dropNotifyTriggerSql);
 //        log('dropped notify trigger...');
-        const deleteConsumerSql = 'DELETE FROM localStoreConsumers WHERE storeName="' + node.consumerStoreName + +'"' + 'AND serviceName="' + node.name + '"';
+        const deleteConsumerSql = 'DELETE FROM localStoreConsumers WHERE storeName="' + node.consumerStoreName + +'"' + 'AND serviceName="' + node.name + 'AND consumerId="' + node.id + '"';
         alasql(deleteConsumerSql); //can have multiple consumers with same name registered to the same store
 //        log('removed consumer from local store...');
         //TODO use the getlocalNorthSouthConsumers function
@@ -219,6 +218,7 @@ module.exports.RedLinkConsumer = function (config) {
     function deleteNotify(redlinkMsgId) {
         const deleteNotifyMsg = 'DELETE from notify WHERE redlinkMsgId = "' + redlinkMsgId + '" and storeName = "' + node.consumerStoreName + '" and notifySent LIKE "%' + node.id + '%"';
         const deleteNotify = alasql(deleteNotifyMsg);
+        return deleteNotify;
     }
 
     function readMessage(redlinkMsgId) {
@@ -263,7 +263,7 @@ module.exports.RedLinkConsumer = function (config) {
                                 redlinkProducerId: msg.redlinkProducerId,
                                 producerStoreName: msg.storeName,
                                 sendOnly: msg.sendOnly,
-                                payload:msg.payload,
+                                payload: msg.payload,
                                 error: false
                             };
                             watermark++;
@@ -279,7 +279,7 @@ module.exports.RedLinkConsumer = function (config) {
                         if (response && response.body && response.body.message) {
                             response.body.message = base64Helper.decode(response.body.message);
                         }
-                        const msg = response? response.body : null;
+                        const msg = response ? response.body : null;
                         // OK the store has told me the message is no longer available, so I will remove this notify
                         const errorMessage = {
                             storeName: sendingStoreName,
