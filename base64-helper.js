@@ -14,5 +14,11 @@ module.exports.decode = function(str){
     if(!str){
         return str;
     }
-    return JSON.parse(base64.decode(str, decodetype));
+    let returnVal = base64.decode(str, decodetype);
+    try {
+        returnVal = JSON.parse(returnVal);
+    } catch (e) {
+    } finally {
+        return returnVal;
+    }
 };
