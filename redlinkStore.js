@@ -185,7 +185,7 @@ module.exports.RedLinkStore = function (config) {
         alasql.fn[newMsgTriggerName] = () => {
             // check if the input message is for this store
             // inMessages (msgId STRING, storeName STRING, serviceName STRING, message STRING)'
-            const newMessagesSql = 'SELECT * from inMessages WHERE storeName="' + node.name + '" AND read=' + false;
+            const newMessagesSql = 'SELECT * from inMessages WHERE storeName="' + node.name + '" AND read=' + false +' ORDER BY priority DESC';
             var newMessages = alasql(newMessagesSql);
             const newMessage = newMessages[newMessages.length - 1];
             if (newMessage) {
