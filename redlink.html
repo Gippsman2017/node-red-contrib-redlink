@@ -5,7 +5,9 @@
         failure: 'Failure',
         config:  'Config',
         stats:   'Stats',
-        debug:   'Debug'
+        debug:   'Debug',
+        command: 'Command', //store
+        registration: 'Registration' //store
     };
 
     function getOutputs(receive, manual, failure, stats, debug) {
@@ -22,7 +24,7 @@
         const outputs = [];
         if (!outputObj.sendOnly) { //show both receive and notify
             outputs.push(outputNames.receive);
-            outputs.push(outputNames.manual); //todo rename this to notify- we are showing notify in both maul and auto read
+            outputs.push(outputNames.manual);
         }
         if(outputObj.failure){ outputs.push(outputNames.failure); }
         if(outputObj.config) { outputs.push(outputNames.config);  }
@@ -31,8 +33,10 @@
         return outputs;
     }
 
-    function getReplyOutputs(outputObj){
+    function getStoreOutputs(outputObj){
         const outputs = [];
+        if(outputObj.command)  { outputs.push(outputNames.command);   }
+        if(outputObj.registration)  { outputs.push(outputNames.registration);   }
         if(outputObj.debug)  { outputs.push(outputNames.debug);   }
         return outputs;
     }
@@ -133,6 +137,14 @@
             notifyInterval:{ value: 15, required: true/*, validate: validatePositiveNumber*/},
             oldStore:      { value: false }
         },
+/*        outputLabels: function (index) {
+            const labels = getStoreOutputs({
+                sendOnly: this.sendOnly,
+                debug:    this.showDebug,
+                failure:  true
+            });
+            return labels[index];
+        },*/
         icon: "redis.png",
         label: function () {
             return this.name || "";
@@ -332,10 +344,12 @@
         <label for="node-input-priority"><i class="fa fa-arrow-up"></i> Priority</label>
         <input type="text" id="node-input-priority" style="width:30px; height:25px;"/>&nbsp;<br/>
     </div>
+<!--
     <div class="form-row">
         <label for="node-input-timeout"><i class="fa fa-times"></i> Timeout</label>
         <input type="text" id="node-input-timeout" placeholder="Timeout">
     </div>
+-->
     <div class="form-row">
         <label for="node-input-sendOnly"><i class="fa fa-angle-double-right"></i> Send Only</label>
         <input type="checkbox" id="node-input-sendOnly" placeholder="Send Only">
