@@ -124,21 +124,26 @@ module.exports.RedLinkConsumer = function (config) {
     alasql(insertIntoConsumerSql);
 
     node.on('close', (removed, done) => {
-        //todo deregister this consumer
-        const dropNotifyTriggerSql = 'DROP TRIGGER ' + msgNotifyTriggerId; //todo this wont work- see https://github.com/agershun/alasql/issues/1113
         //clean up like in the redlinkStore- reinit trigger function to empty
-        alasql(dropNotifyTriggerSql);
+        dropTrigger(msgNotifyTriggerId);
 //        log('dropped notify trigger...');
         const deleteConsumerSql = 'DELETE FROM localStoreConsumers WHERE storeName="' + node.consumerStoreName + +'"' + 'AND serviceName="' + node.name + 'AND consumerId="' + node.id + '"';
         alasql(deleteConsumerSql); //can have multiple consumers with same name registered to the same store
 //        log('removed consumer from local store...');
-        //TODO use the getlocalNorthSouthConsumers function
+/*
         const localConsumersSql = 'SELECT * FROM localStoreConsumers';
         const globalConsumersSql = 'SELECT * FROM globalStoreConsumers';
         const localConsumers = alasql(localConsumersSql);
         const globalConsumers = alasql(globalConsumersSql);
+*/
         done();
     });
+
+    function dropTrigger(triggerName) { //workaround for https://github.com/agershun/alasql/issues/1113
+        alasql.fn[triggerName] = () => {
+            // console.log('\n\n\n\nEmpty trigger called for consumer registration', triggerName);
+        }
+    }
 
     node.on("input", msg => {
         if (msg.cmd === 'read') {
