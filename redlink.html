@@ -75,6 +75,7 @@
     <div class="form-row">
         <label for="node-input-name"><i class="icon-tag"></i> Store Name </label>
         <input type="text" id="node-input-name" placeholder="Store Name">
+        <input type="hidden" id="node-input-outputs"/>
     </div>
 
     <div class="form-row">
@@ -90,6 +91,17 @@
     </div>
 
     <div class="form-row">
+        <label for="node-input-showRegistration"><i class="fa fa-stack-exchange"></i> Show Registration</label>
+        <input type="checkbox" id="node-input-showRegistration">
+    </div>
+
+
+    <div class="form-row">
+        <label for="node-input-showDebug"><i class="fa fa-stack-exchange"></i> Show Debug</label>
+        <input type="checkbox" id="node-input-showDebug">
+    </div>
+
+    <div class="form-row">
         <label for="node-input-notifyInterval"><i class="fa fa-hourglass-1"></i> Notify Interval (s)</label>
         <input type="text" id="node-input-notifyInterval" placeholder="Notify Interval in sec">
     </div>
@@ -101,7 +113,6 @@
 <!--redlink store-->
 <script type="text/javascript">
     const validateIpAddress = function (ipAddress) { //from https://www.w3resource.com/javascript/form/ip-address-validation.php
-
         return (/^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(ipAddress))
     };
     const validatePositiveNumber = function (port) {
@@ -125,7 +136,7 @@
         category: 'redlink',
         color: "#f56042",
         inputs: 1,
-        outputs: 3, //debug
+        outputs: 1, //command
         defaults: {
             listenAddress: { value: ''   },
             listenPort:    { value: 2000, required: true, validate: validatePositiveNumber  },
@@ -135,16 +146,19 @@
             name:          { value: '',   required: true },
             meshName:      { value: 'mesh0', required: true },
             notifyInterval:{ value: 15, required: true/*, validate: validatePositiveNumber*/},
-            oldStore:      { value: false }
+            oldStore:      { value: false },
+            showRegistration : { value: false },
+            showDebug : { value: false },
+            outputs: { value: 1 }
         },
-/*        outputLabels: function (index) {
+        outputLabels: function (index) {
             const labels = getStoreOutputs({
-                sendOnly: this.sendOnly,
-                debug:    this.showDebug,
-                failure:  true
+                command: true,
+                registration:  this.showRegistration,
+                debug:    this.showDebug
             });
             return labels[index];
-        },*/
+        },
         icon: "redis.png",
         label: function () {
             return this.name || "";
@@ -270,6 +284,27 @@
             }
         },
         oneditsave: function () {
+            //outputs begin
+            let newShowRegistration = $('#node-input-showRegistration').is(":checked");
+            let newShowDebug    = $('#node-input-showDebug').is(":checked");
+            const existingOutputs = getStoreOutputs({
+                command: true,
+                registration:  this.showRegistration,
+                debug:  this.showDebug
+            });
+            console.log('got existing store outputs as:', existingOutputs);
+            // getOutputs(!this.sendOnly, this.manualRead, true, this.showStats, this.showDebug);
+            const newOutputs =  getStoreOutputs({
+                command: true,
+                registration:  newShowRegistration,
+                debug:  newShowDebug
+            });
+            console.log('got new store outputs as:', newOutputs);
+            var nodeRedOutputsObject = getNodeRedOutputObject(existingOutputs, newOutputs);
+            $("#node-input-outputs").val(JSON.stringify(nodeRedOutputsObject));
+            console.log('\n\n\n\n\n on editsave val of $("#node-input-outputs") for store is:', $("#node-input-outputs").val());
+            //outputs end
+
             var headers = $("#node-input-headers-container").editableList('items');
             var node = this;
             node.headers = [];
@@ -293,7 +328,6 @@
                     // node.headers[key] = value;
                 }
             });
-
         },
         oneditresize: function (size) {
             var rows = $("#dialog-form>div:not(.node-input-headers-container-row)");
@@ -306,7 +340,6 @@
             height = 240; //Cludge for too many rows John 
             $("#node-input-headers-container").editableList('height', height);
         }
-
     });
 </script>
 
@@ -329,7 +362,7 @@
     <div class="form-row">
         <label style="width:100%; border-bottom:1px solid #eee;"><span>Advanced</span></label>
     </div>
-        <div class="form-row">
+    <div class="form-row">
         <label for="node-input-showDebug"><i class="fa fa-stack-exchange"></i> Show Debug</label>
         <input type="checkbox" id="node-input-showDebug">
     </div>
