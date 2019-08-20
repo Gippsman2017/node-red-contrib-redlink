@@ -6,9 +6,8 @@ module.exports = function (RED) {
 
     const redlinkConsumer = require('./redlinkConsumer.js');
     const redlinkProducer = require('./redlinkProducer.js');
-//    const redlinkReply    = require('./redlinkReply.js');
-    const redlinkStore    = require('./redlinkStore.js');
-    const log             = require('./log.js')().log; //dont have node yet over here
+    const redlinkStore = require('./redlinkStore.js');
+    const log = require('./log.js')().log; //dont have node yet over here
 
     initTables();
     registerNodeRedTypes();
@@ -32,23 +31,28 @@ module.exports = function (RED) {
 
     function registerNodeRedTypes() {
         //Store
-        redlinkStore.initRED(RED);    RED.nodes.registerType("redlink store", redlinkStore.RedLinkStore);
+        redlinkStore.initRED(RED);
+        RED.nodes.registerType("redlink store", redlinkStore.RedLinkStore);
         //Consumer
-        redlinkConsumer.initRED(RED); RED.nodes.registerType("redlink consumer", redlinkConsumer.RedLinkConsumer);
+        redlinkConsumer.initRED(RED);
+        RED.nodes.registerType("redlink consumer", redlinkConsumer.RedLinkConsumer);
         //Producer
-        redlinkProducer.initRED(RED); RED.nodes.registerType("redlink producer", redlinkProducer.RedLinkProducer);
+        redlinkProducer.initRED(RED);
+        RED.nodes.registerType("redlink producer", redlinkProducer.RedLinkProducer);
         //Reply
 //        redlinkReply.initRED(RED);    RED.nodes.registerType("redlink reply", redlinkReply.RedLinkReply);
     }
 
     function getMeshNames() {
-        const storesSql  = 'SELECT storeName FROM stores';
+        const storesSql = 'SELECT storeName FROM stores';
         const meshStores = alasql(storesSql); //will get a list of mesh:store
-        let meshNames    = new Set();
+        let meshNames = new Set();
         meshStores.forEach(function (meshStore) {
             const meshStorename = meshStore.storeName;
             const meshName = meshStorename.indexOf(':') !== -1 ? meshStorename.substring(0, meshStorename.indexOf(':')) : '';//todo this shouldnt happen
-            if(meshName){  meshNames.add(meshName); }
+            if (meshName) {
+                meshNames.add(meshName);
+            }
         });
         //log('returning mesh names:', meshNames);
         return Array.from(meshNames);
@@ -56,36 +60,44 @@ module.exports = function (RED) {
 
     function initNodeRedRoutes() {
         //express routes
-        RED.httpAdmin.get("/north-peers", function (req, res) { res.json(RED.settings.northPeers || []); });
-        RED.httpAdmin.get("/hostname",    function (req, res) { res.json(os.hostname());  });
-        RED.httpAdmin.get("/mesh-names",  function (req, res) { res.json(getMeshNames()); });
-        RED.httpAdmin.get("/store-names", function (req, res) {
+        RED.httpAdmin.get("/north-peers", (req, res) => {
+            res.json(RED.settings.northPeers || []);
+        });
+        RED.httpAdmin.get("/hostname", (req, res) => {
+            res.json(os.hostname());
+        });
+        RED.httpAdmin.get("/mesh-names", (req, res) => {
+            res.json(getMeshNames());
+        });
+        RED.httpAdmin.get("/store-names", (req, res) => {
             let returnStores = [];
             const mesh = req.query.mesh;
-            if(!mesh){
+            if (!mesh) {
                 //log('mesh name not specified- going to return empty array in get store names route');
                 res.json(returnStores);
                 return;
             }
-            const storesSql = 'SELECT DISTINCT storeName FROM stores WHERE storeName LIKE "'+mesh+'%"'; //console.log(alasql('SELECT * FROM one WHERE a LIKE "abc%"'));
+            const storesSql = 'SELECT DISTINCT storeName FROM stores WHERE storeName LIKE "' + mesh + '%"'; //console.log(alasql('SELECT * FROM one WHERE a LIKE "abc%"'));
             const stores = alasql(storesSql);
             stores.forEach(meshStore => {
                 const meshStorename = meshStore.storeName;
-                const storeName = meshStorename.indexOf(':') !== -1 ? meshStorename.substring(meshStorename.indexOf(':')+1) : meshStorename;//todo this shouldnt happen
+                const storeName = meshStorename.indexOf(':') !== -1 ? meshStorename.substring(meshStorename.indexOf(':') + 1) : meshStorename;//todo this shouldnt happen
                 returnStores.push(storeName);
             });
             res.json(returnStores);
         });
-        
-        RED.httpAdmin.get("/all-store-names", function (req, res) { //TODO see if we can use the same route as store-names- maybe pass params?
+
+        RED.httpAdmin.get("/all-store-names", (req, res) => { //TODO see if we can use the same route as store-names- maybe pass params?
             let returnStores = [];
             const storesSql = 'SELECT DISTINCT storeName FROM stores'; //console.log(alasql('SELECT * FROM one WHERE a LIKE "abc%"'));
             const stores = alasql(storesSql);
-            stores.forEach(meshStore => { returnStores.push(meshStore.storeName); });
+            stores.forEach(meshStore => {
+                returnStores.push(meshStore.storeName);
+            });
             res.json(returnStores);
         });
 
-        RED.httpAdmin.get("/consumers", function (req, res) {
+        RED.httpAdmin.get("/consumers", (req, res) => {
             const store = req.query.store;
             let responseJson = getLocalGlobalConsumers(store);
             if (!store) { //shouldnt happen- nothing we can do
@@ -96,15 +108,19 @@ module.exports = function (RED) {
     }
 
     function getLocalGlobalConsumers(storeName) {
-        if (!storeName) { return {}; }
-        
-        const meshName = storeName.substring(0,storeName.indexOf(':')); // Producers can only send to Consumers on the same mesh
+        if (!storeName) {
+            return {};
+        }
+
+        const meshName = storeName.substring(0, storeName.indexOf(':')); // Producers can only send to Consumers on the same mesh
         const globalConsumers = alasql('SELECT distinct globalServiceName from ( select * from globalStoreConsumers WHERE localStoreName LIKE "' + meshName + '%"' +
-                                                                         ' union select * from localStoreConsumers  WHERE storeName      LIKE "' + meshName + '%") ');
-        const allConsumers = [... new Set([ ...globalConsumers ])];
+            ' union select * from localStoreConsumers  WHERE storeName      LIKE "' + meshName + '%") ');
+        const allConsumers = [...new Set([...globalConsumers])];
         let consumersArray = [];
         consumersArray.push(''); //for dynamically specifying destination consumer- specify in msg.topic
-        allConsumers.forEach(consumer => { consumersArray.push(consumer.globalServiceName); });
+        allConsumers.forEach(consumer => {
+            consumersArray.push(consumer.globalServiceName);
+        });
         return consumersArray;
     }
 };

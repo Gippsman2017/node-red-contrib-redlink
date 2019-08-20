@@ -149,6 +149,7 @@ module.exports.RedLinkProducer = function (config) {
             }
         }
         if (service.length > 0) {
+            //todo dont store message if > 50kB- read store location from settings.js file
             const msgInsertSql = 'INSERT INTO inMessages VALUES ("' + msg.redlinkMsgId + '","' + node.producerStoreName + '","' + service + '","' + encodedMessage +
                 '",' + false + ',' + node.sendOnly + ',"' + node.id + '","' + encodedPreserved + '",'+Date.now()+','+node.priority+')';
             alasql(msgInsertSql);
