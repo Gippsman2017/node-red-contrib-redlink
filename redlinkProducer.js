@@ -130,7 +130,7 @@ module.exports.RedLinkProducer = function (config) {
             }
             return;
         } else {
-            sendMessage({debug: 'msg.topic should be one if read or producerReplyRead'});
+            sendMessage({debug: 'msg.topic should be one of read or producerReplyRead'});
         }
         // Assume that this is an insert Producer message
         msg.redlinkMsgId = RED.util.generateId();
