@@ -102,7 +102,7 @@ module.exports.RedLinkProducer = function (config) {
     }
 
     node.on("input", msg => {
-        if (msg.cmd === 'read' || msg.cmd === 'producerReplyRead') {
+        if (msg.topic === 'read' || msg.topic === 'producerReplyRead') {
             if (node.manualRead) {
                 if (node.manualRead && msg.redlinkMsgId) { //redlinkMsgId specified
                     const daId = msg.redlinkMsgId;
@@ -129,6 +129,8 @@ module.exports.RedLinkProducer = function (config) {
                 }
             }
             return;
+        } else {
+            sendMessage({debug: 'msg.topic should be one if read or producerReplyRead'});
         }
         // Assume that this is an insert Producer message
         msg.redlinkMsgId = RED.util.generateId();
@@ -151,7 +153,7 @@ module.exports.RedLinkProducer = function (config) {
         if (service.length > 0) {
             //todo dont store message if > 50kB- read store location from settings.js file
             const msgInsertSql = 'INSERT INTO inMessages VALUES ("' + msg.redlinkMsgId + '","' + node.producerStoreName + '","' + service + '","' + encodedMessage +
-                '",' + false + ',' + node.sendOnly + ',"' + node.id + '","' + encodedPreserved + '",'+Date.now()+','+node.priority+')';
+                '",' + false + ',' + node.sendOnly + ',"' + node.id + '","' + encodedPreserved + '",' + Date.now() + ',' + node.priority + ')';
             alasql(msgInsertSql);
         } else {
             sendMessage({failure: {"error": "Store " + node.producerStoreName + " Does NOT know about this service"}});
