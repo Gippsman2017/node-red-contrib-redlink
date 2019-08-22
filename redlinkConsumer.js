@@ -19,7 +19,6 @@ module.exports.RedLinkConsumer = function (config) {
     node.consumerMeshName = config.consumerMeshName;
     node.manualRead = config.manualReadReceiveSend;
     node.inTransitLimit = config.intransit;
-    console.log('\n\n\n the intransit limit for the consumer is:', node.inTransitLimit);
     if (node.consumerMeshName) {
         node.consumerStoreName = node.consumerMeshName + ':' + node.consumerStoreName;
     }

@@ -84,7 +84,9 @@ module.exports.RedLinkStore = function (config) {
                 globalServiceName: consumer.serviceName,
                 globalStoreIp: node.listenAddress,
                 globalStorePort: node.listenPort,
-                direction: 'north'
+                direction: 'north',
+                consumerId: consumer.consumerId,
+                hopCount: 0  //TODO WIP
             });
         });
 
@@ -208,7 +210,7 @@ module.exports.RedLinkStore = function (config) {
                     };
                     request(options, function (error, response) {
                         if (error || response.statusCode !== 200) {
-                            sendMessage({debug:{error:true, errorDesc: error || response.body}});
+                            sendMessage({debug: {error: true, errorDesc: error || response.body}});
                         }
                     });
                 });
@@ -249,6 +251,21 @@ module.exports.RedLinkStore = function (config) {
 
     const app = httpsServer.getExpressApp();
 
+    function insertGlobalConsumer(consumer, thisRegistrationDirection, storeAddress, storePort, storeName) {
+        const serviceName = consumer.serviceName || consumer.globalServiceName;
+        const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND globalServiceName="' + serviceName +
+            '" AND direction = "' + thisRegistrationDirection +
+            '" AND globalStoreIp = "' + storeAddress + '" AND globalStorePort = ' + storePort + '';
+        //todo need fix for case where remote mesh:store:consumer is same (but ip:port is different)
+        const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
+        console.log('in insertGlobalConsumer... consumer is:', consumer);
+        const consumerId =  consumer.consumerId || consumer.globalConsumerId;
+        const insertGlobalConsumersSql = 'INSERT INTO globalStoreConsumers("' + node.name + '","' + serviceName + '","' + storeName + '","' + storeAddress + '",' + storePort + ',"' + thisRegistrationDirection + '","'+consumerId+'")';
+        if (!existingGlobalConsumer || existingGlobalConsumer.length === 0) {
+            alasql(insertGlobalConsumersSql);
+        }
+    }
+
     app.post('/notify', (req, res) => { //todo validation on params
         const notifyType = req.body.notifyType;
         switch (notifyType) {
@@ -282,15 +299,15 @@ module.exports.RedLinkStore = function (config) {
                     thisRegistrationDirection = 'north';
                 }
                 req.body.consumers.forEach(consumer => {
-                    const serviceName = consumer.serviceName || consumer.globalServiceName;
-                    const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND globalServiceName="' + serviceName +
-                        '" AND direction = "' + thisRegistrationDirection +
-                        '" AND globalStoreIp = "' + storeAddress + '" AND globalStorePort = ' + storePort + '';
-                    //todo need fix for case where remote mesh:store:consumer is same (but ip:port is different)
-                    const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
-                    const insertGlobalConsumersSql = 'INSERT INTO globalStoreConsumers("' + node.name + '","' + serviceName + '","' + storeName + '","' + storeAddress + '",' + storePort + ',"' + thisRegistrationDirection + '")';
-                    if (!existingGlobalConsumer || existingGlobalConsumer.length === 0) {
-                        alasql(insertGlobalConsumersSql);
+                    if (consumer.globalServiceName) { //dont add global consumer if a local consumer already exists with same name
+                        //check if we have a local consumer with same name as global
+                        const localConsumerSql = 'SELECT * FROM localStoreConsumers WHERE storeName="' + node.name + '" AND serviceName="' + consumer.globalServiceName + '"';
+                        const localConsumersWithSameName = alasql(localConsumerSql);
+                        if (localConsumersWithSameName.length === 0) {
+                            insertGlobalConsumer(consumer, thisRegistrationDirection, storeAddress, storePort, storeName);
+                        }
+                    } else {
+                        insertGlobalConsumer(consumer, thisRegistrationDirection, storeAddress, storePort, storeName);
                     }
                 });
                 //if the registration direction is going south, then dont notify anything north, because a south store is really not the owner and not allowed to register globals to a north store
@@ -328,8 +345,10 @@ module.exports.RedLinkStore = function (config) {
                 if (localCons.length > 0) {
                     //If this store has a consumer on it then send out a local notify
                     //avoid inserting multiple notifies
-                    const existingNotify = alasql('SELECT * FROM notify WHERE storeName="' + node.name + '" AND serviceName="' + req.body.service + '" AND srcStoreIp="' + req.body.srcStoreIp + '" AND srcStorePort=' +
-                        req.body.srcStorePort + ' AND redlinkMsgId="' + req.body.redlinkMsgId + '"');
+                    const existingNotifySql = 'SELECT * FROM notify WHERE storeName="' + node.name + '" AND serviceName="' + req.body.service + '" AND srcStoreIp="' + req.body.srcStoreIp + '" AND srcStorePort=' +
+                        req.body.srcStorePort + ' AND redlinkMsgId="' + req.body.redlinkMsgId + '"';
+                    const existingNotify = alasql(existingNotifySql);
+                    console.log('existingNotifySql:', existingNotifySql,  'existingNotify:', existingNotify);
                     if (!existingNotify || existingNotify.length === 0) {
                         const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreIp + '",' + req.body.srcStorePort + ',"' + req.body.redlinkMsgId + '","",false,"' + req.body.redlinkProducerId + '")';
                         alasql(notifyInsertSql);
@@ -391,7 +410,7 @@ module.exports.RedLinkStore = function (config) {
                             } else {
                                 request(options, function (error, response) {
                                     if (error || response.statusCode !== 200) {
-                                        sendMessage({debug:{error:true, errorDesc: error || response.body}});
+                                        sendMessage({debug: {error: true, errorDesc: error || response.body}});
                                     }
                                 });
                             } //else transit check
@@ -526,7 +545,7 @@ module.exports.RedLinkStore = function (config) {
                 break;
             }
             default                     : {
-                sendMessage({command:{help: "msg.topic can be listRegistrations listStore flushStore"}});
+                sendMessage({command: {help: "msg.topic can be listRegistrations listStore flushStore"}});
                 break;
             }
         }
