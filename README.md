@@ -7,7 +7,7 @@ Redlink is a way of connecting many instances of Node-Red together using soft "s
 ## How does Redlink work
 
 Redlink does not use a traditional messaging system, it actually creates a hierarchical mesh of interconnected web services 
-using HTTPS-POST as its transport.
+using HTTPS-POST as its transport and an OSPF like routing concept.
 
 ## Major benefits that this approach provides:
 
@@ -23,7 +23,7 @@ Producers are provided with a number of timers on each message to allow them:
 
 	1/ To handle Consumers not processing the work
 	2/ Alternate services to work around busy consumers
-	3/ Expected end-to-end transaction times, allowing the producers to have an expectation of completeion.
+	3/ Expected end-to-end transaction times (ETT), allowing the producers to have an expectation of completeion.
 	4/ Priority message processing.
 	5/ Messages are stored in AlaSQL either ram or on disk.
 
@@ -40,7 +40,7 @@ at a time model, this allows fan out micro services to consume messages based on
 So, lets assume that I have 2 consumers on a service and both are busy, one will fetch the message and the other will get rejected as the first consumer has already consumed it from the producer.
 
 ## Redlink's design stengths are:
-When a "Service" is advertised on this node it will not send notifies to its children.
+When a "Service" is local and advertised on this node it will not send notifies to its subordinate children.
 When consumers register on nodes, the node automatically registers / deregisters its Services to their peer / parent. 
 
 ## Why not simply use a message broker system 
@@ -62,6 +62,7 @@ a perfect way of using the least number of sockets with the maximum number of se
 ## Tree Hierachy
 
 One of the greatest strengths of Redlink, is that a full redundant mesh can be designed and tested on either a single Node-Red instance or cluster of instances.
+The protocol used to achieve this is similar to OSPF.
 
 ![RedlinkMesh](RedlinkMesh.png)
 

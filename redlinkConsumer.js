@@ -32,17 +32,10 @@ module.exports.RedLinkConsumer = function (config) {
     const rateUnits = node.rateUnitsReceiveSend || 'second';
     let multiplier = Number(nbRateUnits) || 1;
     switch (rateUnits) {
-        case 'second':
-            multiplier *= 1000;
-            break;
-        case 'minute':
-            multiplier *= 60 * 1000;
-            break;
-        case 'hour':
-            multiplier *= 60 * 60 * 1000;
-            break;
-        case 'day':
-            multiplier *= 24 * 60 * 60 * 1000;
+        case 'second': multiplier *= 1000; break;
+        case 'minute': multiplier *= 60 * 1000; break;
+        case 'hour':   multiplier *= 60 * 60 * 1000; break;
+        case 'day':    multiplier *= 24 * 60 * 60 * 1000;
     }
     multiplier /= (Number(rate) || 1);
     const limiter = new RateLimiter(1, multiplier);
@@ -51,12 +44,10 @@ module.exports.RedLinkConsumer = function (config) {
 
     function getNewNotifyAndCount() {
         //check if the notify is for this consumer name with the registered store name
-        const notifiesSql = 'SELECT * from notify WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' +
-            node.name + '"' + ' AND notifySent NOT LIKE "%' + node.id + '%"';
-        const notifies = alasql(notifiesSql);
-        let newNotify = null;
-        const notifiesSqlCount = alasql('SELECT COUNT(*) from notify WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' +
-            node.name + '"');
+        const notifiesSql = 'SELECT * from notify WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' +  node.name + '"' + ' AND notifySent NOT LIKE "%' + node.id + '%"';
+        const notifies    = alasql(notifiesSql);
+        let newNotify     = null;
+        const notifiesSqlCount = alasql('SELECT COUNT(*) from notify WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"');
         if (notifies.length > 0) {
             newNotify = {notify: notifies[notifies.length - 1], notifyCount: notifiesSqlCount[0]['COUNT(*)']};
         }
@@ -86,7 +77,7 @@ module.exports.RedLinkConsumer = function (config) {
         const notifyMessage = {
             redlinkMsgId: newNotify.redlinkMsgId,
             notifyType: 'producerNotification',
-            src: {storeName: newNotify.storeName, address: newNotify.srcStoreIp + ':' + newNotify.srcStorePort,},
+            src: {storeName: newNotify.storeName, address: newNotify.srcStoreAddress + ':' + newNotify.srcStorePort,},
             dest: {storeName: newNotify.storeName, serviceName: newNotify.serviceName, consumer: node.id},
             notifyCount
         };
@@ -129,12 +120,6 @@ module.exports.RedLinkConsumer = function (config) {
         const deleteConsumerSql = 'DELETE FROM localStoreConsumers WHERE storeName="' + node.consumerStoreName + +'"' + 'AND serviceName="' + node.name + 'AND consumerId="' + node.id + '"';
         alasql(deleteConsumerSql); //can have multiple consumers with same name registered to the same store
 //        log('removed consumer from local store...');
-/*
-        const localConsumersSql = 'SELECT * FROM localStoreConsumers';
-        const globalConsumersSql = 'SELECT * FROM globalStoreConsumers';
-        const localConsumers = alasql(localConsumersSql);
-        const globalConsumers = alasql(globalConsumersSql);
-*/
         done();
     });
 
@@ -174,7 +159,7 @@ module.exports.RedLinkConsumer = function (config) {
                     if (notifies.length > 0) {
                         const replyService = notifies[0].serviceName;
                         const redlinkProducerId = notifies[0].redlinkProducerId;
-                        const replyAddress = notifies[0].srcStoreIp + ':' + notifies[0].srcStorePort;
+                        const replyAddress = notifies[0].srcStoreAddress + ':' + notifies[0].srcStorePort;
                         //                 delete msg.preserved;
                         const body = {
                             redlinkProducerId,
@@ -193,7 +178,7 @@ module.exports.RedLinkConsumer = function (config) {
                         });
                     }
                 }
-                // OK, I have completed the whole job and sent the reply, now to finally remove the original Notifiy for thi job.
+                // OK, I have completed the whole job and sent the reply, now to finally remove the original Notifiy for this job.
                 deleteNotify(msg.redlinkMsgId);
                 watermark--;
             }
@@ -236,7 +221,7 @@ module.exports.RedLinkConsumer = function (config) {
             const notifies = alasql(notifiesSql);
             if (notifies.length > 0) {
                 const sendingStoreName = notifies[0].storeName;
-                const address = notifies[0].srcStoreIp + ':' + notifies[0].srcStorePort;
+                const address = notifies[0].srcStoreAddress + ':' + notifies[0].srcStorePort;
                 const options = {
                     method: 'POST',
                     url: 'https://' + address + '/read-message',
