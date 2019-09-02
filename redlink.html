@@ -613,12 +613,6 @@
         <label style="width:100%; border-bottom:1px solid #eee;"><span>Advanced</span></label>
     </div>
     <div class="form-row">
-        <label for="node-input-showStatsReceiveSend"><i class="fa fa-bar-chart"></i> Show Stats</label>
-        <input type="checkbox" id="node-input-showStatsReceiveSend">
-        <div class="form-row" id="stats-frequency-receive-send">
-            <label for="node-input-statsFrequencyReceiveSend">Emit stats every </label>
-            <input type="text" id="node-input-statsFrequencyReceiveSend" placeholder="1" style="text-align:end; width:40px !important"> second(s)
-        </div>
         <label for="node-input-showDebugReceiveSend"><i class="fa fa-stack-exchange"></i> Show Debug</label>
         <input type="checkbox" id="node-input-showDebugReceiveSend">
     </div>
@@ -791,24 +785,11 @@
             } else {
                 $('#rate-limit-details-receive-send').hide();
             }
-            if (this.showStatsReceiveSend) {
-                $('#stats-frequency-receive-send').show();
-            } else {
-                $('#stats-frequency-receive-send').hide();
-            }
-            $('#node-input-showStatsReceiveSend').click(function () {
-                if (this.checked) {
-                    $('#stats-frequency-receive-send').show();
-                } else {
-                    $('#stats-frequency-receive-send').hide();
-                }
-            });
-
         },
         oneditsave: function () {
-            const newShowStats = $('#node-input-showStatsReceiveSend').is(":checked");
+            const newShowStats = false;
             const newShowDebug = $('#node-input-showDebugReceiveSend').is(":checked");
-            const existingOutputs = getOutputs(true, true, true, this.showStatsReceiveSend, this.showDebugReceiveSend);
+            const existingOutputs = getOutputs(true, true, true, false, this.showDebugReceiveSend);
             const newOutputs = getOutputs(true, true, true, newShowStats, newShowDebug);
             var nodeRedOutputsObject = getNodeRedOutputObject(existingOutputs, newOutputs);
             $("#node-input-outputs").val(JSON.stringify(nodeRedOutputsObject));
