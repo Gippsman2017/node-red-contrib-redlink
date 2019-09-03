@@ -1,7 +1,9 @@
-v 0.2.0 Total rewrite of redlinkStore to implement a protocol similar to OSPF adds hopcount and removes circular routing issues. 
-v 0.1.1 Total change to redlinkStore.js to cater for mesh registrations and notifies
-v 0.1.0 Total rewrite of producer / consumer and removed reply node.
-v 0.0.5 Lost of changes to consolidate producer, consumer and replies
-v 0.0.4 add mesh support for consumers, store; merge John's changes
+v 0.3.0 Documentation update.
+v 0.2.0 Rewrite of redlinkStore to implement a protocol similar to OSPF adds hopcount and removes circular routing issues. 
+v 0.1.1 Change to redlinkStore.js to cater for mesh registrations and notifies
+v 0.1.0 Rewrite of producer / consumer and removed reply node.
+v 0.0.5 Lots of changes to consolidate producer, consumer replies
+v 0.0.4 Added mesh support for consumers, store; merge John's changes
 v 0.0.3 Coding, Colours, Logging Updates
-v 0.0.2 README Update
+v 0.0.2 Documentation Update
+v 0.0.1 Initial concept design

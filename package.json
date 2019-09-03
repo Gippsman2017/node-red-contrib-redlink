@@ -14,7 +14,7 @@
   "homepage": "https://github.com/Gippsman2017/node-red-contrib-redlink#readme",
   "keywords": [
     "node-red",
-    "RED-link",
+    "redlink",
     "alaSQL"
   ],
   "licence": "Apache V2.0",
@@ -28,5 +28,5 @@
     "type": "git",
     "url": "git+https://github.com/Gippsman2017/node-red-contrib-redlink.git"
   },
-  "version": "0.0.01"
+  "version": "0.3.0"
 }

@@ -13,31 +13,36 @@ using HTTPS-POST as its transport and an OSPF like routing concept.
 
 It allows a "Consumer" pull method of communication instead of a pub/sub push method for its transport system.
 
-It allows each consumer to consume messages purely on its ability to process them and not have the producers force high workloads on consumers.
+It allows each consumer to consume messages purely on their ability to process them and not have the producers force high workloads on consumers.
 
-It allows scale out using container instances to instantiate many consumers dynamically as the load increases.
+It allows scale out using container instances to instantiate many consumers dynamically as the load increases and is very compatible with Kubenetes and ISTIO workloads.
 
-Producers do not have to know or care how message routing is provided, they simply have to have a link to another parent / peer that can route for them.
+Producers do not have to know or care how message routing is provided, they simply have to have a link (or number of links) to another parent / peer that can route for them.
+Only one link direction is required for a neighbour relationsip as on connection, the north bound interface register the south bound connection.
 
-Producers are provided with a number of timers on each message to allow them:
+Producers and Consumers are provided with a number of timers on each message to allow them:
 
-	1/ To handle Consumers not processing the work
-	2/ Alternate services to work around busy consumers
-	3/ Expected end-to-end transaction times (ETT), allowing the producers to have an expectation of completeion.
-	4/ Priority message processing.
-	5/ Messages are stored in AlaSQL either ram or on disk.
+ 1/ To handle Consumers not processing the work
+ 2/ Alternate services to work around busy consumers
+ 3/ Expected End-To-End Transaction times (ETT), allows producers to have an expectation of completeion.
+ 4/ Priority message processing.
+ 5/ Messages pointers are stored in AlaSQL with the payload either stored in ram or on disk.
+ 6/ Messages are not sent to the consumer.
+ 7/ The producer mearly notifies the consumers and the consumers retreive the messages directly.
+ 8/ Both the Producer and Consumer can either have manual or automatic read of messages upon being notified.
+ 9/ Consumers can have in transit limits where many messages can be processed at once without have to wait.
+10/ All message stores can provide transaction queries and mesh registrations by simple questions.
 
 
 ## Why the decision to use AlaSQL as its internal DB
 
 AlaSQL provides a very robust and high level of complexity using very simple SELECT statements and it reduces the code 
-required to perform queueing and timing.
+required to perform queueing and timing, it also allows DB insert "Triggers" to decouple transaction processing in the stores.
 
 ## Why Redlink uses peer to peer for "Notifications" 
 
-The reason for this, is that multiple peer and consumer combinations have actually nothing to do with the production of messaging. What this means is that since Redlink is not a Publish-Subscribe system, more over publish to a single consumer
-at a time model, this allows fan out micro services to consume messages based on their ability to consume. 
-So, lets assume that I have 2 consumers on a service and both are busy, one will fetch the message and the other will get rejected as the first consumer has already consumed it from the producer.
+The reason for this, is that multiple peer and consumer combinations have actually nothing to do with the production of messaging. What this means is that since Redlink is not a Publish-Subscribe system, more over it is a publish to a single consumer at a time model, this allows fan out micro services to consume messages based on their ability to consume. 
+So, lets assume that I have 2 consumers on a service and both are busy, one will fetch the message when it is free and the other will get rejected as the first consumer has already consumed it from the producer.
 
 ## Redlink's design stengths are:
 When a "Service" is local and advertised on this node it will not send notifies to its subordinate children.
@@ -45,19 +50,18 @@ When consumers register on nodes, the node automatically registers / deregisters
 
 ## Why not simply use a message broker system 
 
-More complexity, this type of system removes one of layer and has a modern approach to web service architecture.
+More complexity, this type of system removes one of full layer of having to provide a separate messaging system and has a modern approach to web service architecture, with the best part being parallel computing.
 
 ## Why is Redlink "Consumer" based messaging
 
 As stated, the real issue of scale-out containerisation is that adding compute by using consumer based load distribution 
-works well with Kubenetes / Docker / LXC.
+works well with ISTIO / Kubenetes / Docker / LXC.
 Consumer based messaging is infinitly more secure as it is up to the consumer to actually transact the produces request 
-based on merit.
+based on merit and not a producer simply sending a message.
 
 ## How Redlink actually communicates with other Redlink Instances
 
-Each time a connection is established between nodes, the data is passed through and the connection is closed, this provides
-a perfect way of using the least number of sockets with the maximum number of session / connections.
+Each time a connection is established between redlink store nodes, only the notify request data is passed through the inter store mesh, the consumer actually retreives the message directly and the connection is closed, this provides a perfect way of using the least number of sockets with the maximum number of session / connections.
 
 ## Tree Hierachy
 
