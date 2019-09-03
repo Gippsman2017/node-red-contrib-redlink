@@ -24,11 +24,11 @@ Producers are provided with a number of timers on each message to allow them:
 
 	1/ To handle Consumers not processing the work
 	2/ Alternate services to work around busy consumers
-	3/ Expected End-To-End Transaction times (ETT), allowing the producers to have an expectation of completeion.
+	3/ Expected End-To-End Transaction times (ETT), allows producers to have an expectation of completeion.
 	4/ Priority message processing.
 	5/ Messages pointers are stored in AlaSQL with the payload either stored in ram or on disk.
 	6/ Messages are not sent to the consumer.
-	7/ The producer mearly notifies the consumers on the mesh and the consumers retreive the messages directly.
+	7/ The producer mearly notifies the consumers and the consumers retreive the messages directly.
 
 
 ## Why the decision to use AlaSQL as its internal DB
