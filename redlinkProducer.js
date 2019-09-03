@@ -1,7 +1,7 @@
 const alasql = require('alasql');
+const fs = require('fs-extra');
 
 const base64Helper = require('./base64-helper.js');
-
 
 let RED;
 module.exports.initRED = function (_RED) {
@@ -19,7 +19,17 @@ module.exports.RedLinkProducer = function (config) {
     this.priority = config.priority;
     const node = this;
     const log = require('./log.js')(node).log;
+    const largeMessagesDirectory = require('./redlinkSettings.js')(RED, node.producerStoreName).largeMessagesDirectory;
+    const largeMessageThreshold = require('./redlinkSettings.js')(RED, node.producerStoreName).largeMessageThreshold;
+    let errorMsg = null;
+    try {
+        fs.ensureDirSync(largeMessagesDirectory);
+    } catch (e) {
+        errorMsg = 'Unable to create directory to store large messages. ' + e.toString();
+        sendMessage({failure: errorMsg, debug: errorMsg});
+    }
 
+    console.log('largeMessagesDirectory:', largeMessagesDirectory);
     const nodeId = config.id.replace('.', '');
     const replyMsgTriggerName = 'replyMessage' + nodeId;
 
@@ -45,7 +55,7 @@ module.exports.RedLinkProducer = function (config) {
             unreadMsgIdsStr = unreadMsgIdsStr.substring(0, unreadMsgIdsStr.length - 1) + ')';
             const msgsByThisProducerSql = 'SELECT * FROM inMessages WHERE redlinkMsgId IN ' + unreadMsgIdsStr + ' AND redlinkProducerId="' + node.id + '"';
             const msgsByThisProducer = alasql(msgsByThisProducerSql); //should be length one if reply got for message from this producer else zero
-            if (msgsByThisProducer && msgsByThisProducer.length == 0) {
+            if (msgsByThisProducer && msgsByThisProducer.length === 0) {
                 //Strange problem, If I end up here, the message has already been processed and the reply needs to be removed, its usually caused by multiple high traffic triggers at the same time
                 const deleteReplyMsg = 'DELETE from replyMessages WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId="' + unreadReplies[0].redlinkMsgId + '"';
                 const deleteReply = alasql(deleteReplyMsg);
@@ -73,18 +83,42 @@ module.exports.RedLinkProducer = function (config) {
     const createReplyMsgTriggerSql = 'CREATE TRIGGER ' + replyMsgTriggerName + ' AFTER INSERT ON replyMessages CALL ' + replyMsgTriggerName + '()';
     alasql(createReplyMsgTriggerSql);
 
+    function getReplyMessage(relevantReply) {
+        if(relevantReply && relevantReply.isLargeMessage){
+            //read from disk and return;
+            const path = largeMessagesDirectory + relevantReply.redlinkMsgId +'/reply.txt';
+            //read msg from path
+            return fs.readFileSync(path, 'utf-8');
+        }
+        return relevantReply.replyMessage;
+    }
+
     function getReply(daId, relevanttReplySql, relevantReplies) {
-        const replyMessage = relevantReplies[0].replyMessage;
-        const getPreservedSql = 'SELECT * from inMessages WHERE redlinkMsgId="' + daId + '"';
-        const preserved = alasql(getPreservedSql)[0].preserved;
+        const replyMessage = getReplyMessage(relevantReplies[0]);
+        const origMessageSql = 'SELECT * from inMessages WHERE redlinkMsgId="' + daId + '"';
+        const origMessage = alasql(origMessageSql)[0];
+        let preserved;
+        if(origMessage.isLargeMessage){
+            //read preserved from file
+            const path = largeMessagesDirectory + daId + '/preserved.txt';
+            preserved = fs.readFileSync(path, 'utf-8');
+        }else{
+            preserved = origMessage.preserved;
+        }
         const reply = {
             payload: base64Helper.decode(replyMessage),
             redlinkMsgId: daId,
             redlinkProducerId: relevantReplies[0].redlinkProducerId,
             preserved: base64Helper.decode(preserved)
         };
+
         const deleteReplyMsg = 'DELETE from replyMessages WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId="' + daId + '"';
         const deleteInMsg = 'DELETE from inMessages    WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId="' + daId + '"';
+        //delete directory from disk if large inMessage/ replyMessage
+        if(origMessage.isLargeMessage || relevantReplies[0].isLargeMessage){
+            const path = largeMessagesDirectory + daId + '/';
+            fs.removeSync(path);
+        }
         const deleteReply = alasql(deleteReplyMsg);
         const deleteIn = alasql(deleteInMsg);
         return reply;
@@ -99,6 +133,41 @@ module.exports.RedLinkProducer = function (config) {
         msgs.push(msg.failure);
         msgs.push(msg.debug);
         node.send(msgs);
+    }
+
+    function isLargeMessage(encodedMessage, encodedPreserved) {
+        return encodedMessage.length + encodedPreserved.length > largeMessageThreshold;
+    }
+
+    function insertNewMessage(redlinkMsgId, service, encodedMessage, encodedPreserved, isLargeMessage) {
+        if (isLargeMessage) {
+            const path = largeMessagesDirectory + redlinkMsgId + '/';
+            try {
+                fs.ensureDirSync(largeMessagesDirectory);
+            } catch (e) {
+                errorMsg = 'Unable to create directory to store large messages. ' + e.toString();
+                sendMessage({failure: errorMsg, debug: errorMsg});
+                return;
+            }
+            try {
+                fs.outputFileSync(path + 'message.txt', encodedMessage);
+                fs.outputFileSync(path + 'preserved.txt', encodedPreserved);
+            } catch (e) {
+                errorMsg = 'Unable to write large message to file ' + e.toString();
+                sendMessage({failure: errorMsg, debug: errorMsg});
+                return;
+            }
+            const msgInsertSql = 'INSERT INTO inMessages VALUES ("' + redlinkMsgId + '","' + node.producerStoreName + '","' + service + '",""' +
+                ',' + false + ',' + node.sendOnly + ',"' + node.id + '","",' + Date.now() + ',' + node.priority + ',' + true + ')';
+            //redlinkMsgId STRING, storeName STRING, serviceName STRING, message STRING, read BOOLEAN, sendOnly BOOLEAN, redlinkProducerId STRING,preserved STRING, timestamp BIGINT, priority INT, isLargeMessage BOOLEAN, path STRING
+            alasql(msgInsertSql);
+        } else {
+            const msgInsertSql = 'INSERT INTO inMessages VALUES ("' + redlinkMsgId + '","' + node.producerStoreName + '","' + service + '","' + encodedMessage +
+                '",' + false + ',' + node.sendOnly + ',"' + node.id + '","' + encodedPreserved + '",' + Date.now() + ',' + node.priority + ',' + false + ')';
+            //redlinkMsgId STRING, storeName STRING, serviceName STRING, message STRING, read BOOLEAN, sendOnly BOOLEAN, redlinkProducerId STRING,preserved STRING, timestamp BIGINT, priority INT,
+            // isLargeMessage BOOLEAN, path STRING
+            alasql(msgInsertSql);
+        }
     }
 
     node.on("input", msg => {
@@ -151,10 +220,17 @@ module.exports.RedLinkProducer = function (config) {
             }
         }
         if (service.length > 0) {
-            //todo dont store message if > 50kB- read store location from settings.js file
-            const msgInsertSql = 'INSERT INTO inMessages VALUES ("' + msg.redlinkMsgId + '","' + node.producerStoreName + '","' + service + '","' + encodedMessage +
-                '",' + false + ',' + node.sendOnly + ',"' + node.id + '","' + encodedPreserved + '",' + Date.now() + ',' + node.priority + ')';
-            alasql(msgInsertSql);
+            const largeMessage = isLargeMessage(encodedMessage, encodedPreserved);
+            if (largeMessage) {
+                if (errorMsg) {
+                    sendMessage({failure: errorMsg, debug: errorMsg});
+                    return;
+                }
+                insertNewMessage(msg.redlinkMsgId, service, encodedMessage, encodedPreserved, true);
+                //redlinkMsgId STRING, storeName STRING, serviceName STRING, message STRING, read BOOLEAN, sendOnly BOOLEAN, redlinkProducerId STRING,preserved STRING, timestamp BIGINT, priority INT
+            } else {
+                insertNewMessage(msg.redlinkMsgId, service, encodedMessage, encodedPreserved, false);
+            }
         } else {
             sendMessage({failure: {"error": "Store " + node.producerStoreName + " Does NOT know about this service"}});
         }
