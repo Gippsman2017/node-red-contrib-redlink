@@ -7,7 +7,7 @@
     "fs-extra": "^8.1.0",
     "limiter": "^1.1.4",
     "needle": "^2.4.0",
-    "selfsigned": "^1.10.4"
+    "selfsigned": "^1.10.4"Auto scale out and redundancy is performed by the ELB
   },
   "deprecated": false,
   "description": "A Node-RED block to send and receive messages between and across instances.",
@@ -28,5 +28,5 @@
     "type": "git",
     "url": "git+https://github.com/Gippsman2017/node-red-contrib-redlink.git"
   },
-  "version": "0.0.01"
+  "version": "0.3.0"
 }
