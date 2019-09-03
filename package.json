@@ -7,14 +7,14 @@
     "fs-extra": "^8.1.0",
     "limiter": "^1.1.4",
     "needle": "^2.4.0",
-    "selfsigned": "^1.10.4"Auto scale out and redundancy is performed by the ELB
+    "selfsigned": "^1.10.4"
   },
   "deprecated": false,
   "description": "A Node-RED block to send and receive messages between and across instances.",
   "homepage": "https://github.com/Gippsman2017/node-red-contrib-redlink#readme",
   "keywords": [
     "node-red",
-    "RED-link",
+    "redlink",
     "alaSQL"
   ],
   "licence": "Apache V2.0",
