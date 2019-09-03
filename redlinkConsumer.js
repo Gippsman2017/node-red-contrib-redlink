@@ -100,7 +100,6 @@ module.exports.RedLinkConsumer = function (config) {
                 notifyMessage.warning = 'inTransitLimit ' + node.inTransitLimit + ' exceeded. This notify will be discarded';
                 sendMessage({notify: notifyMessage});  //TODO- still send the notify out?
                 const deleteNotify1 = deleteNotify(newNotify.redlinkMsgId);
-                console.log('deleted notifies from store as inTransitLimit exceeded...', deleteNotify1);
             }
         }
     };
