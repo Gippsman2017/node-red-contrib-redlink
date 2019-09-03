@@ -29,7 +29,6 @@ module.exports.RedLinkProducer = function (config) {
         sendMessage({failure: errorMsg, debug: errorMsg});
     }
 
-    console.log('largeMessagesDirectory:', largeMessagesDirectory);
     const nodeId = config.id.replace('.', '');
     const replyMsgTriggerName = 'replyMessage' + nodeId;
 
