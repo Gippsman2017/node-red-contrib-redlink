@@ -7,7 +7,7 @@
         stats:   'Stats',
         debug:   'Debug',
         command: 'Command', //store
-        registration: 'Registration' //store
+        registration: 'Notify' //store
     };
 
     function getOutputs(receive, manual, failure, stats, debug) {
@@ -91,7 +91,7 @@
     </div>
 
     <div class="form-row">
-        <label for="node-input-showRegistration"><i class="fa fa-stack-exchange"></i> Show Registration</label>
+        <label for="node-input-showRegistration"><i class="fa fa-stack-exchange"></i> Show New Message Notifications</label>
         <input type="checkbox" id="node-input-showRegistration">
     </div>
 
@@ -105,8 +105,6 @@
         <label for="node-input-notifyInterval"><i class="fa fa-hourglass-1"></i> Notify Interval (s)</label>
         <input type="text" id="node-input-notifyInterval" placeholder="Notify Interval in sec">
     </div>
-
-
 </script>
 
 <script type="text/x-red" data-help-name="redlink store"></script>
