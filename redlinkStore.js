@@ -1,6 +1,7 @@
 const httpsServer = require('./https-server.js');
 const alasql = require('alasql');
 const request = require('request').defaults({strictSSL: false});
+const fs = require('fs-extra');
 
 let RED;
 module.exports.initRED = function (_RED) {
@@ -29,15 +30,11 @@ module.exports.RedLinkStore = function (config) {
     node.command = true;
     node.registration = config.showRegistration;
     node.debug = config.showDebug;
-
+    const largeMessagesDirectory = require('./redlinkSettings.js')(RED, node.name).largeMessagesDirectory;
+    const largeMessageThreshold = require('./redlinkSettings.js')(RED, node.name).largeMessageThreshold;
     // Insert myself into the mesh.
     const insertStoreSql = 'INSERT INTO stores("' + node.name + '","' + node.listenAddress + '",' + node.listenPort + ')';
     alasql(insertStoreSql);
-
-    function getConsumersOfType() {
-        const globalConsumersSql = 'SELECT DISTINCT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '"';
-        return alasql(globalConsumersSql);
-    }
 
     function sendMessage(msg) { //command, registration, debug
         const msgs = [];
@@ -79,7 +76,7 @@ module.exports.RedLinkStore = function (config) {
 
             if (address && address !== '0.0.0.0') {
                 sendMessage({
-                    registration: {
+                    debug: {
                         storeName: node.name,
                         action: 'notifyRegistration',
                         direction: 'outBound',
@@ -90,7 +87,7 @@ module.exports.RedLinkStore = function (config) {
                 request(options, function (error, response) {
                     if (error) {
                         sendMessage({
-                            registration: {
+                            debug: {
                                 storeName: node.name,
                                 action: 'notifyRegistrationResult',
                                 direction: 'outBound',
@@ -100,7 +97,7 @@ module.exports.RedLinkStore = function (config) {
                         });
                     } else {
                         sendMessage({
-                            registration: {
+                            debug: {
                                 storeName: node.name,
                                 action: 'notifyRegistrationResult',
                                 direction: 'outBound',
@@ -124,7 +121,7 @@ module.exports.RedLinkStore = function (config) {
         };
         if (address && address !== '0.0.0.0') {
             sendMessage({
-                registration: {
+                debug: {
                     storeName: node.name,
                     action: 'notifyRegistration',
                     direction: 'outBound',
@@ -135,7 +132,7 @@ module.exports.RedLinkStore = function (config) {
             request(options, function (error, response) {
                 if (error) {
                     sendMessage({
-                        registration: {
+                        debug: {
                             storeName: node.name,
                             action: 'notifyRegistrationResult',
                             direction: 'outBound',
@@ -145,7 +142,7 @@ module.exports.RedLinkStore = function (config) {
                     });
                 } else {
                     sendMessage({
-                        registration: {
+                        debug: {
                             storeName: node.name,
                             action: 'notifyRegistrationResult',
                             direction: 'outBound',
@@ -168,7 +165,7 @@ module.exports.RedLinkStore = function (config) {
         };
         node.northPeers.forEach(peer => {
             sendMessage({
-                registration: {
+                debug: {
                     storeName: node.name,
                     action: 'notifyRegistration',
                     direction: 'outBound',
@@ -179,7 +176,7 @@ module.exports.RedLinkStore = function (config) {
             request(options, function (error, response) {
                 if (error) {
                     sendMessage({
-                        registration: {
+                        debug: {
                             storeName: node.name,
                             action: 'notifyRegistrationResult',
                             direction: 'outBound',
@@ -189,7 +186,7 @@ module.exports.RedLinkStore = function (config) {
                     });
                 } else {
                     sendMessage({
-                        registration: {
+                        debug: {
                             storeName: node.name,
                             action: 'notifyRegistrationResult',
                             direction: 'outBound',
@@ -272,11 +269,21 @@ module.exports.RedLinkStore = function (config) {
                 //insert one notify for local
                 for (const localConsumer of allVisibleConsumers.localConsumers) {
                     if (localConsumer.serviceName === newMessage.serviceName) {
-                        const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + newMessage.serviceName + '","' + newMessage.transitAddress + '",' + node.transitPort + ',"' + newMessage.redlinkMsgId + '","",false,"' + newMessage.redlinkProducerId + '")';
+                        const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + newMessage.serviceName + '","' + node.listenAddress + '",' + node.listenPort + ',"' + newMessage.redlinkMsgId + '","",false,"' + newMessage.redlinkProducerId + '",'+newMessage.isLargeMessage+')';
                         alasql(notifyInsertSql);
                         break; //should get only one local consumer with the same name- this is a just in case
                     }
                 }
+                sendMessage({
+                    registration: { //todo rename to notify
+                        service: newMessage.serviceName,
+                        srcStoreAddress: node.listenAddress,
+                        srcStorePort: node.listenPort,
+                        redlinkMsgId: newMessage.redlinkMsgId,
+                        action: 'producerNotification',
+                        redlinkProducerId: newMessage.redlinkProducerId
+                    }
+                });
 
                 //This notify only handles LOCAL consumers, the /notify listener will do the forwarding
                 //stores table contains stores local to this node-red instance, all consumers will contain consumers on stores reachable from this store- even if they are remote, however they are handled by the listener.
@@ -369,7 +376,7 @@ module.exports.RedLinkStore = function (config) {
             case 'consumerRegistration' :
 
                 sendMessage({
-                    registration: {
+                    debug: {
                         storeName: node.name,
                         action: 'notifyConsumerRegistration',
                         direction: 'inBound',
@@ -460,14 +467,9 @@ module.exports.RedLinkStore = function (config) {
                         });
                         const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreAddress + '",' + req.body.srcStorePort + ',"' + req.body.redlinkMsgId + '","",false,"' + req.body.redlinkProducerId + '")';
                         alasql(notifyInsertSql);
-//                        const allNotifies = alasql('SELECT * FROM notify');
-//                        sendMessage({ debug: { storeName: node.name, action: 'producerNotification', direction: 'outBound', Data: allNotifies } });
                     }
                 } else {
-                    //               sendMessage({ registration: { storeName: node.name, action: 'forwardProducerNotification', direction: 'outBound', Data: {globalCons} } });
-
                     const remoteMatchingStores = [...new Set([...getRemoteMatchingStores(req.body.service, node.meshName)])];
-
                     remoteMatchingStores.forEach(remoteStore => {
                         const body = {
                             service: req.body.service,
@@ -480,7 +482,6 @@ module.exports.RedLinkStore = function (config) {
                             notifyType: 'producerNotification',
                             redlinkProducerId: req.body.redlinkProducerId
                         };
-
                         const originatorStoreAddress = req.body.transitAddress + ':' + req.body.transitPort;
                         const destinationStoreAddress = remoteStore.transitStoreAddress;
                         const options = {
@@ -489,9 +490,8 @@ module.exports.RedLinkStore = function (config) {
                             body,
                             json: true
                         };
-
                         //If this store has a consumer on it then send out a peer notify  , the hopcount must be less than the sender and the transitStoreAddress cannot be back to the sender
-                        if (req.body.sendersHopCount > remoteStore.transitHopCount && originatorStoreAddress != destinationStoreAddress) {
+                        if (req.body.sendersHopCount > remoteStore.transitHopCount && originatorStoreAddress !== destinationStoreAddress) {
                             sendMessage({
                                 debug: {
                                     storeName: node.name,
@@ -545,6 +545,13 @@ module.exports.RedLinkStore = function (config) {
                     error: 'none'
                 }
             });
+            const message = msgs[0];
+            const isLargeMessage = message.isLargeMessage;
+            if (isLargeMessage) {
+                const path = largeMessagesDirectory + redlinkMsgId +'/message.txt';
+                //read msg from path
+                msgs[0].message = fs.readFileSync(path, 'utf-8');
+            }
             res.send(msgs[0]); //send the oldest message first
             if (msgs[0].sendOnly) {            //delete if send only
                 console.log('msg is sendOnly- deleting message');
@@ -583,7 +590,15 @@ module.exports.RedLinkStore = function (config) {
         const replyMsgSql = 'SELECT DISTINCT * FROM replyMessages WHERE redlinkMsgId="' + redlinkMsgId + '"';
         const replyMsg = alasql(replyMsgSql);
         if (replyMsg.length === 0) {
-            const insertReplySql = 'INSERT INTO replyMessages ("' + node.name + '","' + redlinkMsgId + '","' + redlinkProducerId + '","' + message + '", false)';
+            let insertReplySql;
+            if(isLargeMessage(message)){
+                //store reply to disk
+                const path = largeMessagesDirectory + redlinkMsgId + '/';
+                fs.outputFileSync(path + 'reply.txt', message);
+                insertReplySql = 'INSERT INTO replyMessages ("' + node.name + '","' + redlinkMsgId + '","' + redlinkProducerId + '","' + '' + '", false, true)';
+            }else{
+                insertReplySql = 'INSERT INTO replyMessages ("' + node.name + '","' + redlinkMsgId + '","' + redlinkProducerId + '","' + message + '", false, false)';
+            }
             alasql(insertReplySql);
             res.status(200).send({msg: 'Reply received for ', redlinkMsgId: redlinkMsgId});
         } else {
@@ -591,6 +606,10 @@ module.exports.RedLinkStore = function (config) {
         }
     });
 
+    function isLargeMessage(encodedReplyMessage) {
+        console.log('encodedReplyMessage:', encodedReplyMessage);
+        return encodedReplyMessage.length > largeMessageThreshold;
+    }
 
     function getAllVisibleConsumers() {
         const localConsumersSql = 'SELECT DISTINCT * FROM localStoreConsumers WHERE storeName="' + node.name + '"';
