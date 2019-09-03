@@ -269,7 +269,7 @@ module.exports.RedLinkStore = function (config) {
                 //insert one notify for local
                 for (const localConsumer of allVisibleConsumers.localConsumers) {
                     if (localConsumer.serviceName === newMessage.serviceName) {
-                        const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + newMessage.serviceName + '","' + node.listenAddress + '",' + node.listenPort + ',"' + newMessage.redlinkMsgId + '","",false,"' + newMessage.redlinkProducerId + '",'+newMessage.isLargeMessage+')';
+                        const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + newMessage.serviceName + '","' + node.listenAddress + '",' + node.listenPort + ',"' + newMessage.redlinkMsgId + '","",false,"' + newMessage.redlinkProducerId + '")';
                         alasql(notifyInsertSql);
                         break; //should get only one local consumer with the same name- this is a just in case
                     }
