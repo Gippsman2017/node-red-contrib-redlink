@@ -47,7 +47,6 @@
 
     //see https://github.com/node-red/node-red/wiki/Design:-Editable-port-labels
     function getNodeRedOutputObject(existingOutputs, newOutputs) {
-        console.log('existingOutputs:', existingOutputs, 'newOutputs:', newOutputs);
         const nodeRedOutputObject = {};
         //possible scenarios:
         //1. output position remains the same
@@ -166,7 +165,6 @@
         },
         oneditprepare: function () {
             $.getJSON('hostname', hostname => {
-                console.log('got hostname as:', hostname);
                 this.listenAddress = this.listenAddress || hostname;
                 $('#node-input-listenAddress').val(this.listenAddress);
             });
@@ -271,11 +269,8 @@
                     headerList.editableList('addItem', {h: ip, v: port});
                 });
             } else if (!this.oldStore) {
-                console.log('newStore:', this.oldStore);
                 $.getJSON('north-peers', northies => {
-                    console.log('northies:', northies);
                     northies.map(northie => {
-                        console.log(northie);
                         headerList.editableList('addItem', {h: northie.address, v: northie.port});
                     });
                 });
@@ -290,17 +285,14 @@
                 registration:  this.showRegistration,
                 debug:  this.showDebug
             });
-            console.log('got existing store outputs as:', existingOutputs);
             // getOutputs(!this.sendOnly, this.manualRead, true, this.showStats, this.showDebug);
             const newOutputs =  getStoreOutputs({
                 command: true,
                 registration:  newShowRegistration,
                 debug:  newShowDebug
             });
-            console.log('got new store outputs as:', newOutputs);
             var nodeRedOutputsObject = getNodeRedOutputObject(existingOutputs, newOutputs);
             $("#node-input-outputs").val(JSON.stringify(nodeRedOutputsObject));
-            console.log('\n\n\n\n\n on editsave val of $("#node-input-outputs") for store is:', $("#node-input-outputs").val());
             //outputs end
 
             var headers = $("#node-input-headers-container").editableList('items');
@@ -467,50 +459,36 @@
         oneditsave: function () {
             let newSendOnly = $('#node-input-sendOnly').is(":checked");
             let newDebug    = $('#node-input-showDebug').is(":checked");
-            console.log('going to call getoutputs for existing ports with sendOnly: ', this.sendOnly, 'showDebug:', this.showDebug);
             const existingOutputs = getProducerOutputs({
                 sendOnly: this.sendOnly,
                 debug:    this.showDebug,
                 failure:  true
             });
-            console.log('got existing outputs as:', existingOutputs);
             // getOutputs(!this.sendOnly, this.manualRead, true, this.showStats, this.showDebug);
-            console.log('going to call getoutputs for new with sendOnly: ', newSendOnly, 'showDebug:', newDebug);
             const newOutputs =  getProducerOutputs({
                 sendOnly: newSendOnly,
                 debug:    newDebug,
                 failure:  true
             });
-            console.log('got new outputs as:', newOutputs);
             var nodeRedOutputsObject = getNodeRedOutputObject(existingOutputs, newOutputs);
             $("#node-input-outputs").val(JSON.stringify(nodeRedOutputsObject));
-            console.log('\n\n\n\n\n on editsave val of $("#node-input-outputs"):', $("#node-input-outputs").val());
         },
         oneditprepare: function () {
             const selectedStore = this.producerStoreName;
-            console.log('selectedStore:', selectedStore);
-
             if (!this.sendOnly) { $('#producer-receive').show(); }
                            else { $('#producer-receive').hide(); }
-            
             $('#node-input-sendOnly').click(function () {
-                console.log('this.checked:', this.checked);
-                if (!this.checked) { $('#producer-receive').show(); } 
+                if (!this.checked) { $('#producer-receive').show(); }
                               else { $('#producer-receive').hide(); }
             });
-
-
             function repopulateStores() { //todo refactor
                 let storeElement = $("#node-input-producerStoreName");
                 storeElement.find('option').remove().end();
                 $.getJSON('all-store-names', stores => {
                     let selectionSet = false;
-                    console.log('\n\n\n\nstores from get call in producer:', stores);
                     $.each(stores, function (index, obj) {
-                        console.log('selectedStore:', selectedStore, 'obj:', obj, 'selectedStore === obj:', selectedStore === obj);
                         if (selectedStore === obj) {
                             selectionSet = true;
-                            console.log('selectionSet:', selectionSet);
                         }
                         storeElement.append($('<option>', {
                             value: obj,
@@ -519,17 +497,12 @@
                         }));
                     });
                     if (!selectionSet) {
-                        console.log(' selection not set for meshes in producer- going to select element at zero', $("#node-input-producerStoreName option:first").val());
-
                         var options = $('#node-input-producerStoreName option');
-
                         var values = $.map(options, function (option) {
                             return option.value;
                         });
-                        console.log('all store values:', values);
                         // $("#node-input-producerStoreName").prop("selectedIndex", 0);
                         $("#node-input-producerStoreName option:first").attr('selected', 'selected');
-                        console.log('after setting selected to zero, the selected store in producer is:', $("#node-input-producerMeshName").children("option:selected").val());
                         repopulateConsumers();
                     }
                 });
@@ -561,19 +534,12 @@
             });
 
             const selectedConsumer = this.producerConsumer;
-            console.log('selectedStore:', selectedStore);
-
             function repopulateConsumers() {
-                console.log('in repopulateConsumers the selected producerStoreName is:', $("#node-input-producerStoreName").children("option:selected").val());
                 let consumerElement = $("#node-input-producerConsumer");
                 consumerElement.find('option').remove().end();
-                console.log("Handler for .change() called.");
-                // console.log('value of node-input-producerStoreName:', );
                 const storeName = $("#node-input-producerStoreName").children("option:selected").val() || selectedStore;
                 $.getJSON('consumers', {"producer": this.name, "store": storeName}, stores => {
-                    console.log('\n\n\n\nstores from get call:', stores);
                     $.each(stores, function (index, obj) {
-                        console.log('index:', index, ' obj:', obj);
                         consumerElement.append($('<option>', {
                             value: obj,
                             text: obj,
@@ -582,7 +548,6 @@
                     });
                 });
             }
-
             $("#node-input-producerStoreName").change(() => { repopulateConsumers(); });
         }
     });
@@ -697,19 +662,13 @@
         oneditprepare: function () {
             const selectedStore = this.consumerStoreName;
             const selectedMesh = this.consumerMeshName;
-            console.log('selectedStore:', selectedStore);
-
             function repopulateStores() {
-                console.log('in repopulateStores the selected consumerMeshName is:', $("#node-input-consumerMeshName").children("option:selected").val());
                 let storeElement = $("#node-input-consumerStoreName");
                 storeElement.find('option').remove().end();
-                console.log("Handler for .change() called.");
                 // console.log('value of node-input-producerStoreName:', );
                 const meshName = $("#node-input-consumerMeshName").children("option:selected").val() || selectedMesh;
                 $.getJSON('store-names', {"producer": this.name, "mesh": meshName}, stores => {
-                    console.log('\n\n\n\nstores from get call:', stores);
                     $.each(stores, function (index, obj) {
-                        console.log('index:', index, ' obj:', obj);
                         storeElement.append($('<option>', {
                             value: obj,
                             text: obj,
@@ -727,12 +686,10 @@
 
             $.getJSON('mesh-names', meshes => {
                 let selectionSet = false;
-                console.log('\n\n\n\nmeshes from get call:', meshes);
                 $.each(meshes, function (index, obj) {
                     if (selectedMesh === obj) {
                         selectionSet = true;
                     }
-                    console.log('index:', index, ' obj:', obj);
                     meshesElement.append($('<option>', {
                         value: obj,
                         text: obj,
@@ -740,24 +697,18 @@
                     }));
                 });
                 if (!selectionSet) {
-                    console.log(' selection not set for meshes in consumer- going to select element at zero', $("#node-input-consumerMeshName option:first").val());
-
                     var options = $('#node-input-consumerMeshName option');
-
                     var values = $.map(options, function (option) {
                         return option.value;
                     });
-                    console.log('all mesh values:', values);
                     // $("#node-input-producerStoreName").prop("selectedIndex", 0);
                     $("#node-input-consumerMeshName option:first").attr('selected', 'selected');
-                    console.log('after settign selected to zero, the selected store in producer is:', $("#node-input-consumerMeshName").children("option:selected").val());
                     repopulateStores();
                 }
             });
 
 
             $('#node-input-manualReadReceiveSend').change(function () {
-                console.log('in change listener of manualRead, the current value is:', this.checked);
                 if (this.checked) {
                     $('#rate-limit-receive-send').hide();
                 } else {
@@ -791,8 +742,6 @@
             const newOutputs = getOutputs(true, true, true, newShowStats, newShowDebug);
             var nodeRedOutputsObject = getNodeRedOutputObject(existingOutputs, newOutputs);
             $("#node-input-outputs").val(JSON.stringify(nodeRedOutputsObject));
-            console.log('\n\n\n\n\n on editsave val of $("#node-input-outputs"):', $("#node-input-outputs").val());
-            console.log('this.outputLabels:', this.outputLabels);
         }
     });
 </script>
