@@ -554,10 +554,8 @@ module.exports.RedLinkStore = function (config) {
             }
             res.send(msgs[0]); //send the oldest message first
             if (msgs[0].sendOnly) {            //delete if send only
-                console.log('msg is sendOnly- deleting message');
                 const deleteMsgSql = 'DELETE FROM inMessages WHERE redlinkMsgId="' + redlinkMsgId +'"';
                 const deleteMsg = alasql(deleteMsgSql);
-                console.log('result of deleting sendOnly message:', deleteMsg);
             } else {
                 //update message to read=true
                 const updateMsgStatus = 'UPDATE inMessages SET read=' + true + ' WHERE redlinkMsgId="' + msgs[0].redlinkMsgId + '"';
@@ -607,7 +605,6 @@ module.exports.RedLinkStore = function (config) {
     });
 
     function isLargeMessage(encodedReplyMessage) {
-        console.log('encodedReplyMessage:', encodedReplyMessage);
         return encodedReplyMessage.length > largeMessageThreshold;
     }
 
