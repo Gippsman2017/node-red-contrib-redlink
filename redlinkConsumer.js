@@ -254,10 +254,11 @@ module.exports.RedLinkConsumer = function (config) {
                                 payload: msg.payload,
                                 error: false
                             };
-                            watermark++;
                             resolve({receive: receiveMsg});
                             if (msg.sendOnly) {
                                 deleteNotify(redlinkMsgId);
+                            } else {
+                                watermark++;
                             }
                         } else {
                             reject({failure: {error: 'Empty response got when reading message'}});
