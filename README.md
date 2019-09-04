@@ -1,4 +1,3 @@
-added# node-red-contrib-redlink
 
 ## What is Redlink
 

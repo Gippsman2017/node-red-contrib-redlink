@@ -1,4 +1,5 @@
 v 0.3.2 Send notify in store when transiting notifications, fix notify in producer
+v 0.3.1 Setting file Defaults updated.
 v 0.3.0 Documentation update.
 v 0.2.0 Rewrite of redlinkStore to implement a protocol similar to OSPF adds hopcount and removes circular routing issues. 
 v 0.1.1 Change to redlinkStore.js to cater for mesh registrations and notifies
