@@ -482,6 +482,20 @@ module.exports.RedLinkStore = function (config) {
                             notifyType: 'producerNotification',
                             redlinkProducerId: req.body.redlinkProducerId
                         };
+                        sendMessage({
+                            debug: {
+                                storeName: node.name,
+                                action: 'producerForwardNotification',
+                                direction: 'RemoteConsumerNotify',
+                                Data: req.body
+                            },
+                            registration: {
+                                storeName: node.name,
+                                action: 'producerForwardNotification',
+                                direction: 'RemoteConsumerNotify',
+                                Data: req.body
+                            }
+                        });
                         const originatorStoreAddress = req.body.transitAddress + ':' + req.body.transitPort;
                         const destinationStoreAddress = remoteStore.transitStoreAddress;
                         const options = {
