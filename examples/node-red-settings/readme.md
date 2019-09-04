@@ -10,8 +10,16 @@ Redlink specific settings:
 
 Notes : The default is 25000 chars (approximately), this value depends on the length of the base64 encoded message
 
-#North Peer deafult setting.
+#North Peer default address setting is localhost, port 2000
 
+NorthPeers is an array of DNS named or IP Address / Port objects- something like
+
+northPeers:[ 
+{address: '111.111.111.111', port:'111'},
+{address: '211.111.111.111', port:'211'} 
+...
+...
+]
 
 
  
