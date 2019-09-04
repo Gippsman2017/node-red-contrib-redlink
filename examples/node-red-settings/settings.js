@@ -23,6 +23,6 @@ module.exports = {
     // Node-Red settings .....
     largeMessagesDirectory: '/tmp/redlink',
     largeMessageThreshold: 25000, //50kB- 2 bytes per character default- 25000 chars
-    northPeers : [ {address: 'hostname1', port:'2000'}, {address: 'hostname2', port:'2001'} ],
+    northPeers : [ {address: 'hostname1', port:'2000'}, {address: 'hostname2', port:'2000'} ],
 
 }
