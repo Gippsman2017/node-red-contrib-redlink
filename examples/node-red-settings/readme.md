@@ -15,8 +15,8 @@ Notes : The default is 25000 chars (approximately), this value depends on the le
 NorthPeers is an array of DNS named or IP Address / Port objects- something like
 
 northPeers:[ 
-{address: '111.111.111.111', port:'111'},
-{address: '211.111.111.111', port:'211'} 
+{address: 'hostname1', port:'2000'},
+{address: 'hostname2', port:'2000'} 
 ...
 ...
 ]
