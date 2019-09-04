@@ -71,7 +71,7 @@ module.exports.RedLinkProducer = function (config) {
                         sendMessage({notify: notifyMessage})
                     } else {
                         const reply = getReply(daId, relevanttReplySql, relevantReplies, msgsByThisProducer[0].preserved);
-                        sendMessage({receive: reply}, {notify: notifyMessage});
+                        sendMessage({receive: reply, notify: notifyMessage});
                     }
                 }
             }
