@@ -233,7 +233,6 @@ module.exports.RedLinkStore = function (config) {
             const data = alasql('select * from globalStoreConsumers where localStoreName = "' + storeName + '" and serviceName ="' + consumer.serviceName + '" and consumerId = "' + consumer.consumerId + '"');
             notifySouthStoreOfConsumers(data[0], hopCount, storeAddress, storePort, node.listenAddress, node.listenPort);
         });
-//        return consumersArray;
     }
 
 
@@ -288,7 +287,7 @@ module.exports.RedLinkStore = function (config) {
                 //This notify only handles LOCAL consumers, the /notify listener will do the forwarding
                 //stores table contains stores local to this node-red instance, all consumers will contain consumers on stores reachable from this store- even if they are remote, however they are handled by the listener.
                 const remoteMatchingStores = [...new Set([...getRemoteMatchingStores(newMessage.serviceName, node.meshName)])];
-//                console.log(remoteMatchingStores);
+
                 remoteMatchingStores.forEach(remoteStore => {
                     const body = {
                         service: newMessage.serviceName,
@@ -438,7 +437,6 @@ module.exports.RedLinkStore = function (config) {
 
             case 'producerNotification' :
 
-//                console.log('---From ---',req.body.transitAddress+':'+req.body.transitPort,'-----producerNoticfication Received ---To ---',node.name);            
                 sendMessage({
                     debug: {
                         storeName: node.name,
@@ -514,15 +512,12 @@ module.exports.RedLinkStore = function (config) {
                                     Data: req.body
                                 }
                             });
-//                           console.log('SENT');
-                            //   console.log('Send : ',options);
                             request(options, function (error, response) {
                                 if (error || response.statusCode !== 200) {
                                     sendMessage({debug: {error: true, errorDesc: error || response.body}});
                                 }
                             });
                         }
-//                       else console.log('JUNKED');
 
                     }); //RemoteMatchingStores
                 }
@@ -622,9 +617,18 @@ module.exports.RedLinkStore = function (config) {
         return encodedReplyMessage.length > largeMessageThreshold;
     }
 
+    function getAllVisibleServices() {
+        const globalConsumersSql = 'SELECT serviceName FROM globalStoreConsumers WHERE localStoreName="' + node.name + '"';
+        const globalConsumers = alasql(globalConsumersSql);
+        let   myServices = [];
+          globalConsumers.forEach(consumer => {
+             myServices.push(consumer.serviceName);
+        });
+        return myServices;
+    }
+
     function getAllVisibleConsumers() {
         const localConsumersSql = 'SELECT DISTINCT * FROM localStoreConsumers WHERE storeName="' + node.name + '"';
-//        const globalConsumersSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND globalStoreName<>localStoreName';
         const globalConsumersSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '"';
         const storesSql = 'SELECT * FROM stores where storeName ="' + node.name + '"';
         const localConsumers = alasql(localConsumersSql);
@@ -659,6 +663,10 @@ module.exports.RedLinkStore = function (config) {
     node.on("input", msg => {
         log(msg);
         switch (msg.topic) {
+            case 'listServices' : {
+                sendMessage({command: {services : getAllVisibleServices()}});
+                break;
+            }
             case 'listRegistrations' : {
                 sendMessage({command: getAllVisibleConsumers()});
                 break;
@@ -714,7 +722,7 @@ module.exports.RedLinkStore = function (config) {
 
     function dropTrigger(triggerName) { //workaround for https://github.com/agershun/alasql/issues/1113
         alasql.fn[triggerName] = () => {
-            // console.log('\n\n\n\nEmpty trigger called for consumer registration', triggerName);
+        // console.log('\n\n\n\nEmpty trigger called for consumer registration', triggerName);
         }
     }
 }; // function
