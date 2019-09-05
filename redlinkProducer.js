@@ -1,5 +1,6 @@
 const alasql = require('alasql');
 const fs = require('fs-extra');
+const RateLimiter = require('limiter').RateLimiter;
 
 const base64Helper = require('./base64-helper.js');
 
@@ -16,8 +17,25 @@ module.exports.RedLinkProducer = function (config) {
     this.debug = config.showDebug;
     this.manualRead = config.manualRead;
     this.ett = config.producerETT;
+    this.rateTypeSendReceive = config.rateTypeSendReceive;
+    this.rateSendReceive = config.rateSendReceive;
+    this.rateUnitsSendReceive = config.rateUnitsSendReceive;
+    this.rateUnitsSendReceive = config.rateUnitsSendReceive;
+    this.nbRateUnitsSendReceive = config.nbRateUnitsSendReceive;
     this.priority = config.priority;
     const node = this;
+
+
+
+
+    const rateType = node.manualRead ? 'none' : (node.rateTypeSendReceive || 'none');
+    const per = +(node.nbRateUnitsSendReceive || 1); //msg
+    const messages = +(node.rateSendReceive || 1);
+    const rateUnits = node.rateUnitsSendReceive || 'second';
+    const messageRate = messages/per;
+    const limiter = new RateLimiter(messageRate, rateUnits);
+
+
     const log = require('./log.js')(node).log;
     const largeMessagesDirectory = require('./redlinkSettings.js')(RED, node.producerStoreName).largeMessagesDirectory;
     const largeMessageThreshold = require('./redlinkSettings.js')(RED, node.producerStoreName).largeMessageThreshold;
@@ -61,7 +79,7 @@ module.exports.RedLinkProducer = function (config) {
             } else {
                 const daId = msgsByThisProducer[0].redlinkMsgId;
                 const relevanttReplySql = 'SELECT * FROM replyMessages WHERE redlinkMsgId="' + daId + '"';
-                const relevantReplies = alasql(relevanttReplySql); //should have just one result
+                let relevantReplies = alasql(relevanttReplySql); //should have just one result
                 if (relevantReplies && relevantReplies.length > 0) {
                     const notifyMessage = { //todo store more info in replyMesssages- store, etc and populate in notify msg
                         redlinkMsgId: daId,
@@ -70,8 +88,20 @@ module.exports.RedLinkProducer = function (config) {
                     if (node.manualRead) {
                         sendMessage({notify: notifyMessage})
                     } else {
-                        const reply = getReply(daId, relevanttReplySql, relevantReplies, msgsByThisProducer[0].preserved);
-                        sendMessage({receive: reply, notify: notifyMessage});
+                        sendMessage({notify: notifyMessage}); //send notify regardless of whether it is manual or auto read
+                        if (rateType === 'none') {
+                            const reply = getReply(daId, relevanttReplySql, relevantReplies, msgsByThisProducer[0].preserved);
+                            sendMessage({receive: reply});
+                        } else {
+                            limiter.removeTokens(1, function (err, remainingRequests) {
+                                relevantReplies = alasql(relevanttReplySql); //should have just one result
+                                if (!relevantReplies || relevantReplies.length === 0){
+                                    return;
+                                }
+                                const reply = getReply(daId, relevanttReplySql, relevantReplies, msgsByThisProducer[0].preserved);
+                                sendMessage({receive: reply});
+                            });
+                        }
                     }
                 }
             }
@@ -113,13 +143,13 @@ module.exports.RedLinkProducer = function (config) {
 
         const deleteReplyMsg = 'DELETE from replyMessages WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId="' + daId + '"';
         const deleteInMsg = 'DELETE from inMessages    WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId="' + daId + '"';
-        //delete directory from disk if large inMessage/ replyMessage
         if(origMessage.isLargeMessage || relevantReplies[0].isLargeMessage){
             const path = largeMessagesDirectory + daId + '/';
             fs.removeSync(path);
         }
         const deleteReply = alasql(deleteReplyMsg);
         const deleteIn = alasql(deleteInMsg);
+        //delete directory from disk if large inMessage/ replyMessage
         return reply;
     }
 
@@ -173,20 +203,20 @@ module.exports.RedLinkProducer = function (config) {
         if (msg.topic === 'read' || msg.topic === 'producerReplyRead') {
             if (node.manualRead) {
                 if (node.manualRead && msg.redlinkMsgId) { //redlinkMsgId specified
-                    const daId = msg.redlinkMsgId;
-                    const relevanttReplySql = 'SELECT * FROM replyMessages WHERE redlinkMsgId="' + daId + '"';
+                    const msgId = msg.redlinkMsgId;
+                    const relevanttReplySql = 'SELECT * FROM replyMessages WHERE redlinkMsgId="' + msgId + '"';
                     const relevantReplies = alasql(relevanttReplySql); //should have just one result
                     if (relevantReplies && relevantReplies.length > 0) {
-                        const reply = getReply(daId, relevanttReplySql, relevantReplies);
+                        const reply = getReply(msgId, relevanttReplySql, relevantReplies);
                         sendMessage({receive: reply});
                     } else {
                         sendMessage({failure: {"error": "Store " + node.producerStoreName + " redlinkMsgId not found"}});
                     }
                 } else //No redlinkMsgId given, so assume any message from this Producer
                 if (node.manualRead) {
-                    const daId = node.id;
-                    const relevanttReplySql = 'SELECT * FROM replyMessages WHERE redlinkProducerId="' + daId + '"';
-                    const relevantReplies = alasql(relevanttReplySql); //should have just one result
+                    const nodeId = node.id;
+                    const relevanttReplySql = 'SELECT * FROM replyMessages WHERE redlinkProducerId="' + nodeId + '"';
+                    const relevantReplies = alasql(relevanttReplySql);
                     if (relevantReplies && relevantReplies.length > 0) {
                         const reply = getReply(relevantReplies[0].redlinkMsgId, relevanttReplySql, relevantReplies);
                         sendMessage({receive: reply});
