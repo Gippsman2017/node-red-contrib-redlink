@@ -21,16 +21,16 @@ Only one link direction is required for a neighbour relationsip as on connection
 
 Producers and Consumers are provided with a number of timers on each message to allow them:
 
- 1/ To handle Consumers not processing the work
- 2/ Alternate services to work around busy consumers
- 3/ Expected End-To-End Transaction times (ETT), allows producers to have an expectation of completeion.
- 4/ Priority message processing.
- 5/ Messages pointers are stored in AlaSQL with the payload either stored in ram or on disk.
- 6/ Messages are not sent to the consumer.
- 7/ The producer mearly notifies the consumers and the consumers retreive the messages directly.
- 8/ Both the Producer and Consumer can either have manual or automatic read of messages upon being notified.
- 9/ Consumers can have in transit limits where many messages can be processed at once without have to wait.
-10/ All message stores can provide transaction queries and mesh registrations by simple questions.
+	1/ To handle Consumers not processing the work
+	2/ Alternate services to work around busy consumers
+	3/ Expected End-To-End Transaction times (ETT), allows producers to have an expectation of completeion.
+	4/ Priority message processing.
+	5/ Messages pointers are stored in AlaSQL with the payload either stored in ram or on disk.
+	6/ Messages are not sent to the consumer.
+	7/ The producer mearly notifies the consumers and the consumers retreive the messages directly.
+	8/ Both the Producer and Consumer can either have manual or automatic read of messages upon being notified.
+	9/ Consumers can have in transit limits where many messages can be processed at once without have to wait.
+	10/ All message stores can provide transaction queries and mesh registrations by simple questions.
 
 
 ## Why the decision to use AlaSQL as its internal DB
