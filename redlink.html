@@ -367,12 +367,6 @@
         <label for="node-input-priority"><i class="fa fa-arrow-up"></i> Priority</label>
         <input type="text" id="node-input-priority" style="width:30px; height:25px;"/>&nbsp;<br/>
     </div>
-<!--
-    <div class="form-row">
-        <label for="node-input-timeout"><i class="fa fa-times"></i> Timeout</label>
-        <input type="text" id="node-input-timeout" placeholder="Timeout">
-    </div>
--->
     <div class="form-row">
         <label for="node-input-sendOnly"><i class="fa fa-angle-double-right"></i> Send Only</label>
         <input type="checkbox" id="node-input-sendOnly" placeholder="Send Only">
@@ -697,11 +691,12 @@
                     }));
                 });
                 if (!selectionSet) {
-                    var options = $('#node-input-consumerMeshName option');
-                    var values = $.map(options, function (option) {
+/*
+                    var values = $.map($('#node-input-consumerMeshName option'), function (option) {
                         return option.value;
                     });
-                    // $("#node-input-producerStoreName").prop("selectedIndex", 0);
+                    $("#node-input-producerStoreName").prop("selectedIndex", 0);
+*/
                     $("#node-input-consumerMeshName option:first").attr('selected', 'selected');
                     repopulateStores();
                 }
