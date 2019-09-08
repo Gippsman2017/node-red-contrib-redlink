@@ -1,3 +1,4 @@
+v 0.3.4 Fix rate limiter- extract rate limiter initialisation into separate module; work around for a bug in third party rate limiter
 v 0.3.3 Fixed Producer, msg.topic can now be used to set target service, new store listServices call.
 v 0.3.2 Send notify in store when transiting notifications, fix notify in producer
 v 0.3.1 Setting file Defaults updated.

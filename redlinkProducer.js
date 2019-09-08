@@ -1,8 +1,8 @@
 const alasql = require('alasql');
 const fs = require('fs-extra');
-const RateLimiter = require('limiter').RateLimiter;
 
 const base64Helper = require('./base64-helper.js');
+const rateLimiterProvider = require('./rateLimiter.js');
 
 let RED;
 module.exports.initRED = function (_RED) {
@@ -24,18 +24,8 @@ module.exports.RedLinkProducer = function (config) {
     this.nbRateUnitsSendReceive = config.nbRateUnitsSendReceive;
     this.priority = config.priority;
     const node = this;
-
-
-
-
     const rateType = node.manualRead ? 'none' : (node.rateTypeSendReceive || 'none');
-    const per = +(node.nbRateUnitsSendReceive || 1); //msg
-    const messages = +(node.rateSendReceive || 1);
-    const rateUnits = node.rateUnitsSendReceive || 'second';
-    const messageRate = messages/per;
-    const limiter = new RateLimiter(messageRate, rateUnits);
-
-
+    const limiter = rateType==='none' ? null: rateLimiterProvider.getRateLimiter(config.rateSendReceive, config.nbRateUnitsSendReceive, config.rateUnitsSendReceive);
     const log = require('./log.js')(node).log;
     const largeMessagesDirectory = require('./redlinkSettings.js')(RED, node.producerStoreName).largeMessagesDirectory;
     const largeMessageThreshold = require('./redlinkSettings.js')(RED, node.producerStoreName).largeMessageThreshold;
@@ -89,7 +79,7 @@ module.exports.RedLinkProducer = function (config) {
                         sendMessage({notify: notifyMessage})
                     } else {
                         sendMessage({notify: notifyMessage}); //send notify regardless of whether it is manual or auto read
-                        if (rateType === 'none') {
+                        if (limiter === null) {
                             const reply = getReply(daId, relevanttReplySql, relevantReplies, msgsByThisProducer[0].preserved);
                             sendMessage({receive: reply});
                         } else {

@@ -1,8 +1,8 @@
 const alasql = require('alasql');
-const RateLimiter = require('limiter').RateLimiter;
 const request = require('request').defaults({strictSSL: false});
 
 const base64Helper = require('./base64-helper.js');
+const rateLimiterProvider = require('./rateLimiter.js');
 
 let RED;
 module.exports.initRED = function (_RED) {
@@ -27,18 +27,7 @@ module.exports.RedLinkConsumer = function (config) {
     node.rateReceiveSend = config.rateReceiveSend;
     node.rateUnitsReceiveSend = config.rateUnitsReceiveSend;
     const rateType = node.manualRead ? 'none' : (node.rateTypeReceiveSend || 'none');
-    const rate = node.rate || 1; //msg
-    const nbRateUnits = node.rateReceiveSend || 1; //per
-    const rateUnits = node.rateUnitsReceiveSend || 'second';
-    let multiplier = Number(nbRateUnits) || 1;
-    switch (rateUnits) {
-        case 'second': multiplier *= 1000; break;
-        case 'minute': multiplier *= 60 * 1000; break;
-        case 'hour':   multiplier *= 60 * 60 * 1000; break;
-        case 'day':    multiplier *= 24 * 60 * 60 * 1000;
-    }
-    multiplier /= (Number(rate) || 1);
-    const limiter = new RateLimiter(1, multiplier);
+    const limiter = rateType==='none' ? null: rateLimiterProvider.getRateLimiter(config.rateReceiveSend, config.nbRateUnitsReceiveSend, config.rateUnitsReceiveSend);
     const msgNotifyTriggerId = 'a' + config.id.replace('.', '');
     const newMsgNotifyTrigger = 'onNotify' + msgNotifyTriggerId;
 
@@ -89,7 +78,7 @@ module.exports.RedLinkConsumer = function (config) {
             // console.log
             if (watermark < node.inTransitLimit) {
                 sendMessage({notify: notifyMessage}); //send notify regardless of whether it is manual or auto read
-                if (rateType === 'none') {
+                if (limiter === null) {
                     readMessageAndSendToOutput(notifyMessage.redlinkMsgId);
                 } else {
                     limiter.removeTokens(1, function (err, remainingRequests) {
