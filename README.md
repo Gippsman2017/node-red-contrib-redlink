@@ -1,3 +1,4 @@
+[![npm version](https://badge.fury.io/js/node-red-contrib-redlink.svg)](https://badge.fury.io/js/node-red-contrib-redlink)
 
 ## What is Redlink
 
