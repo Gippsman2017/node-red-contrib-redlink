@@ -1,3 +1,4 @@
+v 0.3.6 Fix priority
 v 0.3.5 More Documentation updates.
 v 0.3.4 Fix rate limiter- extract rate limiter initialisation into separate module; work around for a bug in third party rate limiter
 v 0.3.3 Fixed Producer, msg.topic can now be used to set target service, new store listServices call.
