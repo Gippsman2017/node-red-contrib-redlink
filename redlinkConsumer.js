@@ -118,7 +118,7 @@ module.exports.RedLinkConsumer = function (config) {
     }
 
     node.on("input", msg => {
-        if (msg.cmd === 'read') {
+        if (msg.topic === 'read' || msg.topic === 'consumerRead') {
             if (node.manualRead) {
                 if (msg.redlinkMsgId) {
                     readMessage(msg.redlinkMsgId).then(response => {

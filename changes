@@ -1,3 +1,4 @@
+v 0.3.7 Make consumer read consistent with producer- manual read now works off msg.topic='read' rather than msg.cmd
 v 0.3.6 Fix priority
 v 0.3.5 More Documentation updates.
 v 0.3.4 Fix rate limiter- extract rate limiter initialisation into separate module; work around for a bug in third party rate limiter
