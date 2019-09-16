@@ -100,10 +100,6 @@
         <input type="checkbox" id="node-input-showDebug">
     </div>
 
-    <div class="form-row">
-        <label for="node-input-notifyInterval"><i class="fa fa-hourglass-1"></i> Notify Interval (s)</label>
-        <input type="text" id="node-input-notifyInterval" placeholder="Notify Interval in sec">
-    </div>
 </script>
 
 <script type="text/x-red" data-help-name="redlink store">
@@ -155,7 +151,6 @@
             headers:       { value: [] },
             name:          { value: '',   required: true },
             meshName:      { value: 'mesh0', required: true },
-            notifyInterval:{ value: 15, required: true/*, validate: validatePositiveNumber*/},
             oldStore:      { value: false },
             showRegistration : { value: false },
             showDebug : { value: false },
@@ -377,6 +372,11 @@
         <input type="text" id="node-input-producerETT" placeholder="ETT">
     </div>
     <div class="form-row">
+        <label for="node-input-notifyInterval"><i class="fa fa-hourglass-1"></i> Notify Interval (s)</label>
+        <input type="text" id="node-input-notifyInterval" placeholder="Notify Interval in sec">
+    </div>
+
+    <div class="form-row">
         <label for="node-input-priority"><i class="fa fa-arrow-up"></i> Priority</label>
         <input type="text" id="node-input-priority" style="width:30px; height:25px;"/>&nbsp;<br/>
     </div>
@@ -427,6 +427,15 @@
 </script>
 
 <script type="text/javascript">
+    const validateNotifyAndETT = function () {
+        const currentNotify = $('#node-input-notifyInterval').val();
+        const currentETT = $('#node-input-producerETT').val();
+        if (isNaN(currentNotify) || isNaN(currentETT)) {
+            return false;
+        }
+        return currentETT > currentNotify;
+    };
+
     RED.nodes.registerType('redlink producer', {
         category: 'redlink',
         color:    "#f56042",
@@ -437,7 +446,7 @@
             producerStoreName:      {value: '', required: true},
             producerConsumer:       {value: '', required: false},
             producerTTL:            {value: 15, required: true},
-            producerETT:            {value: 5 * 60, required: true},
+            producerETT:            {value: 5 * 60, required: true, validate: validateNotifyAndETT},
             priority:               {value: 0},
             timeout:                {value: -1},//TODO check with John,
             sendOnly:               {value: false},
@@ -446,7 +455,6 @@
             rateSendReceive:        {value: 1},
             rateUnitsSendReceive:   {value: "second"},
             nbRateUnitsSendReceive: {value: ''},
-//            server:                 {value: "tcp://localhost:9660"},
             topic:                  {value: ""},
             cmd:                    {value: "send"},
             private:                {value: false},
@@ -454,6 +462,7 @@
             tba:                    {value: null},
             showDebug:              {value: false},
             outputs:                {value: 3},
+            notifyInterval:{ value: 15, required: true, validate: validateNotifyAndETT},
         },
         outputLabels: function (index) {
             const labels = getProducerOutputs({

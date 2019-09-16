@@ -17,6 +17,7 @@ module.exports.RedLinkProducer = function (config) {
     this.debug = config.showDebug;
     this.manualRead = config.manualRead;
     this.ett = config.producerETT;
+    this.notify = config.notifyInterval;
     this.rateTypeSendReceive = config.rateTypeSendReceive;
     this.rateSendReceive = config.rateSendReceive;
     this.rateUnitsSendReceive = config.rateUnitsSendReceive;
