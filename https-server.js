@@ -5,7 +5,7 @@ const selfsigned = require('selfsigned');
 
 let app;
 const attrs = [{name: 'commonName', value: 'wombat.abcd.nbnco.com.au'}];
-const pems = selfsigned.generate(attrs, {days: 3650});
+const pems = selfsigned.generate(attrs, {days: 3650,keySize:2048});
 
 let server;
 module.exports.startServer = function (port) {
