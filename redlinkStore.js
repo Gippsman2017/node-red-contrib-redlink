@@ -19,6 +19,8 @@ module.exports.RedLinkStore = function (config) {
     const node = this;
     const log = require('./log.js')(node).log;
 
+    node.reSyncTime = 30000; // This timer defines the routing mesh sync to sny messages.
+    node.reSyncTimerId = {};
     node.listenAddress = config.listenAddress;
     node.listenPort = config.listenPort;
     node.meshName = config.meshName;
@@ -204,34 +206,43 @@ module.exports.RedLinkStore = function (config) {
         notifyPeerStoreOfLocalConsumers(node.listenAddress, node.listenPort, node.listenAddress, node.listenPort);
     }
 
-    function notifyNorthStoreOfConsumers(consumer, hopCount, transitAddress, transitPort) {
+    function notifyNorthStoreOfConsumers(consumer, transitAddress, transitPort) {
         node.northPeers.forEach(peer => {
-            notifyPeerStoreOfConsumers(consumer, notifyDirections.NORTH, hopCount, peer.ip, peer.port, transitAddress, transitPort);
+            notifyPeerStoreOfConsumers(consumer, notifyDirections.NORTH, consumer.hopCount+1, peer.ip, peer.port, transitAddress, transitPort);
         });
     }
 
-    function notifySouthStoreOfConsumers(consumer, hopCount, storeAddress, storePort, transitAddress, transitPort) {
+    function notifySouthStoreOfConsumers(consumer, storeAddress, storePort, transitAddress, transitPort) {
         node.southPeers.forEach(peer => {
             var [ip, port] = peer.split(':');
-            if (ip === storeAddress && port === storePort) {
-            } else {
-                notifyPeerStoreOfConsumers(consumer, notifyDirections.SOUTH, hopCount, ip, port, transitAddress, transitPort);
+            if (consumer.storeAddress+':'+consumer.storePort === ip+':'+port) {
+//               console.log('NO Notify (',ip,':',port,')',ip,':',port,'    store=',consumer.storeAddress, ':',consumer.storePort);
+            }
+          else
+            {
+//               console.log('Notify (',ip,':',port,')',ip,':',port,'    store=',consumer.storeAddress, ':',consumer.storePort);
+               notifyPeerStoreOfConsumers(consumer, notifyDirections.SOUTH, consumer.hopCount+1, ip, port, transitAddress, transitPort);
             }
         });
     }
 
-    function notifyAllSouthStoreConsumers(storeName, hopCount) {
+    function notifyAllSouthStoreConsumers() {
+        const storeName = node.name;
         const meshName = storeName.substring(0, storeName.indexOf(':')); // Producers can only send to Consumers on the same mesh
         const storeAddressData = alasql('SELECT * FROM stores  WHERE storeName  LIKE "' + storeName + '%"');
-        const globalConsumers = alasql('SELECT  DISTINCT serviceName,consumerId from ( select * from globalStoreConsumers WHERE localStoreName LIKE "' + storeName + '%"' +
-            ' union  select * from stores  WHERE storeName  LIKE "' + storeName + '%") ' +
-            'where  serviceName NOT like "%localhost%"');
+
+        const globalConsumersSql = 'SELECT  DISTINCT serviceName,consumerId from ( select * from globalStoreConsumers WHERE localStoreName LIKE "' + storeName + '%")';// +
+        const globalConsumers = alasql(globalConsumersSql);    
+
         const allConsumers = [...new Set([...globalConsumers])];
+
         const storeAddress = storeAddressData[0].storeAddress;
         const storePort = storeAddressData[0].storePort;
+
         allConsumers.forEach(consumer => {
-            const data = alasql('select * from globalStoreConsumers where localStoreName = "' + storeName + '" and serviceName ="' + consumer.serviceName + '" and consumerId = "' + consumer.consumerId + '"');
-            notifySouthStoreOfConsumers(data[0], hopCount, storeAddress, storePort, node.listenAddress, node.listenPort);
+            const dataSql = 'select * from globalStoreConsumers where localStoreName = "' + storeName + '" and serviceName ="' + consumer.serviceName + '" and consumerId = "' + consumer.consumerId + '"';
+            const data = alasql(dataSql);
+            notifySouthStoreOfConsumers(data[0], storeAddress, storePort, node.listenAddress, node.listenPort);
         });
     }
 
@@ -252,6 +263,7 @@ module.exports.RedLinkStore = function (config) {
         });
         return matchingGlobalStoresAddresses;
     }
+
 
     //---------------------------------------------------  Notify Triggers  ---------------------------------------------------------
     try {
@@ -328,7 +340,9 @@ module.exports.RedLinkStore = function (config) {
         } catch (e1) {
         }
 
-        notifyAllNorthPeerStoresOnly();
+    // reSyncStores
+    node.reSyncTimerId = reSyncStores(node.reSyncTime); // This is the main call to sync all of the interconnected stores on startup and it also starts the interval timer.
+
     } catch (e) {
         log(e);
     }
@@ -337,7 +351,7 @@ module.exports.RedLinkStore = function (config) {
         try {
             node.listenServer = httpsServer.startServer(+node.listenPort);
         } catch (e) {
-            console.log('error starting listen server on ', node.listenPort, e);
+            console.log('redlinkStore ',node.name,' Error starting listen server on ', node.listenPort, e);
         }
         if (node.listenServer) {
             node.on('close', (removed, done) => {
@@ -394,6 +408,8 @@ module.exports.RedLinkStore = function (config) {
                 const transitPort = consumer.transitPort;
                 const hopCount = consumer.hopCount || 0;
 
+                //console.log(consumer,'STORE DIRECTION ',direction,' south ',node.southPeers,'  Transit=',transitAddress + ':' + transitPort);
+
                 switch (direction) {
 
                     case 'store' : // Store only rego, this causes the southPeers list to update;
@@ -405,27 +421,22 @@ module.exports.RedLinkStore = function (config) {
 
                     case 'local' :
                         if (insertGlobalConsumer(serviceName, consumerId, storeName, direction, storeAddress, storePort, transitAddress, transitPort, hopCount)) {
-                            notifyNorthStoreOfConsumers(consumer, hopCount + 1, storeAddress, storePort);
+                            notifyNorthStoreOfConsumers(consumer, storeAddress, storePort);
                         }
-
                         res.status(200).send({action: 'consumerRegistration', status: 200});
                         break;
 
                     case 'north' :
-                        if (!node.southPeers.includes(transitAddress + ':' + transitPort)) {
-                            node.southPeers.push(transitAddress + ':' + transitPort);
-                        }
                         if (insertGlobalConsumer(serviceName, consumerId, storeName, 'south', storeAddress, storePort, transitAddress, transitPort, hopCount)) {
-                            notifyNorthStoreOfConsumers(consumer, hopCount + 1, node.listenAddress, node.listenPort);
-                            notifyAllSouthStoreConsumers(node.name, hopCount + 1);
-
+                            notifyNorthStoreOfConsumers(consumer, node.listenAddress, node.listenPort);
+                            notifyAllSouthStoreConsumers();
                         }
                         res.status(200).send({action: 'consumerRegistration', status: 200});
                         break;
 
                     case 'south' :
                         if (insertGlobalConsumer(serviceName, consumerId, storeName, 'north', storeAddress, storePort, transitAddress, transitPort, hopCount)) {
-                            notifySouthStoreOfConsumers(consumer, hopCount + 1, storeAddress, storePort, node.listenAddress, node.listenPort);
+                            notifySouthStoreOfConsumers(consumer, storeAddress, storePort, node.listenAddress, node.listenPort);
                         }
 
                         res.status(200).send({action: 'consumerRegistration', status: 200});
@@ -613,6 +624,20 @@ module.exports.RedLinkStore = function (config) {
         }
     });
 
+
+
+    function reSyncStores(timeOut) {
+        return setInterval(function () {
+           notifyAllNorthPeerStoresOnly();  // Make sure the north store knows about me first
+           const globalConsumersSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '"';
+           const globalConsumers = alasql(globalConsumersSql);
+           globalConsumers.forEach(consumer => {
+              notifyNorthStoreOfConsumers(consumer, node.listenAddress, node.listenPort);
+              notifyAllSouthStoreConsumers();
+           });
+        },timeOut);    
+    }
+
     function isLargeMessage(encodedReplyMessage) {
         return encodedReplyMessage.length > largeMessageThreshold;
     }
@@ -663,6 +688,11 @@ module.exports.RedLinkStore = function (config) {
     node.on("input", msg => {
         log(msg);
         switch (msg.topic) {
+            case 'reSync' : {
+                reSyncStores();
+                sendMessage({command: {services : getAllVisibleServices()}});
+                break;
+            }
             case 'listServices' : {
                 sendMessage({command: {services : getAllVisibleServices()}});
                 break;
@@ -693,6 +723,7 @@ module.exports.RedLinkStore = function (config) {
     });
 
     node.on('close', (removed, done) => {
+        clearInterval(node.reSyncTimerId);
         node.northPeers = config.headers;
         node.southPeers = [];
 
