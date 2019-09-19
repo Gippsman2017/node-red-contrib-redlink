@@ -16,8 +16,8 @@ module.exports.RedLinkProducer = function (config) {
     this.sendOnly = config.sendOnly;
     this.debug = config.showDebug;
     this.manualRead = config.manualRead;
-    this.ett = config.producerETT;
-    this.notify = config.notifyInterval;
+    this.ett = +config.producerETT;
+    this.notify = +config.notifyInterval;
     this.rateTypeSendReceive = config.rateTypeSendReceive;
     this.rateSendReceive = config.rateSendReceive;
     this.rateUnitsSendReceive = config.rateUnitsSendReceive;
@@ -38,9 +38,72 @@ module.exports.RedLinkProducer = function (config) {
         sendMessage({failure: errorMsg, debug: errorMsg});
     }
 
+    const notifyTimerInterval = 2 * 1000; //2 s- make sure this is an integer
+    let cleanInMessagesTask = setInterval(cleanInMessages, notifyTimerInterval) ;
+
+    function cleanInMessages() {
+        //1. increment lifetime, timeSinceNotify both by 2
+        const increment = notifyTimerInterval / 1000;
+        const updateSql = 'UPDATE inMessages SET lifetime = lifetime + ' + increment + ', timeSinceNotify = timeSinceNotify +' + increment;
+        const updateSqlResult = alasql(updateSql);
+        let msgsByThisProducerSql;
+        let msgsByThisProducer;
+        if (node.sendOnly) {
+            //2. if sendonly:  for all unread messages, if lifetime>ett, fail; else if timeSinceNotify>= notify, renotify and reset timeSinceNotify
+            msgsByThisProducerSql = 'SELECT * FROM inMessages WHERE read=' + false + ' AND redlinkProducerId="' + node.id + '"';
+        } else {
+            //3. if !sendOnly, for all messages (read, unread) if lifetime >ett fail; ; else if timeSinceNotify>= notify, renotify and reset timeSinceNotify
+            msgsByThisProducerSql = 'SELECT * FROM inMessages WHERE redlinkProducerId="' + node.id + '"';
+        }
+        msgsByThisProducer = alasql(msgsByThisProducerSql);
+        msgsByThisProducer.forEach(msg=>{
+            if(node.ett!==-1 && msg.lifetime> node.ett){
+                failMessageAndRemove(msg.redlinkMsgId);
+            } else if(msg.timeSinceNotify >= node.notify){
+                reNotify(msg);
+            }
+        });
+    }
+
+    function getInsertSql(obj){
+        const vals = Object.values(obj);
+        let returnStr = '';
+        vals.forEach((val, index)=>{
+            if(typeof val === "string"){
+                val = '"'+val+'"';
+            }
+            returnStr += index === 0? val : ','+val;
+        });
+        return returnStr;
+    }
+
+    function reNotify(msg){
+        //simply remove message and reinsert to trigger notification
+        console.log('in renotify msg is:', msg);
+        deleteMessage(msg.redlinkMsgId);
+        msg.timeSinceNotify = 0;
+        const reinsertMessageSql = "INSERT INTO inMessages ("+getInsertSql(msg)+")";
+        alasql(reinsertMessageSql);
+    }
+
+    function deleteMessage(redlinkMsgId) {
+        const deleteInMsg = 'DELETE from inMessages WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId="' + redlinkMsgId + '"';
+        alasql(deleteInMsg);
+    }
+
+    function deleteNotifiesForMessage(redlinkMsgId) {
+        const deleteNotifyMsg = 'DELETE from notify WHERE redlinkMsgId = "' + redlinkMsgId + '"';
+        const deleteNotify = alasql(deleteNotifyMsg);
+    }
+
+    function failMessageAndRemove(redlinkMsgId){
+        sendFailureMessage(redlinkMsgId);
+        deleteMessage(redlinkMsgId);
+        deleteNotifiesForMessage(redlinkMsgId);
+    }
+
     const nodeId = config.id.replace('.', '');
     const replyMsgTriggerName = 'replyMessage' + nodeId;
-
 
     alasql.fn[replyMsgTriggerName] = () => {
         //look up inMessages table to see if this producer actually sent the message
@@ -155,6 +218,19 @@ module.exports.RedLinkProducer = function (config) {
         node.send(msgs);
     }
 
+    function sendFailureMessage(redlinkMsgId) {
+        let failure = {redlinkMsgId};
+        if (node.sendOnly) {
+            failure.msg = 'Message ' + redlinkMsgId + ' not read in ' + node.ett + ' seconds';
+        } else {
+            failure.msg = 'Reply for message ' + redlinkMsgId + ' not received in ' + node.ett + ' seconds'
+        }
+        sendMessage({
+            failure,
+            debug: failure
+        })
+    }
+
     function isLargeMessage(encodedMessage, encodedPreserved) {
         return encodedMessage.length + encodedPreserved.length > largeMessageThreshold;
     }
@@ -178,17 +254,26 @@ module.exports.RedLinkProducer = function (config) {
                 return;
             }
             const msgInsertSql = 'INSERT INTO inMessages VALUES ("' + redlinkMsgId + '","' + node.producerStoreName + '","' + service + '",""' +
-                ',' + false + ',' + node.sendOnly + ',"' + node.id + '","",' + Date.now() + ',' + node.priority + ',' + true + ')';
-            //redlinkMsgId STRING, storeName STRING, serviceName STRING, message STRING, read BOOLEAN, sendOnly BOOLEAN, redlinkProducerId STRING,preserved STRING, timestamp BIGINT, priority INT, isLargeMessage BOOLEAN, path STRING
+                ',' + false + ',' + node.sendOnly + ',"' + node.id + '","",' + Date.now() + ',' + node.priority + ',' + true +','+0+','+0+ ')';
+            //redlinkMsgId STRING, storeName STRING, serviceName STRING, message STRING,
+            // read BOOLEAN, sendOnly BOOLEAN, redlinkProducerId STRING,preserved STRING, timestamp BIGINT, priority INT, isLargeMessage BOOLEAN
             alasql(msgInsertSql);
         } else {
             const msgInsertSql = 'INSERT INTO inMessages VALUES ("' + redlinkMsgId + '","' + node.producerStoreName + '","' + service + '","' + encodedMessage +
-                '",' + false + ',' + node.sendOnly + ',"' + node.id + '","' + encodedPreserved + '",' + Date.now() + ',' + node.priority + ',' + false + ')';
+                '",' + false + ',' + node.sendOnly + ',"' + node.id + '","' + encodedPreserved + '",' + Date.now() + ',' + node.priority + ',' + false +','+0+','+0+ ')';
             //redlinkMsgId STRING, storeName STRING, serviceName STRING, message STRING, read BOOLEAN, sendOnly BOOLEAN, redlinkProducerId STRING,preserved STRING, timestamp BIGINT, priority INT,
-            // isLargeMessage BOOLEAN, path STRING
+            // isLargeMessage BOOLEAN
             alasql(msgInsertSql);
         }
     }
+
+
+    node.on("close", (removed, done) => {
+        if(cleanInMessagesTask){
+            clearInterval(cleanInMessagesTask);
+        }
+        done();
+    });
 
     node.on("input", msg => {
         if (msg.topic === 'read' || msg.topic === 'producerReplyRead') {
