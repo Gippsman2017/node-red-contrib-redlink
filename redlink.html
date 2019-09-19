@@ -420,6 +420,19 @@
 
 <script type="text/x-red" data-help-name="redlink producer">
   <p>The Producer node has a number of capabilities that allow you to control the flow of the data to it - in and out.</p>
+  <p><b>UI Configuration</b></p>
+  <p><b> Name </b> Producer Name</p>
+  <p><b>  Store Name</b> Store this producer is connected to. This determines the consumers that this producer can send messages to</p>
+  <p><b>  Destination Service</b> The service to send the message to. Note that this can also be set via msg.topic- see Message Configuration below</p>
+  <p><b>  Show Debug</b> Turn on the debug port for extra information. This can be useful when developing and troubleshooting</p>
+  <p><b>  ETT (Estimated Transaction Time)</b> Time in seconds after which the input message is discarded. A message will be sent out via the failure port</p>
+  <p><b>  Notify Interval</b> Time interval in seconds after which target consumers will be notified of unread messages</p>
+  <p><b>  Priority</b> Messages with higher priority will be given precedence over those with lower priority. Defaults to zero</p>
+  <p><b>  Send Only</b> A Send Only producer will not expect replies from consumers. Any reply sent to a Send Only producer will be discarded</p>
+  <p><b>  Manual Read</b> Check this to read messages manually by injecting the read command in msg.topic- see Message Configuration below</p>
+  <p><b>  Rate Limit ReEceived Messages</b> configure this to ensure that the producer reads at specified rate and is not swamped with reply messages</p>
+
+  <p><b>Message Configuration </b></p>
   <p><b> msg.payload </b> Can be a string or object</p>
   <p><b> msg.preserved </b> Preserves data and is stored in the producer until the reply message is received, at this point it is reatached to the msg</p>
   <p><b> msg.topic </b> Can be a service name to send to, however the store must already know about the service being registered.</p>
@@ -428,12 +441,13 @@
 
 <script type="text/javascript">
     const validateNotifyAndETT = function () {
-        const currentNotify = $('#node-input-notifyInterval').val();
-        const currentETT = $('#node-input-producerETT').val();
-        if (isNaN(currentNotify) || isNaN(currentETT)) {
+        const currentNotify = +($('#node-input-notifyInterval').val() ||  this.notifyInterval);
+        const currentETT = +($('#node-input-producerETT').val() || this.producerETT);
+        if(currentNotify<0){
             return false;
         }
-        return currentETT > currentNotify;
+        const valid = currentETT == -1 || currentETT > currentNotify;
+        return valid;
     };
 
     RED.nodes.registerType('redlink producer', {
