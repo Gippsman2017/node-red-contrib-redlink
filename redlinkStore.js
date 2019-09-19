@@ -408,8 +408,6 @@ module.exports.RedLinkStore = function (config) {
                 const transitPort = consumer.transitPort;
                 const hopCount = consumer.hopCount || 0;
 
-                //console.log(consumer,'STORE DIRECTION ',direction,' south ',node.southPeers,'  Transit=',transitAddress + ':' + transitPort);
-
                 switch (direction) {
 
                     case 'store' : // Store only rego, this causes the southPeers list to update;
@@ -688,11 +686,6 @@ module.exports.RedLinkStore = function (config) {
     node.on("input", msg => {
         log(msg);
         switch (msg.topic) {
-            case 'reSync' : {
-                reSyncStores();
-                sendMessage({command: {services : getAllVisibleServices()}});
-                break;
-            }
             case 'listServices' : {
                 sendMessage({command: {services : getAllVisibleServices()}});
                 break;
