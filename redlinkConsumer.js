@@ -36,9 +36,9 @@ module.exports.RedLinkConsumer = function (config) {
         const notifiesSql = 'SELECT * from notify WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' +  node.name + '"' + ' AND notifySent NOT LIKE "%' + node.id + '%"';
         const notifies    = alasql(notifiesSql);
         let newNotify     = null;
-        const notifiesSqlCount = alasql('SELECT COUNT(*) from notify WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"');
+        const notifiesSqlCount = alasql('SELECT COUNT(DISTINCT redlinkMsgId) from notify WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"');
         if (notifies.length > 0) {
-            newNotify = {notify: notifies[notifies.length - 1], notifyCount: notifiesSqlCount[0]['COUNT(*)']};
+            newNotify = {notify: notifies[notifies.length - 1], notifyCount: notifiesSqlCount[0]['COUNT(DISTINCT redlinkMsgId)']};
         }
         return newNotify;
     }
@@ -78,6 +78,7 @@ module.exports.RedLinkConsumer = function (config) {
             // console.log
             if (watermark < node.inTransitLimit) {
                 sendMessage({notify: notifyMessage}); //send notify regardless of whether it is manual or auto read
+                //todo read oldest message first- right now it reads the notifies in random order- see getNewNotifyAndCount() at beginning of trigger
                 if (limiter === null) {
                     readMessageAndSendToOutput(notifyMessage.redlinkMsgId);
                 } else {
