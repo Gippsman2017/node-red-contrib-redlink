@@ -146,6 +146,15 @@ module.exports.RedLinkConsumer = function (config) {
                     const notifySql = 'SELECT * FROM notify WHERE redlinkMsgId="' + msg.redlinkMsgId + '"and notifySent LIKE "%' + node.id + '%"';
                     const notifies = alasql(notifySql); //should have only one
                     if (notifies.length > 0) {
+                        console.log('notifies[0]:', notifies[0]);
+                        if(notifies[0].read===false){// attempt to send reply before reading
+                            sendMessage({
+                                debug: {
+                                    error: 'Attempt to reply to redlinkMsgId ' + msg.redlinkMsgId + ' before reading message'
+                                }
+                            });
+                            return;
+                        }
                         const replyService = notifies[0].serviceName;
                         const redlinkProducerId = notifies[0].redlinkProducerId;
                         const replyAddress = notifies[0].srcStoreAddress + ':' + notifies[0].srcStorePort;
