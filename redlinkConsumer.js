@@ -146,7 +146,6 @@ module.exports.RedLinkConsumer = function (config) {
                     const notifySql = 'SELECT * FROM notify WHERE redlinkMsgId="' + msg.redlinkMsgId + '"and notifySent LIKE "%' + node.id + '%"';
                     const notifies = alasql(notifySql); //should have only one
                     if (notifies.length > 0) {
-                        console.log('notifies[0]:', notifies[0]);
                         if(notifies[0].read===false){// attempt to send reply before reading
                             sendMessage({
                                 debug: {
