@@ -93,7 +93,7 @@ module.exports.RedLinkStore = function (config) {
                     debug: {
                         storeName: node.name,
                         action: 'notifyRegistration',
-                        direction: 'outBound',
+                        function: 'notifyPeerStoreOfLocalConsumers',
                         notifyData: body
                     }
                 });
@@ -104,7 +104,7 @@ module.exports.RedLinkStore = function (config) {
                             debug: {
                                 storeName: node.name,
                                 action: 'notifyRegistrationResult',
-                                direction: 'outBound',
+                                function: 'notifyPeerStoreOfLocalConsumers',
                                 notifyData: body,
                                 error: error
                             }
@@ -114,7 +114,7 @@ module.exports.RedLinkStore = function (config) {
                             debug: {
                                 storeName: node.name,
                                 action: 'notifyRegistrationResult',
-                                direction: 'outBound',
+                                function: 'notifyPeerStoreOfLocalConsumers',
                                 notifyData: response.body
                             }
                         });
@@ -232,6 +232,10 @@ module.exports.RedLinkStore = function (config) {
             if (consumer.storeAddress+':'+consumer.storePort !== ip+':'+port) {
                notifyPeerStoreOfConsumers(consumer, direction, consumer.hopCount+1, ip, port, transitAddress, transitPort);
             }
+//          else
+//            {
+//               notifyPeerStoreOfConsumers(consumer, direction, consumer.hopCount+1, ip, port, transitAddress, transitPort);
+//            }
         });
     }
 
@@ -382,12 +386,14 @@ module.exports.RedLinkStore = function (config) {
         if (!existingGlobalConsumer || existingGlobalConsumer.length === 0) {
             const inserted = alasql(insertGlobalConsumersSql);
         } else {
+            //update message to read=true
             const updateConsumerTtl = 'UPDATE globalStoreConsumers SET ttl=' + ttl + '  WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND consumerId="' + consumerId +
                                       '" AND storeName="' + storeName + '" AND storeAddress = "' + storeAddress + '" AND storePort = ' + storePort;
             alasql(updateConsumerTtl);
                // console.log('ServiceName ',serviceName,'  Exists and TTl updated=',alasql(updateConsumerTtl));
                // Possibly Need to add a delete and an insert here for lower hopCount routes, it will reduce the number of notifies on high complexity redlink store layouts.
                // console.log('Insert Failed, globalStore ',node.name, 'service ',serviceName,' has an entry with a hopCount of ',existingGlobalConsumer[0].hopCount,' compared with ',hopCount);
+//            return false;
         }
     }
 

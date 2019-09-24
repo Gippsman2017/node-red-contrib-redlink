@@ -1,3 +1,6 @@
+v 1.1.0 Changed the Store Sync algorythm so that a south store with multiple north stores cannot relay
+	Changed the Sync timing to ensure that entries are delete/purged correctly.
+	Ensured that Node-Red Deploy's cause correct propagation of the services throughout the mesh. 
 v 1.0.2 Add ETT to timeout message , notify interval to repeatedly notify consumers of messages
 v 1.0.1	Changed the SSL key size to 2048 (was 1024), required by new v2 spec.
 	Major change required for container issues causing wrong Consumer Updates to be blocked and not cascaded.

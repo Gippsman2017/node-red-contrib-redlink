@@ -21,9 +21,7 @@ module.exports = function (RED) {
         alasql('DROP TABLE IF EXISTS stores');
         alasql('DROP TABLE IF EXISTS replyMessages');
         alasql('CREATE TABLE notify (storeName STRING, serviceName STRING, srcStoreAddress STRING, srcStorePort INT , redlinkMsgId STRING, notifySent STRING, read BOOLEAN, redlinkProducerId STRING)');
-        alasql('CREATE TABLE inMessages (redlinkMsgId STRING, storeName STRING, serviceName STRING, message STRING, ' +
-            'read BOOLEAN, sendOnly BOOLEAN, redlinkProducerId STRING,preserved STRING, timestamp BIGINT, priority INT, ' +
-            'isLargeMessage BOOLEAN, lifetime INT, timeSinceNotify INT)');
+        alasql('CREATE TABLE inMessages (redlinkMsgId STRING, storeName STRING, serviceName STRING, message STRING, read BOOLEAN, sendOnly BOOLEAN, redlinkProducerId STRING,preserved STRING, timestamp BIGINT, priority INT, isLargeMessage BOOLEAN)');
         alasql('CREATE TABLE localStoreConsumers (storeName STRING, serviceName STRING, consumerId STRING)'); //can have multiple consumers with same name registered to the same store
         alasql('CREATE TABLE globalStoreConsumers (localStoreName STRING, serviceName STRING, consumerId STRING, storeName STRING, direction STRING, storeAddress STRING, storePort INT, transitAddress STRING, transitPort INT, hopCount INT, ttl INT)');
         alasql('CREATE TABLE stores (storeName STRING, storeAddress STRING, storePort INT)');
@@ -41,6 +39,8 @@ module.exports = function (RED) {
         //Producer
         redlinkProducer.initRED(RED);
         RED.nodes.registerType("redlink producer", redlinkProducer.RedLinkProducer);
+        //Reply
+//        redlinkReply.initRED(RED);    RED.nodes.registerType("redlink reply", redlinkReply.RedLinkReply);
     }
 
     function getMeshNames() {
@@ -109,7 +109,7 @@ module.exports = function (RED) {
         const globalConsumers = alasql('SELECT distinct serviceName from ( select * from globalStoreConsumers WHERE localStoreName LIKE "' + meshName + '%"' +
                                                                                ' union select * from localStoreConsumers  WHERE storeName      LIKE "' + meshName + '%") ');
         const allConsumers = [...new Set([...globalConsumers])];
-        let consumersArray = ['msg.topic'];
+        let consumersArray = [];
         consumersArray.push('msg.topic'); //for dynamically specifying destination consumer- specify in msg.topic
         allConsumers.forEach(consumer => {
             consumersArray.push(consumer.serviceName);
