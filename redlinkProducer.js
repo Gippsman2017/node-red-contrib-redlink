@@ -298,20 +298,19 @@ module.exports.RedLinkProducer = function (config) {
                     } else {
                         sendMessage({failure: {"error": "Store " + node.producerStoreName + " redlinkProducerId does NOT have any messages"}});
                     }
-                } else { //todo error
+                } else { //send error?
                 }
             }
             return;
-        } else {
-            sendMessage({debug: 'msg.topic should be one of read or producerReplyRead'});
-        }
+        }/* else { assume that msg.topic contains destination service/consumer
+        }*/
+        let service = node.producerConsumer;
         // Assume that this is an insert Producer message
         msg.redlinkMsgId = RED.util.generateId();
         const preserved = msg.preserved || '';
         delete msg.preserved;
         const encodedMessage = base64Helper.encode(msg);
         const encodedPreserved = base64Helper.encode(preserved);
-        let service = node.producerConsumer;
         if (msg.topic && msg.topic.length > 0 && node.producerConsumer === 'msg.topic') {
             // Verify Service first if msg.topic, the service must exist, you cannot produce to a non existent service
             service = msg.topic;
@@ -336,7 +335,7 @@ module.exports.RedLinkProducer = function (config) {
                 insertNewMessage(msg.redlinkMsgId, service, encodedMessage, encodedPreserved, false);
             }
         } else {
-            sendMessage({failure: {"error": "Store " + node.producerStoreName + " Does NOT know about this service"}});
+            sendMessage({failure: {"error": "Store " + node.producerStoreName + " Does NOT know about service"}});
         }
     });
 };

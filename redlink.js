@@ -112,7 +112,7 @@ module.exports = function (RED) {
                                                                                ' union select * from localStoreConsumers  WHERE storeName      LIKE "' + meshName + '%") ');
         const allConsumers = [...new Set([...globalConsumers])];
         let consumersArray = [];
-        consumersArray.push(''); //for dynamically specifying destination consumer- specify in msg.topic
+        consumersArray.push('msg.topic'); //for dynamically specifying destination consumer- specify in msg.topic
         allConsumers.forEach(consumer => {
             consumersArray.push(consumer.serviceName);
         });
