@@ -311,9 +311,9 @@ module.exports.RedLinkProducer = function (config) {
         delete msg.preserved;
         const encodedMessage = base64Helper.encode(msg);
         const encodedPreserved = base64Helper.encode(preserved);
-        if (msg.topic && msg.topic.length > 0 && node.producerConsumer === 'msg.topic') {
+        if (node.producerConsumer === 'msg.topic') {
             // Verify Service first if msg.topic, the service must exist, you cannot produce to a non existent service
-            service = msg.topic;
+            service = msg.topic || '';
             const storeName = node.producerStoreName;
             const meshName = storeName.substring(0, storeName.indexOf(':')); // Producers can only send to Consumers on the same mesh
             const consumer = alasql('SELECT * from (SELECT distinct serviceName from ( select * from globalStoreConsumers WHERE localStoreName LIKE "' + meshName + '%"' +
