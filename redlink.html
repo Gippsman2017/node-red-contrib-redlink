@@ -103,16 +103,27 @@
 </script>
 
 <script type="text/x-red" data-help-name="redlink store">
-  <p>The Store node is the interconnection point between all nodes in the network.>/p>
-  <p>It has a number of capabilities that allow you to interrogate the data in it.</p>
+  <p>The Store node is the interconnection point between all nodes in the network.</p>
+
+  <p><b>UI Configuration</b></p>
+  <p><b> Mesh Name </b> A qualifier to logically group a set of stores. Producers and consumers specify a store qualified with mesh name</p>
+  <p><b>  Store Name</b> The name of this store</p>
+  <p><b>  Listen Address</b> The IP/hostname on which this store listens to for registration messages and routing traffic</p>
+  <p><b>  Listen Port</b> The port on which this store listens to for registration messages and routing traffic</p>
+  <p><b>  North Peers</b> List of stores that this store is connected to. Each of these stores will be north of the current sore. Use this to build a mesh.</p>
+  <p><b>  Show New Message Notifications</b> Advanced- use when debugging to show new message notifications flowing through this store</p>
+  <p><b>  Show Debug</b> Advanced- use to turn on the debug port to output extra information</p>
+
+  <p><b>Message Configuration </b></p>
   <p><b> msg.topic</b> Can be </p>
-  <p><b>listServices</b> : Simple list of all services that this store can see</p>
-  <p><b>listRegistrations</b> : Contains the routing of this store</p>
-  <p><b>listStore</b> : Contains all of the relevant data that this store messages has in transtit, including notifies and messages</p>
-  <p><b>flushStore</b> : Be careful, it completely wipes the store, so, it can leave rememant process in a bad state</p>
+  <p><b>listServices</b>  Simple list of all services that this store can see</p>
+  <p><b>listRegistrations</b> Contains the routing of this store</p>
+  <p><b>listStore</b> Contains all of the relevant data that this store messages has in transit, including notifies and messages</p>
+  <p><b>flushStore</b> Be careful, it completely wipes the store, so, it can leave remnant process in a bad state</p>
   <p>Output 1 displays the above data</p>
   <p>Output 2 displays the transit notifies and registrations for this store</p>
   <p>Output 3 displays debug information</p>
+
 </script>
 
 <script type="text/x-red" data-help-name="redlink store"></script>
@@ -430,7 +441,7 @@
   <p><b>  Priority</b> Messages with higher priority will be given precedence over those with lower priority. Defaults to zero</p>
   <p><b>  Send Only</b> A Send Only producer will not expect replies from consumers. Any reply sent to a Send Only producer will be discarded</p>
   <p><b>  Manual Read</b> Check this to read messages manually by injecting the read command in msg.topic- see Message Configuration below</p>
-  <p><b>  Rate Limit ReEceived Messages</b> configure this to ensure that the producer reads at specified rate and is not swamped with reply messages</p>
+  <p><b>  Rate Limit Received Messages</b> configure this to ensure that the producer reads at specified rate and is not swamped with reply messages</p>
 
   <p><b>Message Configuration </b></p>
   <p><b> msg.payload </b> Can be a string or object</p>
@@ -654,12 +665,19 @@
 </script>
 <!--redlink consumer-->
 <script type="text/x-red" data-help-name="redlink consumer">
-  <p>The Consumer node has a number of capabilities that allow you to control the flow of the data to it - in and out.</p>
-  <p><b> msg.payload </b> Can be a string or object</p>
-  <p>To return data back to the producer, you feed back the msg object</p>
-  <p>that is emitted from output 1, with a new or modified msg.payload, back</p>
-  <p>into the input and the consumer will send it back to the calling producer</p>
+  <p>The Consumer node receives messages from a producer and can send back replies</p>
+  <p><b>UI Configuration</b></p>
+  <p><b> Consumer/Service Name </b> The name of this consumer/service</p>
+  <p><b>  Mesh Name</b> The name of the mesh that this consumer is a part of. This selection determines the stores visible in the stores drop-down</p>
+  <p><b>  Store Name</b> The store that this consumer is connected to. The available stores depend on the mesh chosen</p>
+  <p><b>  Show Debug</b> Advanced- use to turn on the debug port to output extra information</p>
+  <p><b>  In Transit Limit</b> This is the max number of messages which can be in flight- messages which this consumer has received but are still being processed and haven't been replied to yet. If this limit is exceeded, this consumer will not read/consume messages even if it gets notifications. It will resume reading once the number of messages being processed falls below this threshold. The default value is 1.</p>
+  <p><b>  Manual Read</b> Check this to read messages manually by injecting the read command in msg.topic- see Message Configuration below</p>
+  <p><b>  Rate Limit Received Messages</b> configure this to ensure that the producer reads at specified rate and is not swamped with reply messages</p>
+
+  <p><b>Message Configuration </b></p>
   <p><b> msg.topic </b> Reserved words are <b>read</b> for the manual read function</p>
+  <p><b> msg.payload </b> Can be a string or object. To return data back to the producer, you feed back the msg object that is emitted from the receive port, with a new or modified msg.payload, back into the input. The consumer will send it back to the calling producer</p>
 </script>
 
 
