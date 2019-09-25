@@ -22,7 +22,7 @@ module.exports.RedLinkStore = function (config) {
     const log = require('./log.js')(node).log;
 
     node.reSyncTime = 30000; // This timer defines the routing mesh sync for any messages.
-    node.consumerlifeSpan = 120 // 2 Minutes;
+    node.consumerlifeSpan = 120; // 2 Minutes
     node.reSyncTimerId = {};
     node.listenAddress = config.listenAddress;
     node.listenPort = config.listenPort;
@@ -87,9 +87,7 @@ module.exports.RedLinkStore = function (config) {
                         action: 'notifyRegistration',
                         function: 'notifyPeerStoreOfLocalConsumers',
                         notifyData: body
-                    }
-                });
-                sendMessage({
+                    },
                     debug: {
                         storeName: node.name,
                         action: 'notifyRegistration',
@@ -220,17 +218,17 @@ module.exports.RedLinkStore = function (config) {
 
     function notifyNorthStoreOfConsumers(consumer, transitAddress, transitPort) {
         node.northPeers.forEach(peer => {
-           if (consumer.transitAddress+':'+consumer.transitPort != peer.ip+':'+peer.port) {
-            notifyPeerStoreOfConsumers(consumer, notifyDirections.NORTH, consumer.hopCount+1, peer.ip, peer.port, transitAddress, transitPort);
+            if (consumer.transitAddress + ':' + consumer.transitPort !== peer.ip + ':' + peer.port) {
+                notifyPeerStoreOfConsumers(consumer, notifyDirections.NORTH, consumer.hopCount + 1, peer.ip, peer.port, transitAddress, transitPort);
             }
         });
     }
 
     function notifySouthStoreOfConsumers(consumer, direction, storeAddress, storePort, transitAddress, transitPort) {
         node.southPeers.forEach(peer => {
-            var [ip, port] = peer.split(':');
-            if (consumer.storeAddress+':'+consumer.storePort !== ip+':'+port) {
-               notifyPeerStoreOfConsumers(consumer, direction, consumer.hopCount+1, ip, port, transitAddress, transitPort);
+            const [ip, port] = peer.split(':');
+            if (consumer.storeAddress + ':' + consumer.storePort !== ip + ':' + port) {
+                notifyPeerStoreOfConsumers(consumer, direction, consumer.hopCount + 1, ip, port, transitAddress, transitPort);
             }
         });
     }
@@ -380,7 +378,7 @@ module.exports.RedLinkStore = function (config) {
         const insertGlobalConsumersSql = 'INSERT INTO globalStoreConsumers("' + node.name + '","' + serviceName + '","' + consumerId + '","' + storeName + '","' + direction + '","' +
             storeAddress + '",' + storePort + ',"' + transitAddress + '",' + transitPort + ',' + hopCount + ',' + ttl + ')';
         if (!existingGlobalConsumer || existingGlobalConsumer.length === 0) {
-            const inserted = alasql(insertGlobalConsumersSql);
+            alasql(insertGlobalConsumersSql);
         } else {
             const updateConsumerTtl = 'UPDATE globalStoreConsumers SET ttl=' + ttl + '  WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND consumerId="' + consumerId +
                                       '" AND storeName="' + storeName + '" AND storeAddress = "' + storeAddress + '" AND storePort = ' + storePort;
@@ -588,7 +586,7 @@ module.exports.RedLinkStore = function (config) {
             res.send(msgs[0]); //send the oldest message first
             if (msgs[0].sendOnly) {            //delete if send only
                 const deleteMsgSql = 'DELETE FROM inMessages WHERE redlinkMsgId="' + redlinkMsgId +'"';
-                const deleteMsg = alasql(deleteMsgSql);
+                alasql(deleteMsgSql);
             } else {
                 //update message to read=true
                 const updateMsgStatus = 'UPDATE inMessages SET read=' + true + ' WHERE redlinkMsgId="' + msgs[0].redlinkMsgId + '"';
