@@ -109,7 +109,7 @@ module.exports = function (RED) {
         const globalConsumers = alasql('SELECT distinct serviceName from ( select * from globalStoreConsumers WHERE localStoreName LIKE "' + meshName + '%"' +
                                                                                ' union select * from localStoreConsumers  WHERE storeName      LIKE "' + meshName + '%") ');
         const allConsumers = [...new Set([...globalConsumers])];
-        let consumersArray = ['msg.topic'];
+        let consumersArray = [];
         consumersArray.push('msg.topic'); //for dynamically specifying destination consumer- specify in msg.topic
         allConsumers.forEach(consumer => {
             consumersArray.push(consumer.serviceName);
