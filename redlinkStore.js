@@ -22,7 +22,7 @@ module.exports.RedLinkStore = function (config) {
     const log = require('./log.js')(node).log;
 
     node.reSyncTime = 30000; // This timer defines the routing mesh sync for any messages.
-    node.consumerlifeSpan = 120; // 2 Minutes
+    node.consumerlifeSpan = 120 // 2 Minutes;
     node.reSyncTimerId = {};
     node.listenAddress = config.listenAddress;
     node.listenPort = config.listenPort;
@@ -81,45 +81,30 @@ module.exports.RedLinkStore = function (config) {
             };
 
             if (address && address !== '0.0.0.0') {
-                sendMessage({
-                    registration: {
-                        storeName: node.name,
-                        action: 'notifyRegistration',
-                        function: 'notifyPeerStoreOfLocalConsumers',
-                        notifyData: body
-                    },
-                    debug: {
-                        storeName: node.name,
-                        action: 'notifyRegistration',
-                        direction: 'outBound',
-                        notifyData: body
-                    }
-                });
+                sendMessage({ registration: { storeName: node.name, action: 'notifyRegistration', function: 'notifyPeerStoreOfLocalConsumers', notifyData: body } });
+                sendMessage({ debug: { storeName: node.name, action: 'notifyRegistration', direction: 'outBound', notifyData: body } });
                 const options = {method: 'POST', url: 'https://' + address + ':' + port + '/notify', body, json: true};
                 request(options, function (error, response) {
                     if (error) {
-                        sendMessage({
-                            debug: {
-                                storeName: node.name,
-                                action: 'notifyRegistrationResult',
-                                direction: 'outBound',
-                                notifyData: body,
-                                error: error
-                            }
-                        });
+                        sendMessage({ debug: { storeName: node.name, action: 'notifyRegistrationResult', direction: 'outBound', notifyData: body, error: error } });
                     } else {
-                        sendMessage({
-                            debug: {
-                                storeName: node.name,
-                                action: 'notifyRegistrationResult',
-                                direction: 'outBound',
-                                notifyData: response.body
-                            }
-                        });
+                        sendMessage({ debug: { storeName: node.name, action: 'notifyRegistrationResult', direction: 'outBound', notifyData: response.body      } });
                     }
                 });
             }
         });
+    }
+
+    function deleteSouthPeer (address,port,peer) {  
+      return peer.filter(function(addressPort) {
+        return addressPort != address+':'+port;
+        });
+    };
+
+    function deleteGlobalStoreConsumers(store, direction, address, port) {
+      const deleteSql = 'delete from globalStoreConsumers where localStoreName="'+store+'" and direction="'+direction+'" and transitAddress="'+address+'" and transitPort='+port;
+      const deleteResult = alasql(deleteSql);
+      return (deleteResult > 0);
     }
 
     function notifyPeerStoreOfConsumers(consumer, direction, hopCount, address, port, transitAddress, transitPort) {
@@ -132,35 +117,25 @@ module.exports.RedLinkStore = function (config) {
             notifyType: 'consumerRegistration'
         };
         if (address && address !== '0.0.0.0') {
-            sendMessage({
-                debug: {
-                    storeName: node.name,
-                    action: 'notifyRegistration',
-                    direction: 'outBound',
-                    notifyData: body
-                }
-            });
+            sendMessage({ debug: { storeName: node.name, action: 'notifyRegistration', direction: 'outBound', notifyData: body } });
             const options = {method: 'POST', url: 'https://' + address + ':' + port + '/notify', body, json: true};
             request(options, function (error, response) {
                 if (error) {
-                    sendMessage({
-                        debug: {
-                            storeName: node.name,
-                            action: 'notifyRegistrationResult',
-                            direction: 'outBound',
-                            notifyData: body,
-                            error: error
-                        }
-                    });
+                    //console.log(direction, hopCount, '-',address,'-', port, '-',transitAddress, '-',transitPort);
+                    if (direction === 'south') {
+                      node.southPeers = deleteSouthPeer(address,port, node.southPeers); // Ok, looks like the peer has gone, so, lets delete the peer entry.
+                      deleteGlobalStoreConsumers(node.name, direction, address, port);
+                      sendMessage({ registration: { storeName: node.name, action: 'notifyDeletePeerConnection', direction: direction, notifyData: address+':'+port, serviceName : consumer.serviceName}});
+                    }
+                 else   
+                    if (direction === 'north') { // Ok, North Peers are hard wired, if the connection is a problem, then just delete the globalStoreConsumers.
+                      if (deleteGlobalStoreConsumers(node.name, direction, address, port)){;
+                         sendMessage({ registration: { storeName: node.name, action: 'notifyDeletePeerConsumer',   direction: direction, notifyData: address+':'+port, serviceName : consumer.serviceName}});
+                      } 
+                    }
+                    sendMessage({ debug: { storeName: node.name, action: 'notifyRegistrationResult', direction: 'outBound', notifyData: body, error: error }});
                 } else {
-                    sendMessage({
-                        debug: {
-                            storeName: node.name,
-                            action: 'notifyRegistrationResult',
-                            direction: 'outBound',
-                            notifyData: response.body
-                        }
-                    });
+                    sendMessage({ debug: { storeName: node.name, action: 'notifyRegistrationResult', direction: 'outBound', notifyData: response.body } });
                 }
             });
         }
@@ -176,59 +151,23 @@ module.exports.RedLinkStore = function (config) {
             notifyType: 'consumerRegistration'
         };
         node.northPeers.forEach(peer => {
-            sendMessage({
-                debug: {
-                    storeName: node.name,
-                    action: 'notifyRegistration',
-                    direction: 'outBound',
-                    notifyData: body
-                }
-            });
-            const options = {method: 'POST', url: 'https://' + peer.ip + ':' + peer.port + '/notify', body, json: true};
-            request(options, function (error, response) {
-                if (error) {
-                    sendMessage({
-                        debug: {
-                            storeName: node.name,
-                            action: 'notifyRegistrationResult',
-                            direction: 'outBound',
-                            notifyData: body,
-                            error: error
-                        }
-                    });
-                } else {
-                    sendMessage({
-                        debug: {
-                            storeName: node.name,
-                            action: 'notifyRegistrationResult',
-                            direction: 'outBound',
-                            notifyData: response.body
-                        }
-                    });
-                }
-            });
-
+            notifyPeerStoreOfConsumers(consumer, consumer.direction, 0, peer.ip, peer.port, consumer.transitAddress, consumer.transitPort);
         });
-    }
-
-
-    function notifyGlobalStoreOfThisConsumer() {
-        notifyPeerStoreOfLocalConsumers(node.listenAddress, node.listenPort, node.listenAddress, node.listenPort);
     }
 
     function notifyNorthStoreOfConsumers(consumer, transitAddress, transitPort) {
         node.northPeers.forEach(peer => {
-            if (consumer.transitAddress + ':' + consumer.transitPort !== peer.ip + ':' + peer.port) {
-                notifyPeerStoreOfConsumers(consumer, notifyDirections.NORTH, consumer.hopCount + 1, peer.ip, peer.port, transitAddress, transitPort);
+           if (consumer.transitAddress+':'+consumer.transitPort != peer.ip+':'+peer.port) {
+              notifyPeerStoreOfConsumers(consumer, notifyDirections.NORTH, consumer.hopCount+1, peer.ip, peer.port, transitAddress, transitPort);
             }
         });
     }
 
     function notifySouthStoreOfConsumers(consumer, direction, storeAddress, storePort, transitAddress, transitPort) {
         node.southPeers.forEach(peer => {
-            const [ip, port] = peer.split(':');
-            if (consumer.storeAddress + ':' + consumer.storePort !== ip + ':' + port) {
-                notifyPeerStoreOfConsumers(consumer, direction, consumer.hopCount + 1, ip, port, transitAddress, transitPort);
+            var [ip, port] = peer.split(':');
+            if (consumer.storeAddress+':'+consumer.storePort !== ip+':'+port) {
+               notifyPeerStoreOfConsumers(consumer, direction, consumer.hopCount+1, ip, port, transitAddress, transitPort);
             }
         });
     }
@@ -336,7 +275,8 @@ module.exports.RedLinkStore = function (config) {
 
         //On local consumer registration, let them all know
         alasql.fn[registerConsumerTriggerName] = () => {
-            notifyGlobalStoreOfThisConsumer(); //Notify my local globalConsumerStore with a default hop count of zero and a transit address of myself...all the localConsumers.
+            //Notify my local globalConsumerStore with a default hop count of zero and a transit address of myself...all the localConsumers.
+            notifyPeerStoreOfLocalConsumers(node.listenAddress, node.listenPort, node.listenAddress, node.listenPort);
         };
 
         const createNewMsgTriggerSql =    'CREATE TRIGGER ' + newMsgTriggerName +           ' AFTER INSERT ON inMessages CALL ' +          newMsgTriggerName + '()';
@@ -378,7 +318,7 @@ module.exports.RedLinkStore = function (config) {
         const insertGlobalConsumersSql = 'INSERT INTO globalStoreConsumers("' + node.name + '","' + serviceName + '","' + consumerId + '","' + storeName + '","' + direction + '","' +
             storeAddress + '",' + storePort + ',"' + transitAddress + '",' + transitPort + ',' + hopCount + ',' + ttl + ')';
         if (!existingGlobalConsumer || existingGlobalConsumer.length === 0) {
-            alasql(insertGlobalConsumersSql);
+            const inserted = alasql(insertGlobalConsumersSql);
         } else {
             const updateConsumerTtl = 'UPDATE globalStoreConsumers SET ttl=' + ttl + '  WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND consumerId="' + consumerId +
                                       '" AND storeName="' + storeName + '" AND storeAddress = "' + storeAddress + '" AND storePort = ' + storePort;
@@ -586,7 +526,7 @@ module.exports.RedLinkStore = function (config) {
             res.send(msgs[0]); //send the oldest message first
             if (msgs[0].sendOnly) {            //delete if send only
                 const deleteMsgSql = 'DELETE FROM inMessages WHERE redlinkMsgId="' + redlinkMsgId +'"';
-                alasql(deleteMsgSql);
+                const deleteMsg = alasql(deleteMsgSql);
             } else {
                 //update message to read=true
                 const updateMsgStatus = 'UPDATE inMessages SET read=' + true + ' WHERE redlinkMsgId="' + msgs[0].redlinkMsgId + '"';
@@ -656,7 +596,8 @@ module.exports.RedLinkStore = function (config) {
 
     function reSyncStores(timeOut) {
         return setInterval(function () {
-           notifyGlobalStoreOfThisConsumer(); // First get any local consumers that I own and update my own global entries in my own store, this updates ttl.
+           // First get any local consumers that I own and update my own global entries in my own store, this updates ttl.
+           notifyPeerStoreOfLocalConsumers(node.listenAddress, node.listenPort, node.listenAddress, node.listenPort);
            deleteOldConsumers();              // Next  clean up my store first to remove old entries that have not renewed themselves
            notifyAllNorthPeerStoresOnly();    // Make sure the north store knows about me.
         },timeOut);    
