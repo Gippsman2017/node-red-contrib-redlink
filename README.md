@@ -4,7 +4,7 @@
 - [How does Redlink work](#how-does-redlink-work)
 - [Major benefits that this approach provides](#major-benefits-that-this-approach-provides)
 - [Why the decision to use AlaSQL as its internal DB](#why-the-decision-to-use-alasql-as-its-internal-db)
-- [Why Redlink uses peer to peer for Notifications](#why-redlink-uses-peer-to-peer-for--notifications)
+- [Why Redlink uses peer to peer for Notifications](#why-redlink-uses-peer-to-peer-for-notifications)
 - [Redlinks design stengths are](#redlinks-design-stengths-are)
 - [Why not simply use a message broker system](#why-not-simply-use-a-message-broker-system)
 - [Why is Redlink Consumer based messaging](#why-is-redlink-consumer-based-messaging)
