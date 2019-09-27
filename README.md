@@ -10,8 +10,8 @@
 - [Why is Redlink "Consumer" based messaging](#why-is-redlink--consumer--based-messaging)
 - [How Redlink actually communicates with other Redlink Instances](#how-redlink-actually-communicates-with-other-redlink-instances)
 - [Tree Hierachy](#tree-hierachy)
-- [Producer, Consumer, Reply to Sender/Receiver Socket design](#producer--consumer--reply-to-sender-receiver-socket-design)
-
+- [Producer Consumer to Sender Receiver Socket design](#producer-consumer-to-sender-receiver-socket-design)
+Producer, Consumer, Reply to Sender/Receiver Socket design
 
 ## What is Redlink
 
@@ -83,7 +83,7 @@ The protocol used to achieve this is similar to OSPF.
 
 ![RedlinkMesh](RedlinkMesh.png)
 
-## Producer, Consumer, Reply to Sender/Receiver Socket design
+## Producer Consumer to Sender Receiver Socket design
 
 ![RedlinkSeq](redlink-seq1.png)
 
