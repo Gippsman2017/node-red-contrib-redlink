@@ -1,5 +1,7 @@
 [![npm version](https://badge.fury.io/js/node-red-contrib-redlink.svg)](https://badge.fury.io/js/node-red-contrib-redlink)
 
+## Redlink
+
 - [What is Redlink](#what-is-redlink)
 - [How does Redlink work](#how-does-redlink-work)
 - [Major benefits that this approach provides](#major-benefits-that-this-approach-provides)
