@@ -5,7 +5,7 @@
 - [Major benefits that this approach provides:](#major-benefits-that-this-approach-provides)
 - [Why the decision to use AlaSQL as its internal DB](#why-the-decision-to-use-alasql-as-its-internal-db)
 - [Why Redlink uses peer to peer for "Notifications"](#why-redlink-uses-peer-to-peer-for--notifications)
-- [Redlink's design stengths are:](#redlink-s-design-stengths-are)
+- [Redlinks design stengths are:](#redlink-s-design-stengths-are)
 - [Why not simply use a message broker system](#why-not-simply-use-a-message-broker-system)
 - [Why is Redlink Consumer based messaging](#why-is-redlink-consumer-based-messaging)
 - [How Redlink actually communicates with other Redlink Instances](#how-redlink-actually-communicates-with-other-redlink-instances)
@@ -57,7 +57,7 @@ required to perform queueing and timing, it also allows DB insert "Triggers" to 
 The reason for this, is that multiple peer and consumer combinations have actually nothing to do with the production of messaging. What this means is that since Redlink is not a Publish-Subscribe system, more over it is a publish to a single consumer at a time model, this allows fan out micro services to consume messages based on their ability to consume. 
 So, lets assume that I have 2 consumers on a service and both are busy, one will fetch the message when it is free and the other will get rejected as the first consumer has already consumed it from the producer.
 
-## Redlink's design stengths are:
+## Redlinks design stengths are:
 When a "Service" is local and advertised on this node it will not send notifies to its subordinate children.
 When consumers register on nodes, the node automatically registers / deregisters its Services to their peer / parent. 
 
