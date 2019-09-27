@@ -11,7 +11,7 @@
 - [How Redlink actually communicates with other Redlink Instances](#how-redlink-actually-communicates-with-other-redlink-instances)
 - [Tree Hierachy](#tree-hierachy)
 - [Producer Consumer to Sender Receiver Socket design](#producer-consumer-to-sender-receiver-socket-design)
-Producer, Consumer, Reply to Sender/Receiver Socket design
+
 
 ## What is Redlink
 
