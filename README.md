@@ -11,17 +11,6 @@
 - [How Redlink actually communicates with other Redlink Instances](#how-redlink-actually-communicates-with-other-redlink-instances)
 - [Tree Hierachy](#tree-hierachy)
 - [Producer, Consumer, Reply to Sender/Receiver Socket design](#producer--consumer--reply-to-sender-receiver-socket-design)
-- [What is Redlink](#what-is-redlink-1)
-- [How does Redlink work](#how-does-redlink-work-1)
-- [Major benefits that this approach provides:](#major-benefits-that-this-approach-provides--1)
-- [Why the decision to use AlaSQL as its internal DB](#why-the-decision-to-use-alasql-as-its-internal-db-1)
-- [Why Redlink uses peer to peer for "Notifications"](#why-redlink-uses-peer-to-peer-for--notifications--1)
-- [Redlink's design stengths are:](#redlink-s-design-stengths-are--1)
-- [Why not simply use a message broker system](#why-not-simply-use-a-message-broker-system-1)
-- [Why is Redlink "Consumer" based messaging](#why-is-redlink--consumer--based-messaging-1)
-- [How Redlink actually communicates with other Redlink Instances](#how-redlink-actually-communicates-with-other-redlink-instances-1)
-- [Tree Hierachy](#tree-hierachy-1)
-- [Producer, Consumer, Reply to Sender/Receiver Socket design](#producer--consumer--reply-to-sender-receiver-socket-design-1)
 
 
 ## What is Redlink
