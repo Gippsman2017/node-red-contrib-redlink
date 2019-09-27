@@ -7,7 +7,7 @@
 - [Why Redlink uses peer to peer for "Notifications"](#why-redlink-uses-peer-to-peer-for--notifications)
 - [Redlink's design stengths are:](#redlink-s-design-stengths-are)
 - [Why not simply use a message broker system](#why-not-simply-use-a-message-broker-system)
-- [Why is Redlink "Consumer" based messaging](#why-is-redlink--consumer--based-messaging)
+- [Why is Redlink Consumer based messaging](#why-is-redlink-consumer-based-messaging)
 - [How Redlink actually communicates with other Redlink Instances](#how-redlink-actually-communicates-with-other-redlink-instances)
 - [Tree Hierachy](#tree-hierachy)
 - [Producer Consumer to Sender Receiver Socket design](#producer-consumer-to-sender-receiver-socket-design)
@@ -65,7 +65,7 @@ When consumers register on nodes, the node automatically registers / deregisters
 
 More complexity, this type of system removes one of full layer of having to provide a separate messaging system and has a modern approach to web service architecture, with the best part being parallel computing.
 
-## Why is Redlink "Consumer" based messaging
+## Why is Redlink Consumer based messaging
 
 As stated, the real issue of scale-out containerisation is that adding compute by using consumer based load distribution 
 works well with ISTIO / Kubenetes / Docker / LXC.
