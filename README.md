@@ -13,6 +13,7 @@
 - [How Redlink actually communicates with other Redlink Instances](#how-redlink-actually-communicates-with-other-redlink-instances)
 - [Tree Hierachy](#tree-hierachy)
 - [Producer Consumer to Sender Receiver Socket design](#producer-consumer-to-sender-receiver-socket-design)
+- [Redlink Using 3 Transit Nodes where each Transit node requires Service Isolation](#Redlink-Using-3-Transit-Nodes-where-each-Transit-node-requires-Service-Isolation)
 
 
 ## What is Redlink
@@ -88,6 +89,9 @@ The protocol used to achieve this is similar to OSPF.
 ## Producer Consumer to Sender Receiver Socket design
 
 ![RedlinkSeq](redlink-seq1.png)
+
+## Redlink Using 3 Transit Nodes where each Transit node requires Service Isolation
+![RedlinkRelaying](RedlinkRelaying.png)
 
 
 
