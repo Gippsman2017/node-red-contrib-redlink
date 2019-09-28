@@ -1,3 +1,4 @@
+v 1.1.4 Updated the Readme for more clarity indicating Redlink configurations and added an Index.
 v 1.1.3 Added the capability for North stores to delete South store entries when South Stores are not
         contactable during reSync. All registration entries are also removed.
         Also deleted North Store registrations from the South stores when unable to contact North stores during reSync.   
