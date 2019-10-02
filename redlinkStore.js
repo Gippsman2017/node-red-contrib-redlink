@@ -26,6 +26,7 @@ module.exports.RedLinkStore = function (config) {
     node.reSyncTimerId = {};
     node.listenAddress = config.listenAddress;
     node.listenPort = config.listenPort;
+    node.southInsert = config.southInsert;
     node.meshName = config.meshName;
     node.name = config.meshName ? config.meshName + ':' + config.name : config.name;
     node.notifyInterval = config.notifyInterval;
@@ -120,23 +121,31 @@ module.exports.RedLinkStore = function (config) {
             sendMessage({ debug: { storeName: node.name, action: 'notifyRegistration', direction: 'outBound', notifyData: body } });
             const options = {method: 'POST', url: 'https://' + address + ':' + port + '/notify', body, json: true};
             request(options, function (error, response) {
-                if (error) {
+               if (error) {
                     //console.log(direction, hopCount, '-',address,'-', port, '-',transitAddress, '-',transitPort);
                     if (direction === 'south') {
                       node.southPeers = deleteSouthPeer(address,port, node.southPeers); // Ok, looks like the peer has gone, so, lets delete the peer entry.
                       deleteGlobalStoreConsumers(node.name, direction, address, port);
                       sendMessage({ registration: { storeName: node.name, action: 'notifyDeletePeerConnection', direction: direction, notifyData: address+':'+port, serviceName : consumer.serviceName}});
                     }
-                 else   
-                    if (direction === 'north') { // Ok, North Peers are hard wired, if the connection is a problem, then just delete the globalStoreConsumers.
-                      if (deleteGlobalStoreConsumers(node.name, direction, address, port)){;
-                         sendMessage({ registration: { storeName: node.name, action: 'notifyDeletePeerConsumer',   direction: direction, notifyData: address+':'+port, serviceName : consumer.serviceName}});
-                      } 
+             else   
+               if (direction === 'north') { // Ok, North Peers are hard wired, if the connection is a problem, then just delete the globalStoreConsumers.
+                 if (deleteGlobalStoreConsumers(node.name, direction, address, port)){;
+                    sendMessage({ registration: { storeName: node.name, action: 'notifyDeletePeerConsumer',   direction: direction, notifyData: address+':'+port, serviceName : consumer.serviceName}});
+                   } 
+                 }
+                 sendMessage({ debug: { storeName: node.name, action: 'notifyRegistrationResult', direction: 'outBound', notifyData: body, error: error }});
+               } 
+             else 
+               if (direction === 'south' && response.statusCode === 404) {
+                 node.southPeers = deleteSouthPeer(address,port, node.southPeers); // Ok, looks like the peer has rejected the update, so, lets delete the peer entry.
+                 deleteGlobalStoreConsumers(node.name, direction, address, port);
+                 sendMessage({ registration: { storeName: node.name, action: 'notifyDeletePeerConnection', direction: direction, notifyData: address+':'+port, serviceName : consumer.serviceName}});
                     }
-                    sendMessage({ debug: { storeName: node.name, action: 'notifyRegistrationResult', direction: 'outBound', notifyData: body, error: error }});
-                } else {
-                    sendMessage({ debug: { storeName: node.name, action: 'notifyRegistrationResult', direction: 'outBound', notifyData: response.body } });
-                }
+             else
+               {
+                 sendMessage({ debug: { storeName: node.name, action: 'notifyRegistrationResult', direction: 'outBound', notifyData: response.body } });
+               }
             });
         }
     }
@@ -381,16 +390,24 @@ module.exports.RedLinkStore = function (config) {
                         break;
 
                     case 'north' : //Connection is connecting from the South and this is why the routing is indicating that the serviceName is south of this store
-                        insertGlobalConsumer(serviceName, consumerId, storeName, 'south', storeAddress, storePort, transitAddress, transitPort, hopCount, ttl);
-                        notifyNorthStoreOfConsumers(consumer, node.listenAddress, node.listenPort); // Pass the registration forward to the next store
-                        notifyAllSouthStoreConsumers(notifyDirections.SOUTH);                       // Pass the resistration to any other south store
+                        //console.log('southInsert=',node.southInsert);
+                        if (node.southInsert) {
+                           insertGlobalConsumer(serviceName, consumerId, storeName, 'south', storeAddress, storePort, transitAddress, transitPort, hopCount, ttl);
+                           notifyNorthStoreOfConsumers(consumer, node.listenAddress, node.listenPort); // Pass the registration forward to the next store
+                           notifyAllSouthStoreConsumers(notifyDirections.SOUTH);                       // Pass the resistration to any other south store
+                        }   
                         res.status(200).send({action: 'consumerRegistration', status: 200});
                         break;
 
                     case 'south' : //Connection is connecting from the North and this is why the routing is indicating that the serviceName is north of this store
-                        insertGlobalConsumer(serviceName, consumerId, storeName, 'north', storeAddress, storePort, transitAddress, transitPort, hopCount, ttl);
-                        notifySouthStoreOfConsumers(consumer, notifyDirections.SOUTH, storeAddress, storePort, node.listenAddress, node.listenPort);  
-                        res.status(200).send({action: 'consumerRegistration', status: 200});
+                        if (node.northPeers.filter( x=> x.ip == transitAddress&&x.port == transitPort.toString() ).length > 0) {
+                          insertGlobalConsumer(serviceName, consumerId, storeName, 'north', storeAddress, storePort, transitAddress, transitPort, hopCount, ttl);
+                          notifySouthStoreOfConsumers(consumer, notifyDirections.SOUTH, storeAddress, storePort, node.listenAddress, node.listenPort);
+                          res.status(200).send({action: 'consumerRegistration', status: 200});
+                        } else
+                        {
+                          res.status(404).send({action: 'consumerRegistration', status: 404}); 
+                        }
                         break;
                 }
 

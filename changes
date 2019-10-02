@@ -1,3 +1,6 @@
+v 1.1.5 Added a flag to stop redlinkStore globalConsumer inserts from southBound stores.
+	Fixed a bug where North Stores forget to remove south peers from their stores when the south peer is no longer connected
+	it was causing the south store being updated from the north store regardless.
 v 1.1.4 Updated the Readme for more clarity indicating Redlink configurations and added an Index.
 v 1.1.3 Added the capability for North stores to delete South store entries when South Stores are not
         contactable during reSync. All registration entries are also removed.

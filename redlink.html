@@ -83,6 +83,10 @@
         <label for="node-input-listenPort"><i class="icon-tag"></i> Listen Port </label>
         <input type="text" id="node-input-listenPort" placeholder="Port" style="width:60px; height:28px;">
     </div>
+    <div class="form-row">   
+        <label for="node-input-southInsert"><i class="fa fa-stack-exchange"></i> South Inserts</label>
+        <input type="checkbox" id="node-input-southInsert" checked>
+    </div>
 
     <div class="form-row node-input-headers-container-row">
         <label><i class="icon-tag"></i> North Peers (IP and Port)</label><br>
@@ -110,6 +114,7 @@
   <p><b>  Store Name</b> The name of this store</p>
   <p><b>  Listen Address</b> The IP/hostname on which this store listens to for registration messages and routing traffic</p>
   <p><b>  Listen Port</b> The port on which this store listens to for registration messages and routing traffic</p>
+  <p><b>  South Insert</b> This flag set allows inserts of globalConsumers sent from South bound stores into this store</p>
   <p><b>  North Peers</b> List of stores that this store is connected to. Each of these stores will be north of the current sore. Use this to build a mesh.</p>
   <p><b>  Show New Message Notifications</b> Advanced- use when debugging to show new message notifications flowing through this store</p>
   <p><b>  Show Debug</b> Advanced- use to turn on the debug port to output extra information</p>
@@ -157,6 +162,7 @@
         defaults: {
             listenAddress: { value: ''   },
             listenPort:    { value: 2000, required: true, validate: validatePositiveNumber  },
+            southInsert:   { value: true },
             peerAddress:   { value: '0.0.0.0', required: true, validate: validateIpAddress  },
             peerPort:      { value: 443,  required: true, validate: validatePositiveNumber   },
             headers:       { value: [] },
@@ -171,6 +177,7 @@
             const labels = getStoreOutputs({
                 command: true,
                 registration:  this.showRegistration,
+                southinsert: this.southInsert,
                 debug:    this.showDebug
             });
             return labels[index];
@@ -297,17 +304,20 @@
         },
         oneditsave: function () {
             //outputs begin
+            let newSouthInsert = $('#node-input-southInsert').is(":checked");
             let newShowRegistration = $('#node-input-showRegistration').is(":checked");
             let newShowDebug    = $('#node-input-showDebug').is(":checked");
             const existingOutputs = getStoreOutputs({
                 command: true,
                 registration:  this.showRegistration,
+                southInsert: this.southInsert,
                 debug:  this.showDebug
             });
             // getOutputs(!this.sendOnly, this.manualRead, true, this.showStats, this.showDebug);
             const newOutputs =  getStoreOutputs({
                 command: true,
                 registration:  newShowRegistration,
+                southInsert: newSouthInsert,
                 debug:  newShowDebug
             });
             var nodeRedOutputsObject = getNodeRedOutputObject(existingOutputs, newOutputs);
