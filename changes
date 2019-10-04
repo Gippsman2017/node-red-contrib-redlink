@@ -1,3 +1,5 @@
+v 1.1.6 Add support for user to provide their own certificate for each store- defaults to self signed
+    Show status on store node- if unable tos tart server on the listen address, the store node will have a red icon
 v 1.1.5 Added a flag to stop redlinkStore globalConsumer inserts from southBound stores.
 	Fixed a bug where North Stores forget to remove south peers from their stores when the south peer is no longer connected
 	it was causing the south store being updated from the north store regardless.
