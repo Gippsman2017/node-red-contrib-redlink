@@ -75,6 +75,8 @@
         <label for="node-input-name"><i class="icon-tag"></i> Store Name </label>
         <input type="text" id="node-input-name" placeholder="Store Name">
         <input type="hidden" id="node-input-outputs"/>
+        <input type="hidden" id="node-input-userKey"/>
+        <input type="hidden" id="node-input-userCertificate"/>
     </div>
 
     <div class="form-row">
@@ -92,6 +94,17 @@
     <div class="form-row">
         <label for="node-input-showRegistration"><i class="fa fa-stack-exchange"></i> Show New Message Notifications</label>
         <input type="checkbox" id="node-input-showRegistration">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-isUserCertificate"><i class="fa fa-stack-exchange"></i> User specified certificate</label>
+        <input type="checkbox" id="node-input-isUserCertificate">
+            <div class="form-row" id="userCertificateDiv">
+                <label for="userKeyText"><i class="fa fa-stack-exchange"></i> User key (Paste Only)</label>
+                <input type="text" id="userKeyText">
+                <label for="userCertificateText"><i class="fa fa-stack-exchange"></i> User certificate (Paste Only)</label>
+                <input type="text" id="userCertificateText">
+            </div>
     </div>
 
 
@@ -165,7 +178,10 @@
             oldStore:      { value: false },
             showRegistration : { value: false },
             showDebug : { value: false },
-            outputs: { value: 1 }
+            outputs: { value: 1 },
+            isUserCertificate : { value: false},
+            userKey : { value :''},
+            userCertificate : { value: ''}
         },
         outputLabels: function (index) {
             const labels = getStoreOutputs({
@@ -183,12 +199,46 @@
             return this.name ? "node_label_italic" : "";
         },
         oneditprepare: function () {
+            if (this.isUserCertificate) {
+                $('#userKeyText').val('****');
+                $('#userCertificateText').val('****');
+                $('#userCertificateDiv').show();
+            } else {
+                $('#userCertificateDiv').hide();
+            }
+            $('#node-input-isUserCertificate').click( function () {
+                if (this.checked) {
+                    $('#userCertificateDiv').show();
+                    $('#node-input-userKeyText').val('');
+                    $('#node-input-userCertificateText').val('');
+                } else {
+                    $('#userCertificateDiv').hide();
+                }
+            });
+            function preventTyping(e) { //disallow typing in key, cert text fields
+                e.preventDefault();
+            }
+            $('#userKeyText').on('paste',function(e){
+                const pastedData = e.originalEvent.clipboardData.getData('text');
+                $("#node-input-userKey").val(pastedData);
+                $("#userKeyText").val('****');
+                e.preventDefault();
+                // alert('Working!'+content);
+            });
+            $('#userKeyText').on('keypress',preventTyping);
+            $('#userCertificateText').on('paste',function(e){
+                const pastedData = e.originalEvent.clipboardData.getData('text');
+                $("#node-input-userCertificate").val(pastedData);
+                $("#userCertificateText").val('****');
+                e.preventDefault();
+                // alert('Working!'+content);
+            });
+            $('#userCertificateText').on('keypress',preventTyping);
+
             $.getJSON('hostname', hostname => {
                 this.listenAddress = this.listenAddress || hostname;
                 $('#node-input-listenAddress').val(this.listenAddress);
             });
-
-
             //TODO get all store names in this instance; then validate current store name on change to avoid duplicates
             function resizeRule(rule) {
                 var newWidth = rule.width();
