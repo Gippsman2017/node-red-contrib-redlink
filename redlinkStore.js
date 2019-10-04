@@ -35,6 +35,9 @@ module.exports.RedLinkStore = function (config) {
     node.command = true;
     node.registration = config.showRegistration;
     node.debug = config.showDebug;
+    node.isUserCertificate = config.isUserCertificate;
+    node.userKey = config.userKey;
+    node.userCertificate = config.userCertificate;
     const largeMessagesDirectory = require('./redlinkSettings.js')(RED, node.name).largeMessagesDirectory;
     const largeMessageThreshold = require('./redlinkSettings.js')(RED, node.name).largeMessageThreshold;
     // Insert myself into the mesh.
@@ -357,16 +360,32 @@ module.exports.RedLinkStore = function (config) {
 
     if (node.listenPort) {
         try {
-            node.listenServer = httpsServer.startServer(+node.listenPort);
+            const args = [+node.listenPort];
+            if(node.isUserCertificate){
+                args.push(node.userKey);
+                args.push(node.userCertificate);
+            }
+            node.listenServer = httpsServer.startServer(...args);
         } catch (e) {
-            console.log('redlinkStore ',node.name,' Error starting listen server on ', node.listenPort, e);
+            const errorMsg = 'redlinkStore '+ node.name+' Error starting listen server on '+ node.listenPort+' Exception is '+ e;
+            console.log(errorMsg);
+            sendMessage({
+                debug: {
+                    storeName: node.name,
+                    action: 'startServer',
+                    error: errorMsg
+                }
+            });
         }
         if (node.listenServer) {
             node.on('close', (removed, done) => {
                 node.listenServer.close(() => {
                     done();
                 });
-            })
+            });
+            node.status({fill: "green", shape: "dot", text:''});
+        } else{
+            node.status({fill: "red", shape: "dot", text:'Error starting store server'});
         }
         log('started server at port:', node.listenPort);
     }
