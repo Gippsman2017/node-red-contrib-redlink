@@ -8,13 +8,15 @@ const attrs = [{name: 'commonName', value: 'wombat.cassowary.meerkat.com'}];
 const pems = selfsigned.generate(attrs, {days: 3650,keySize:2048});
 
 let server;
-module.exports.startServer = function (port) {
+module.exports.startServer = function (port, key , cert) {
     app = express();
     app.use(bodyParser.json());
     try {
+        const _key = key? key.trim(): pems.private;
+        const _cert = key && cert ? cert.trim(): pems.cert;
         server = https.createServer({
-            key: pems.private,
-            cert: pems.cert
+            key: _key,
+            cert: _cert
         }, app).listen(port).on( 'error', function (e) {
             if (e.code === 'EADDRINUSE') {
                 console.log('Address in use');
@@ -24,6 +26,7 @@ module.exports.startServer = function (port) {
         return server;
     } catch (e) {
         console.log(e); //todo error handling
+        throw e;
     }
 };
 
