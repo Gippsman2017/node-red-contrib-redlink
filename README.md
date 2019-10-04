@@ -1,5 +1,21 @@
 [![npm version](https://badge.fury.io/js/node-red-contrib-redlink.svg)](https://badge.fury.io/js/node-red-contrib-redlink)
 
+## Redlink
+
+- [What is Redlink](#what-is-redlink)
+- [How does Redlink work](#how-does-redlink-work)
+- [Major benefits that this approach provides](#major-benefits-that-this-approach-provides)
+- [Why the decision to use AlaSQL as its internal DB](#why-the-decision-to-use-alasql-as-its-internal-db)
+- [Why Redlink uses peer to peer for Notifications](#why-redlink-uses-peer-to-peer-for-notifications)
+- [Redlinks design stengths are](#redlinks-design-stengths-are)
+- [Why not simply use a message broker system](#why-not-simply-use-a-message-broker-system)
+- [Why is Redlink Consumer based messaging](#why-is-redlink-consumer-based-messaging)
+- [How Redlink actually communicates with other Redlink Instances](#how-redlink-actually-communicates-with-other-redlink-instances)
+- [Tree Hierachy](#tree-hierachy)
+- [Producer Consumer to Sender Receiver Socket design](#producer-consumer-to-sender-receiver-socket-design)
+- [Redlink Using 3 Transit Nodes where each Transit node requires Service Isolation](#Redlink-Using-3-Transit-Nodes-where-each-Transit-node-requires-Service-Isolation)
+
+
 ## What is Redlink
 
 Redlink is a way of connecting many instances of Node-Red together using soft "service" connections to essentially create a cluster of "service" capability using disparate hardware to create a large grid Node-Red compute network.
@@ -9,7 +25,7 @@ Redlink is a way of connecting many instances of Node-Red together using soft "s
 Redlink does not use a traditional messaging system, it actually creates a hierarchical mesh of interconnected web services 
 using HTTPS-POST as its transport and an OSPF like routing concept.
 
-## Major benefits that this approach provides:
+## Major benefits that this approach provides
 
 It allows a "Consumer" pull method of communication instead of a pub/sub push method for its transport system.
 
@@ -39,12 +55,12 @@ Producers and Consumers are provided with a number of timers on each message to 
 AlaSQL provides a very robust and high level of complexity using very simple SELECT statements and it reduces the code 
 required to perform queueing and timing, it also allows DB insert "Triggers" to decouple transaction processing in the stores.
 
-## Why Redlink uses peer to peer for "Notifications" 
+## Why Redlink uses peer to peer for Notifications
 
 The reason for this, is that multiple peer and consumer combinations have actually nothing to do with the production of messaging. What this means is that since Redlink is not a Publish-Subscribe system, more over it is a publish to a single consumer at a time model, this allows fan out micro services to consume messages based on their ability to consume. 
 So, lets assume that I have 2 consumers on a service and both are busy, one will fetch the message when it is free and the other will get rejected as the first consumer has already consumed it from the producer.
 
-## Redlink's design stengths are:
+## Redlinks design stengths are
 When a "Service" is local and advertised on this node it will not send notifies to its subordinate children.
 When consumers register on nodes, the node automatically registers / deregisters its Services to their peer / parent. 
 
@@ -52,7 +68,7 @@ When consumers register on nodes, the node automatically registers / deregisters
 
 More complexity, this type of system removes one of full layer of having to provide a separate messaging system and has a modern approach to web service architecture, with the best part being parallel computing.
 
-## Why is Redlink "Consumer" based messaging
+## Why is Redlink Consumer based messaging
 
 As stated, the real issue of scale-out containerisation is that adding compute by using consumer based load distribution 
 works well with ISTIO / Kubenetes / Docker / LXC.
@@ -70,9 +86,12 @@ The protocol used to achieve this is similar to OSPF.
 
 ![RedlinkMesh](RedlinkMesh.png)
 
-## Producer, Consumer, Reply to Sender/Receiver Socket design
+## Producer Consumer to Sender Receiver Socket design
 
 ![RedlinkSeq](redlink-seq1.png)
+
+## Redlink Using 3 Transit Nodes where each Transit node requires Service Isolation
+![RedlinkRelaying](RedlinkRelaying.png)
 
 
 

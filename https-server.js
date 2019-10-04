@@ -4,7 +4,7 @@ const bodyParser = require('body-parser');
 const selfsigned = require('selfsigned');
 
 let app;
-const attrs = [{name: 'commonName', value: 'wombat.cassowary.meerkat.com'}];
+const attrs = [{name: 'commonName', value: 'wombat.echidna.com'}];
 const pems = selfsigned.generate(attrs, {days: 3650,keySize:2048});
 
 let server;
