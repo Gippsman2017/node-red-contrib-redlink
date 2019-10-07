@@ -67,12 +67,12 @@
 
 <script type="text/x-red" data-template-name="redlink store">
     <div class="form-row">
-        <label for="node-input-meshName"><i class="icon-tag"></i> Mesh Name </label>
+        <label for="node-input-meshName"><i class="fa fa-plus-square-o"></i> Mesh Name </label>
         <input type="text" id="node-input-meshName" placeholder="Mesh Name">
     </div>
 
     <div class="form-row">
-        <label for="node-input-name"><i class="icon-tag"></i> Store Name </label>
+        <label for="node-input-name"><i class="fa fa-link"></i> Store Name </label>
         <input type="text" id="node-input-name" placeholder="Store Name">
         <input type="hidden" id="node-input-outputs"/>
         <input type="hidden" id="node-input-userKey"/>
@@ -80,43 +80,45 @@
     </div>
 
     <div class="form-row">
-        <label for="node-input-listenAddress"><i class="icon-tag"></i> Listen Address </label>
+        <label for="node-input-listenAddress"><i class="fa fa-assistive-listening-systems"></i> Listen Address </label>
         <input type="text" id="node-input-listenAddress" placeholder="Address" style="width:150px; height:28px;">
-        <label for="node-input-listenPort"><i class="icon-tag"></i> Listen Port </label>
+    </div>
+    <div class="form-row">
+        <label for="node-input-listenPort"><i class="fa fa-assistive-listening-systems"></i> Listen Port </label>
         <input type="text" id="node-input-listenPort" placeholder="Port" style="width:60px; height:28px;">
     </div>
     <div class="form-row">   
-        <label for="node-input-southInsert"><i class="fa fa-stack-exchange"></i> South Inserts</label>
+        <label for="node-input-southInsert"><i class="fa fa-long-arrow-down"></i> South Inserts</label>
         <input type="checkbox" id="node-input-southInsert" checked>
     </div>
 
     <div class="form-row node-input-headers-container-row">
-        <label><i class="icon-tag"></i> North Peers (IP and Port)</label><br>
+        <label><i class="fa fa-cloud-upload "></i> North Peers (IP and Port)</label><br>
         <ol id="node-input-headers-container"></ol>
     </div>
 
+    <div class="form-row">
+        <label style="width:100%; border-bottom:1px solid #eee;"><span>Advanced</span></label>
+    </div>
+        <div class="form-row">
+        <label for="node-input-showDebug"><i class="fa fa-bug"></i> Show Debug</label>
+        <input type="checkbox" id="node-input-showDebug">
+    </div>
     <div class="form-row">
         <label for="node-input-showRegistration"><i class="fa fa-stack-exchange"></i> Show New Message Notifications</label>
         <input type="checkbox" id="node-input-showRegistration">
     </div>
 
     <div class="form-row">
-        <label for="node-input-isUserCertificate"><i class="fa fa-stack-exchange"></i> User specified certificate</label>
+        <label for="node-input-isUserCertificate"><i class="fa fa-user"></i> User specified certificate</label>
         <input type="checkbox" id="node-input-isUserCertificate">
             <div class="form-row" id="userCertificateDiv">
-                <label for="userKeyText"><i class="fa fa-stack-exchange"></i> User key (Paste Only)</label>
+                <label for="userKeyText"><i class="fa fa-key"></i> User key (Paste Only)</label>
                 <input type="text" id="userKeyText">
-                <label for="userCertificateText"><i class="fa fa-stack-exchange"></i> User certificate (Paste Only)</label>
+                <label for="userCertificateText"><i class="fa fa-certificate"></i> User certificate (Paste Only)</label>
                 <input type="text" id="userCertificateText">
             </div>
     </div>
-
-
-    <div class="form-row">
-        <label for="node-input-showDebug"><i class="fa fa-stack-exchange"></i> Show Debug</label>
-        <input type="checkbox" id="node-input-showDebug">
-    </div>
-
 </script>
 
 <script type="text/x-red" data-help-name="redlink store">
