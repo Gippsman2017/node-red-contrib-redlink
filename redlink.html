@@ -416,17 +416,17 @@
 
 <script type="text/x-red" data-template-name="redlink producer">
     <div class="form-row">
-        <label for="node-input-name"><i class="icon-tag"></i> Name </label>
+        <label for="node-input-name"><i class="fa fa-sign-out"></i> Name </label>
         <input type="text" id="node-input-name" placeholder="name">
                         <input type="hidden" id="node-input-outputs"/>
 
     <div class="form-row" id="producer-store-div">
-        <label for="node-input-producerStoreName"><i class="fa fa-ellipsis-v"></i> Store Name</label>
+        <label for="node-input-producerStoreName"><i class="fa fa-link"></i> Store Name</label>
         <select id="node-input-producerStoreName">
         </select>
     </div>
     <div class="form-row" id="producer-consumer-div">
-        <label for="node-input-producerConsumer"><i class="fa fa-ellipsis-v"></i> Destination Service</label>
+        <label for="node-input-producerConsumer"><i class="fa fa-gears"></i> Destination Service</label>
         <select id="node-input-producerConsumer">
         </select>
     </div>
@@ -434,7 +434,7 @@
         <label style="width:100%; border-bottom:1px solid #eee;"><span>Advanced</span></label>
     </div>
     <div class="form-row">
-        <label for="node-input-showDebug"><i class="fa fa-stack-exchange"></i> Show Debug</label>
+        <label for="node-input-showDebug"><i class="fa fa-bug"></i> Show Debug</label>
         <input type="checkbox" id="node-input-showDebug">
     </div>
     <div class="form-row">
@@ -666,18 +666,19 @@
 
 <script type="text/x-red" data-template-name="redlink consumer">
     <div class="form-row">
-        <label for="node-input-name"><i class="icon-tag"></i> Consumer / Service name</label>
+        <label for="node-input-name"><i class="fa fa-gears"></i> Service name</label>
         <input type="text" id="node-input-name" placeholder="Consumer/Service">
         <input type="hidden" id="node-input-outputs"/>
     </div>
+
     <div class="form-row" id="consumer-mesh-div">
-        <label for="node-input-consumerMeshName"><i class="fa fa-ellipsis-v"></i> Mesh Name</label>
+        <label for="node-input-consumerMeshName"><i class="fa fa-plus-square-o"></i> Mesh Name</label>
         <select id="node-input-consumerMeshName">
         </select>
     </div>
 
     <div class="form-row" id="consumer-store-div">
-        <label for="node-input-consumerStoreName"><i class="fa fa-ellipsis-v"></i> Store Name</label>
+        <label for="node-input-consumerStoreName"><i class="fa fa-link"></i> Store Name</label>
         <select id="node-input-consumerStoreName">
         </select>
     </div>
@@ -687,7 +688,7 @@
         <label style="width:100%; border-bottom:1px solid #eee;"><span>Advanced</span></label>
     </div>
     <div class="form-row">
-        <label for="node-input-showDebugReceiveSend"><i class="fa fa-stack-exchange"></i> Show Debug</label>
+        <label for="node-input-showDebugReceiveSend"><i class="fa fa-bug"></i> Show Debug</label>
         <input type="checkbox" id="node-input-showDebugReceiveSend">
     </div>
     <div class="form-row">
