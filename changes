@@ -1,3 +1,4 @@
+v 1.1.7 UI tweaks in configuration html; font awesome icons
 v 1.1.6 Add support for user to provide their own certificate for each store- defaults to self signed
     Show status on store node- if unable tos tart server on the listen address, the store node will have a red icon
 v 1.1.5 Added a flag to stop redlinkStore globalConsumer inserts from southBound stores.
@@ -8,7 +9,7 @@ v 1.1.3 Added the capability for North stores to delete South store entries when
         contactable during reSync. All registration entries are also removed.
         Also deleted North Store registrations from the South stores when unable to contact North stores during reSync.   
 v 1.1.2 Bug fix- msg.topic appears in producer destination drop down twice
-v 1.1.1 Changed the Store Sync algorythm so that a south store with multiple north stores cannot relay
+v 1.1.1 Changed the Store Sync algorithm so that a south store with multiple north stores cannot relay
 	Changed the Sync timing to ensure that entries are delete/purged correctly.
 	Ensured that Node-Red Deploy's cause correct propagation of the services throughout the mesh. 
 v 1.0.2 Add ETT to timeout message , notify interval to repeatedly notify consumers of messages
