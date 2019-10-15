@@ -764,7 +764,6 @@
             rateReceiveSend: {value: 1},
             rateUnitsReceiveSend: {value: "second"},
             nbRateUnitsReceiveSend: {value: ''},
-            server: {value: "tcp://localhost:9660"},
             topicReceiveSend: {value: ""},
             cmd: {value: "read"},
             showStatsReceiveSend: {value: false},
@@ -795,7 +794,7 @@
                 storeElement.find('option').remove().end();
                 // console.log('value of node-input-producerStoreName:', );
                 const meshName = $("#node-input-consumerMeshName").children("option:selected").val() || selectedMesh;
-                $.getJSON('store-names', {"producer": this.name, "mesh": meshName}, stores => {
+                $.getJSON('store-names', {"consumerStore": selectedStore, "mesh": meshName}, stores => {
                     $.each(stores, function (index, obj) {
                         storeElement.append($('<option>', {
                             value: obj,

@@ -100,15 +100,21 @@ module.exports.RedLinkConsumer = function (config) {
     //localStoreConsumers (storeName STRING, serviceName STRING)'); 
     //can have multiple consumers with same name registered to the same store
     const insertIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.consumerStoreName + '","' + node.name + '","' + node.id +'")';
+    const deleteFromConsumerSql = 'DELETE FROM localStoreConsumers where consumerId = "'+ node.id +'"';
+    //console.log('Delete=',deleteFromConsumerSql, '=',alasql(deleteFromConsumerSql));
+    //console.log('Insert=',insertIntoConsumerSql, '=',alasql(insertIntoConsumerSql));
+    alasql(deleteFromConsumerSql);
     alasql(insertIntoConsumerSql);
 
     node.on('close', (removed, done) => {
         //clean up like in the redlinkStore- reinit trigger function to empty
+        if (removed) {console.log('REMOVED');}
         dropTrigger(msgNotifyTriggerId);
-//        log('dropped notify trigger...');
+        //        log('dropped notify trigger...');
         const deleteConsumerSql = 'DELETE FROM localStoreConsumers WHERE storeName="' + node.consumerStoreName + +'"' + 'AND serviceName="' + node.name + 'AND consumerId="' + node.id + '"';
-        alasql(deleteConsumerSql); //can have multiple consumers with same name registered to the same store
-//        log('removed consumer from local store...');
+        //console.log('deleteConsumers=',deleteConsumerSql,'  ==',        alasql(deleteConsumerSql)); //can have multiple consumers with same name registered to the same store
+        //        log('removed consumer from local store...');
+        alasql(deleteConsumerSql);
         done();
     });
 

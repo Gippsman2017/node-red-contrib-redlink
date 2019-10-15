@@ -176,6 +176,7 @@ module.exports.RedLinkStore = function (config) {
     }
 
     function notifySouthStoreOfConsumers(consumer, direction, storeAddress, storePort, transitAddress, transitPort) {
+//console.log('name=',node.name,'    consumer=',consumer);
         node.southPeers.forEach(peer => {
             var [ip, port] = peer.split(':');
             if (consumer.storeAddress+':'+consumer.storePort !== ip+':'+port) {

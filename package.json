@@ -1,13 +1,13 @@
 {
   "bundleDependencies": [],
   "dependencies": {
-    "alasql": "^0.4.11",
+    "alasql": "^0.5.1",
     "base64-coder-node": "^1.0.7",
     "express": "^4.17.1",
     "fs-extra": "^8.1.0",
     "limiter": "^1.1.4",
     "needle": "^2.4.0",
-    "selfsigned": "^1.10.4"
+    "selfsigned": "^1.10.7"
   },
   "deprecated": false,
   "description": "A Node-RED node to send and receive messages between and across instances.",
@@ -28,5 +28,5 @@
     "type": "git",
     "url": "git+https://github.com/Gippsman2017/node-red-contrib-redlink.git"
   },
-  "version": "1.1.7"
+  "version": "1.1.9"
 }
