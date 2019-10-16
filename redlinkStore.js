@@ -176,7 +176,6 @@ module.exports.RedLinkStore = function (config) {
     }
 
     function notifySouthStoreOfConsumers(consumer, direction, storeAddress, storePort, transitAddress, transitPort) {
-//console.log('name=',node.name,'    consumer=',consumer);
         node.southPeers.forEach(peer => {
             var [ip, port] = peer.split(':');
             if (consumer.storeAddress+':'+consumer.storePort !== ip+':'+port) {
@@ -188,16 +187,14 @@ module.exports.RedLinkStore = function (config) {
     function notifyAllSouthStoreConsumers(direction) {
         const storeName = node.name;
         const meshName = storeName.substring(0, storeName.indexOf(':')); // Producers can only send to Consumers on the same mesh
-        const storeAddressData = alasql('SELECT * FROM stores  WHERE storeName  LIKE "' + storeName + '%"');
-
-        const globalConsumersSql = 'SELECT  DISTINCT serviceName,consumerId from ( select * from globalStoreConsumers WHERE localStoreName LIKE "' + storeName + '%")';// +
+        const storeAddressData = alasql('SELECT * FROM stores  WHERE storeName = "' + storeName + '"');
+        const globalConsumersSql = 'SELECT  DISTINCT serviceName,consumerId from ( select * from globalStoreConsumers WHERE localStoreName = "' + storeName + '")';// +
         const globalConsumers = alasql(globalConsumersSql);    
 
         const allConsumers = [...new Set([...globalConsumers])];
 
         const storeAddress = storeAddressData[0].storeAddress;
         const storePort = storeAddressData[0].storePort;
-
         allConsumers.forEach(consumer => {
             const dataSql = 'select * from globalStoreConsumers where localStoreName = "' + storeName + '" and serviceName ="' + consumer.serviceName + '" and consumerId = "' + consumer.consumerId + '"';
             const data = alasql(dataSql);
@@ -333,7 +330,7 @@ module.exports.RedLinkStore = function (config) {
                     done();
                 });
             });
-            node.status({fill: "green", shape: "dot", text:''});
+            node.status({fill: "grey", shape: "dot", text:'Initialising'});
         } else{
             node.status({fill: "red", shape: "dot", text:'Error starting store server'});
         }
@@ -633,6 +630,12 @@ module.exports.RedLinkStore = function (config) {
 
     function reSyncStores(timeOut) {
         return setInterval(function () {
+           const consumers = getAllVisibleConsumers();
+           if (consumers.localConsumers.length > 0) {
+             node.status({fill: "green",  shape: "dot", text: 'Local('+consumers.localConsumers.length+') Global('+consumers.globalConsumers.length+')'});
+        } else{
+             node.status({fill: "yellow", shape: "dot", text: 'Local('+consumers.localConsumers.length+') Global('+consumers.globalConsumers.length+')'});
+           }
            // First get any local consumers that I own and update my own global entries in my own store, this updates ttl.
            notifyPeerStoreOfLocalConsumers(node.listenAddress, node.listenPort, node.listenAddress, node.listenPort);
            deleteOldConsumers();              // Next  clean up my store first to remove old entries that have not renewed themselves

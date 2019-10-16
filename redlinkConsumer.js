@@ -15,6 +15,8 @@ module.exports.RedLinkConsumer = function (config) {
     const node = this;
     const log = require('./log.js')(node).log;
     node.name = config.name;
+    node.reSyncTime = 10000; // This timer defines the consumer store update sync for localStoreConsumers.
+    node.reSyncTimerId = {};
     node.consumerStoreName = config.consumerStoreName;
     node.consumerMeshName = config.consumerMeshName;
     node.manualRead = config.manualReadReceiveSend;
@@ -75,7 +77,6 @@ module.exports.RedLinkConsumer = function (config) {
             sendMessage({notify: notifyMessage});
         } else {
             //check inTransitLimit first
-            // console.log
             if (watermark < node.inTransitLimit) {
                 sendMessage({notify: notifyMessage}); //send notify regardless of whether it is manual or auto read
                 //todo read oldest message first- right now it reads the notifies in random order- see getNewNotifyAndCount() at beginning of trigger
@@ -101,17 +102,24 @@ module.exports.RedLinkConsumer = function (config) {
     //can have multiple consumers with same name registered to the same store
     const insertIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.consumerStoreName + '","' + node.name + '","' + node.id +'")';
     const deleteFromConsumerSql = 'DELETE FROM localStoreConsumers where consumerId = "'+ node.id +'"';
-    //console.log('Delete=',deleteFromConsumerSql, '=',alasql(deleteFromConsumerSql));
-    //console.log('Insert=',insertIntoConsumerSql, '=',alasql(insertIntoConsumerSql));
     alasql(deleteFromConsumerSql);
     alasql(insertIntoConsumerSql);
 
+           const selectResult = alasql('SELECT storeName from stores WHERE storeName = "' + node.consumerStoreName + '"');
+           if (selectResult.length > 0) {
+             node.status({fill: "green", shape: "dot", text: 'Conn: '+node.consumerStoreName});
+        } else{
+            node.status({fill: "red", shape: "dot", text:'Error: No '+node.consumerStoreName});
+           }
+
+    node.reSyncTimerId = reSyncStores(node.reSyncTime); // This is the main call to sync this consumer with its store on startup and it also starts the interval timer.
+
     node.on('close', (removed, done) => {
+        clearInterval(node.reSyncTimerId);
         //clean up like in the redlinkStore- reinit trigger function to empty
-        if (removed) {console.log('REMOVED');}
         dropTrigger(msgNotifyTriggerId);
         //        log('dropped notify trigger...');
-        const deleteConsumerSql = 'DELETE FROM localStoreConsumers WHERE storeName="' + node.consumerStoreName + +'"' + 'AND serviceName="' + node.name + 'AND consumerId="' + node.id + '"';
+        const deleteConsumerSql = 'DELETE FROM localStoreConsumers WHERE storeName="' + node.consumerStoreName +'"' + ' AND serviceName="' + node.name + '" AND consumerId="' + node.id + '"';
         //console.log('deleteConsumers=',deleteConsumerSql,'  ==',        alasql(deleteConsumerSql)); //can have multiple consumers with same name registered to the same store
         //        log('removed consumer from local store...');
         alasql(deleteConsumerSql);
@@ -123,6 +131,25 @@ module.exports.RedLinkConsumer = function (config) {
             // console.log('\n\n\n\nEmpty trigger called for consumer registration', triggerName);
         }
     }
+
+    function reSyncStores(timeOut) {
+        return setInterval(function () {
+           // First get any local consumers that I own and update my own global entries in my own store, this updates ttl.
+//           const selectConsumerSql = 'SELECT * FROM localStoreConsumers WHERE storeName="' + node.consumerStoreName +'"' + ' AND serviceName="' + node.name + '" AND consumerId="' + node.id + '"';
+
+           const selectResult = alasql('SELECT storeName from stores WHERE storeName = "' + node.consumerStoreName + '"');
+           if (selectResult.length > 0) {
+             node.status({fill: "green", shape: "dot", text: 'Conn: '+node.consumerStoreName});
+        } else{
+            node.status({fill: "red", shape: "dot", text:'Error: No '+node.consumerStoreName});
+          const insertIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.consumerStoreName + '","' + node.name + '","' + node.id +'")';
+          const deleteFromConsumerSql = 'DELETE FROM localStoreConsumers where consumerId = "'+ node.id +'"';
+          alasql(deleteFromConsumerSql);
+          alasql(insertIntoConsumerSql);
+           }
+        },timeOut);    
+    }
+
 
     node.on("input", msg => {
         if (msg.topic === 'read' || msg.topic === 'consumerRead') {
