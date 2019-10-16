@@ -74,7 +74,7 @@ module.exports = function (RED) {
             //console.log('query ',req.query);
             const storesSql = 'SELECT DISTINCT storeName FROM stores WHERE storeName LIKE "' + mesh + '%"'; //console.log(alasql('SELECT * FROM one WHERE a LIKE "abc%"'));
             const stores = alasql(storesSql);
-            returnStores.push('Please Select a Store');
+            returnStores.push('Please select a store');
             stores.forEach(meshStore => {
                 const meshStorename = meshStore.storeName;
                 const storeName = meshStorename.indexOf(':') !== -1 ? meshStorename.substring(meshStorename.indexOf(':') + 1) : meshStorename;//todo this shouldnt happen

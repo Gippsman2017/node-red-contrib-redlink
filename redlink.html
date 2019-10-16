@@ -753,7 +753,11 @@
         defaults: {
             name: {value: '', required: true},
             consumerMeshName: {value: '', required: true},
-            consumerStoreName: {value: '', required: true},
+            consumerStoreName: {value: '', validate: function (v) {
+                    v = v.trim().toLowerCase();
+                    return v && v !== 'please select a store';
+                }
+            },
             intransit: {
                 value: 1, validate: function (v) {
                     return RED.validators.number(v) && (v >= 0);
