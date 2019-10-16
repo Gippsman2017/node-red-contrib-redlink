@@ -36,6 +36,9 @@ module.exports.RedLinkProducer = function (config) {
     const largeMessagesDirectory = require('./redlinkSettings.js')(RED, node.producerStoreName).largeMessagesDirectory;
     const largeMessageThreshold = require('./redlinkSettings.js')(RED, node.producerStoreName).largeMessageThreshold;
     let errorMsg = null;
+
+    node.status({fill: "grey",    shape: "dot", text: 'Initialising'});
+
     try {
         fs.ensureDirSync(largeMessagesDirectory);
     } catch (e) {
@@ -93,7 +96,7 @@ module.exports.RedLinkProducer = function (config) {
     }
 
     function deleteNotifiesForMessage(redlinkMsgId) {
-        const deleteNotifyMsg = 'DELETE from notify WHERE redlinkMsgId = "' + redlinkMsgId + '"';
+        const deleteNotifyMsg = 'DELETE from notify WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId = "' + redlinkMsgId + '"';
         const deleteNotify = alasql(deleteNotifyMsg);
     }
 
@@ -273,11 +276,16 @@ module.exports.RedLinkProducer = function (config) {
            // First get any local consumers that I own and update my own global entries in my own store, this updates ttl.
            // const selectConsumerSql = 'SELECT * FROM localStoreConsumers WHERE storeName="' + node.consumerStoreName +'"' + ' AND serviceName="' + node.name + '" AND consumerId="' + node.id + '"';
 
-           const selectResult = alasql('SELECT storeName from stores WHERE storeName = "' + node.producerStoreName + '"');
-           if (selectResult.length > 0) {
-             node.status({fill: "green", shape: "dot", text: 'Conn: '+node.producerStoreName});
+           const sResult = alasql('SELECT storeName from stores WHERE storeName = "' + node.producerStoreName + '"');
+           const mResult = alasql('SELECT count(*) as myCount FROM inMessages    where read=false and storeName ="' + node.producerStoreName + '" and redlinkProducerId="' + node.id + '"');
+           const nResult = alasql('SELECT count(*) as myCount FROM notify        where read=false and storeName ="' + node.producerStoreName + '" and redlinkProducerId="' + node.id + '"');
+           const rResult = alasql('SELECT count(*) as myCount FROM replyMessages where read=false and storeName ="' + node.producerStoreName + '" and redlinkProducerId="' + node.id + '"');           
+           //console.log(alasql('select * from notify '));
+           //console.log(mResult[0].myCount,',',nResult[0].myCount,',',rResult[0].myCount);
+           if (sResult.length > 0) {
+             node.status({fill: "green", shape: "dot", text: 'C:'+node.producerStoreName+' M:'+ mResult[0].myCount +' N:'+nResult[0].myCount+' R:'+rResult[0].myCount});
         } else{
-            node.status({fill: "red", shape: "dot", text:'Error: No '+node.producerStoreName});
+            node.status({fill: "red",    shape: "dot", text: 'Error: No C:'+node.producerStoreName});
            }
         },timeOut);
     }

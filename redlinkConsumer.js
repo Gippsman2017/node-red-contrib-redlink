@@ -15,8 +15,10 @@ module.exports.RedLinkConsumer = function (config) {
     const node = this;
     const log = require('./log.js')(node).log;
     node.name = config.name;
+
     node.reSyncTime = 10000; // This timer defines the consumer store update sync for localStoreConsumers.
     node.reSyncTimerId = {};
+
     node.consumerStoreName = config.consumerStoreName;
     node.consumerMeshName = config.consumerMeshName;
     node.manualRead = config.manualReadReceiveSend;
@@ -100,8 +102,8 @@ module.exports.RedLinkConsumer = function (config) {
 
     //localStoreConsumers (storeName STRING, serviceName STRING)'); 
     //can have multiple consumers with same name registered to the same store
-    const insertIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.consumerStoreName + '","' + node.name + '","' + node.id +'")';
     const deleteFromConsumerSql = 'DELETE FROM localStoreConsumers where consumerId = "'+ node.id +'"';
+    const insertIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.consumerStoreName + '","' + node.name + '","' + node.id +'")';
     alasql(deleteFromConsumerSql);
     alasql(insertIntoConsumerSql);
 
@@ -137,15 +139,18 @@ module.exports.RedLinkConsumer = function (config) {
            // First get any local consumers that I own and update my own global entries in my own store, this updates ttl.
 //           const selectConsumerSql = 'SELECT * FROM localStoreConsumers WHERE storeName="' + node.consumerStoreName +'"' + ' AND serviceName="' + node.name + '" AND consumerId="' + node.id + '"';
 
-           const selectResult = alasql('SELECT storeName from stores WHERE storeName = "' + node.consumerStoreName + '"');
-           if (selectResult.length > 0) {
-             node.status({fill: "green", shape: "dot", text: 'Conn: '+node.consumerStoreName});
-        } else{
-            node.status({fill: "red", shape: "dot", text:'Error: No '+node.consumerStoreName});
-          const insertIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.consumerStoreName + '","' + node.name + '","' + node.id +'")';
-          const deleteFromConsumerSql = 'DELETE FROM localStoreConsumers where consumerId = "'+ node.id +'"';
-          alasql(deleteFromConsumerSql);
-          alasql(insertIntoConsumerSql);
+           const sResult = alasql('SELECT storeName from stores WHERE storeName = "' + node.consumerStoreName + '"');
+           const nResult = alasql('SELECT COUNT(DISTINCT redlinkMsgId) as myCount from notify     WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"');
+           if (sResult.length > 0) {
+             node.status({fill: "green", shape: "dot", text: 'C:'+node.consumerStoreName+' N:'+nResult[0].myCount});
+           } else {
+            node.status({fill: "red",    shape: "dot", text: 'Error: No C:'+node.consumerStoreName});
+           }
+           if (sResult.length == 0) {
+             const deleteFromConsumerSql = 'DELETE FROM localStoreConsumers where consumerId = "'+ node.id +'"';
+             const insertIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.consumerStoreName + '","' + node.name + '","' + node.id +'")';
+             alasql(deleteFromConsumerSql);
+             alasql(insertIntoConsumerSql);
            }
         },timeOut);    
     }
