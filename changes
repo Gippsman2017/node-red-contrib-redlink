@@ -1,3 +1,4 @@
+v 1.2.2 Cleaned up local and remote producer notifies
 v 1.2.1 Added more info to node.status
 v 1.2.0 Fixed the store / consumer / producer connections and added node.status info.
 v 1.1.9 Bump Git update

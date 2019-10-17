@@ -232,15 +232,7 @@ module.exports.RedLinkStore = function (config) {
 
             const newMessage = newMessages[newMessages.length - 1];
             if (newMessage) {
-                const allVisibleConsumers = getAllVisibleConsumers(); //todo optimise this
-                //insert one notify for local
-                for (const localConsumer of allVisibleConsumers.localConsumers) {
-                    if (localConsumer.serviceName === newMessage.serviceName) {
-                        const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + newMessage.serviceName + '","' + node.listenAddress + '",' + node.listenPort + ',"' + newMessage.redlinkMsgId + '","",false,"' + newMessage.redlinkProducerId + '")';
-                        alasql(notifyInsertSql);
-                        break; //should get only one local consumer with the same name- this is a just in case
-                    }
-                }
+
                 sendMessage({
                     registration: { //todo rename to notify
                         service: newMessage.serviceName,
@@ -252,8 +244,6 @@ module.exports.RedLinkStore = function (config) {
                     }
                 });
 
-                //This notify only handles LOCAL consumers, the /notify listener will do the forwarding
-                //stores table contains stores local to this node-red instance, all consumers will contain consumers on stores reachable from this store- even if they are remote, however they are handled by the listener.
                 const remoteMatchingStores = [...new Set([...getRemoteMatchingStores(newMessage.serviceName, node.meshName)])];
 
                 remoteMatchingStores.forEach(remoteStore => {
@@ -274,6 +264,7 @@ module.exports.RedLinkStore = function (config) {
                         body,
                         json: true
                     };
+                    //console.log(options);
                     request(options, function (error, response) {
                         if (error || response.statusCode !== 200) {
                             sendMessage({debug: {error: true, errorDesc: error || response.body}});
@@ -354,6 +345,13 @@ module.exports.RedLinkStore = function (config) {
                // console.log('Insert Failed, globalStore ',node.name, 'service ',serviceName,' has an entry with a hopCount of ',existingGlobalConsumer[0].hopCount,' compared with ',hopCount);
         }
     }
+
+    function deleteNotify(redlinkMsgId) {
+        const deleteNotifyMsg = 'DELETE from notify WHERE redlinkMsgId = "' + redlinkMsgId + '" and storeName = "' + node.nam+'"';
+        const deleteNotify = alasql(deleteNotifyMsg);
+        return deleteNotify;
+    }
+
 
 
     const app = httpsServer.getExpressApp();
@@ -447,10 +445,11 @@ module.exports.RedLinkStore = function (config) {
                 if (localCons.length > 0) {
                     //If this store has a local consumer on it then send out a local notify, note no forwarding will happen from this store.
                     const existingNotifySql = 'SELECT * FROM notify WHERE storeName="' + node.name + '" AND serviceName="' + req.body.service +
-                        '" AND srcStoreAddress="' + req.body.srcStoreAddress + '" AND srcStorePort=' + req.body.srcStorePort +
-                        ' AND redlinkMsgId="' + req.body.redlinkMsgId + '"';
+                                              '" AND srcStoreAddress="' + req.body.srcStoreAddress + '" AND srcStorePort=' + req.body.srcStorePort +
+                                              ' AND redlinkMsgId="' + req.body.redlinkMsgId + '"';
                     const existingNotify = alasql(existingNotifySql);
-                    if (!existingNotify || existingNotify.length === 0) {
+                    if (existingNotify && existingNotify.length > 0) {
+                        deleteNotify(req.body.redlinkMsgId);
                         sendMessage({
                             debug: {
                                 storeName: node.name,
@@ -459,9 +458,10 @@ module.exports.RedLinkStore = function (config) {
                                 Data: req.body
                             }
                         });
-                        const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreAddress + '",' + req.body.srcStorePort + ',"' + req.body.redlinkMsgId + '","",false,"' + req.body.redlinkProducerId + '")';
-                        alasql(notifyInsertSql);
-                    }
+                    }    
+                    const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreAddress + '",' + req.body.srcStorePort + ',"' + req.body.redlinkMsgId + '","",false,"' + req.body.redlinkProducerId + '")';
+                    alasql(notifyInsertSql);
+                    
                 } else {
                     const remoteMatchingStores = [...new Set([...getRemoteMatchingStores(req.body.service, node.meshName)])];
                     remoteMatchingStores.forEach(remoteStore => {

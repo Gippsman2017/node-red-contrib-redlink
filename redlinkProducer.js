@@ -84,6 +84,7 @@ module.exports.RedLinkProducer = function (config) {
 
     function reNotify(msg){
         //simply remove message and reinsert to trigger notification
+        deleteNotifiesForMessage(msg.redlinkMsgId);
         deleteMessage(msg.redlinkMsgId);
         msg.timeSinceNotify = 0;
         const reinsertMessageSql = "INSERT INTO inMessages ("+getInsertSql(msg)+")";

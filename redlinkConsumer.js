@@ -23,9 +23,7 @@ module.exports.RedLinkConsumer = function (config) {
     node.consumerMeshName = config.consumerMeshName;
     node.manualRead = config.manualReadReceiveSend;
     node.inTransitLimit = config.intransit;
-    if (node.consumerMeshName) {
-        node.consumerStoreName = node.consumerMeshName + ':' + node.consumerStoreName;
-    }
+    if (node.consumerMeshName) { node.consumerStoreName = node.consumerMeshName + ':' + node.consumerStoreName; }
     let watermark = 0;
     node.rateTypeReceiveSend = config.rateTypeReceiveSend;
     node.rateReceiveSend = config.rateReceiveSend;
@@ -64,6 +62,8 @@ module.exports.RedLinkConsumer = function (config) {
         if (!notifyAndCount) {
             return;
         }
+        //console.log('Trigger=',getNewNotifyAndCount());
+
         const newNotify = notifyAndCount.notify;
         const notifyCount = notifyAndCount.notifyCount;
         updateNotifyTable(newNotify);
@@ -107,12 +107,12 @@ module.exports.RedLinkConsumer = function (config) {
     alasql(deleteFromConsumerSql);
     alasql(insertIntoConsumerSql);
 
-           const selectResult = alasql('SELECT storeName from stores WHERE storeName = "' + node.consumerStoreName + '"');
-           if (selectResult.length > 0) {
-             node.status({fill: "green", shape: "dot", text: 'Conn: '+node.consumerStoreName});
-        } else{
-            node.status({fill: "red", shape: "dot", text:'Error: No '+node.consumerStoreName});
-           }
+    const selectResult = alasql('SELECT storeName from stores WHERE storeName = "' + node.consumerStoreName + '"');
+    if (selectResult.length > 0) {
+       node.status({fill: "green", shape: "dot", text: 'Conn: '+node.consumerStoreName});
+      } else{
+       node.status({fill: "red", shape: "dot", text:'Error: No '+node.consumerStoreName});
+    }
 
     node.reSyncTimerId = reSyncStores(node.reSyncTime); // This is the main call to sync this consumer with its store on startup and it also starts the interval timer.
 
@@ -137,14 +137,12 @@ module.exports.RedLinkConsumer = function (config) {
     function reSyncStores(timeOut) {
         return setInterval(function () {
            // First get any local consumers that I own and update my own global entries in my own store, this updates ttl.
-//           const selectConsumerSql = 'SELECT * FROM localStoreConsumers WHERE storeName="' + node.consumerStoreName +'"' + ' AND serviceName="' + node.name + '" AND consumerId="' + node.id + '"';
-
            const sResult = alasql('SELECT storeName from stores WHERE storeName = "' + node.consumerStoreName + '"');
            const nResult = alasql('SELECT COUNT(DISTINCT redlinkMsgId) as myCount from notify     WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"');
            if (sResult.length > 0) {
              node.status({fill: "green", shape: "dot", text: 'C:'+node.consumerStoreName+' N:'+nResult[0].myCount});
            } else {
-            node.status({fill: "red",    shape: "dot", text: 'Error: No C:'+node.consumerStoreName});
+             node.status({fill: "red",    shape: "dot", text: 'Error: No C:'+node.consumerStoreName});
            }
            if (sResult.length == 0) {
              const deleteFromConsumerSql = 'DELETE FROM localStoreConsumers where consumerId = "'+ node.id +'"';
