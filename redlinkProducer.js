@@ -11,26 +11,34 @@ module.exports.initRED = function (_RED) {
 
 module.exports.RedLinkProducer = function (config) {
     RED.nodes.createNode(this, config);
-    this.producerStoreName = config.producerStoreName;
-    this.producerConsumer = config.producerConsumer;
-    this.sendOnly = config.sendOnly;
-    this.debug = config.showDebug;
-    this.manualRead = config.manualRead;
-    this.ett = +config.producerETT;
-    this.notify = +config.notifyInterval;
-    this.rateTypeSendReceive = config.rateTypeSendReceive;
-    this.rateSendReceive = config.rateSendReceive;
-    this.rateUnitsSendReceive = config.rateUnitsSendReceive;
-    this.rateUnitsSendReceive = config.rateUnitsSendReceive;
-    this.nbRateUnitsSendReceive = config.nbRateUnitsSendReceive;
-    this.priority = config.priority;
     const node = this;
+    node.producerStoreName = config.producerStoreName;
+    node.producerConsumer = config.producerConsumer;
+    node.reSyncTime = 10000; // This timer defines the consumer store update sync for localStoreConsumers.
+    node.reSyncTimerId = {};
+    node.sendOnly = config.sendOnly;
+    node.debug = config.showDebug;
+    node.manualRead = config.manualRead;
+    node.ett = +config.producerETT;
+    node.notify = +config.notifyInterval;
+    node.rateTypeSendReceive = config.rateTypeSendReceive;
+    node.rateSendReceive = config.rateSendReceive;
+    node.rateUnitsSendReceive = config.rateUnitsSendReceive;
+    node.rateUnitsSendReceive = config.rateUnitsSendReceive;
+    node.nbRateUnitsSendReceive = config.nbRateUnitsSendReceive;
+    node.priority = config.priority;
+    node.notifyTimerInterval = 2 * 1000; //2 s- make sure this is an integer
+    node.cleanInMessagesTask = setInterval(cleanInMessages, node.notifyTimerInterval) ;
+    node.reSyncTimerId = reSyncStores(node.reSyncTime); // This is the main call to sync this producer with its store on startup and it also starts the interval timer.
     const rateType = node.manualRead ? 'none' : (node.rateTypeSendReceive || 'none');
     const limiter = rateType==='none' ? null: rateLimiterProvider.getRateLimiter(config.rateSendReceive, config.nbRateUnitsSendReceive, config.rateUnitsSendReceive);
     const log = require('./log.js')(node).log;
     const largeMessagesDirectory = require('./redlinkSettings.js')(RED, node.producerStoreName).largeMessagesDirectory;
     const largeMessageThreshold = require('./redlinkSettings.js')(RED, node.producerStoreName).largeMessageThreshold;
     let errorMsg = null;
+
+    node.status({fill: "grey",    shape: "dot", text: 'Initialising'});
+
     try {
         fs.ensureDirSync(largeMessagesDirectory);
     } catch (e) {
@@ -38,12 +46,9 @@ module.exports.RedLinkProducer = function (config) {
         sendMessage({failure: errorMsg, debug: errorMsg});
     }
 
-    const notifyTimerInterval = 2 * 1000; //2 s- make sure this is an integer
-    let cleanInMessagesTask = setInterval(cleanInMessages, notifyTimerInterval) ;
-
     function cleanInMessages() {
         //1. increment lifetime, timeSinceNotify both by 2
-        const increment = notifyTimerInterval / 1000;
+        const increment = node.notifyTimerInterval / 1000;
         const updateSql = 'UPDATE inMessages SET lifetime = lifetime + ' + increment + ', timeSinceNotify = timeSinceNotify +' + increment;
         const updateSqlResult = alasql(updateSql);
         let msgsByThisProducerSql;
@@ -79,6 +84,7 @@ module.exports.RedLinkProducer = function (config) {
 
     function reNotify(msg){
         //simply remove message and reinsert to trigger notification
+        deleteNotifiesForMessage(msg.redlinkMsgId);
         deleteMessage(msg.redlinkMsgId);
         msg.timeSinceNotify = 0;
         const reinsertMessageSql = "INSERT INTO inMessages ("+getInsertSql(msg)+")";
@@ -91,7 +97,7 @@ module.exports.RedLinkProducer = function (config) {
     }
 
     function deleteNotifiesForMessage(redlinkMsgId) {
-        const deleteNotifyMsg = 'DELETE from notify WHERE redlinkMsgId = "' + redlinkMsgId + '"';
+        const deleteNotifyMsg = 'DELETE from notify WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId = "' + redlinkMsgId + '"';
         const deleteNotify = alasql(deleteNotifyMsg);
     }
 
@@ -266,10 +272,30 @@ module.exports.RedLinkProducer = function (config) {
         }
     }
 
+    function reSyncStores(timeOut) {
+        return setInterval(function () {
+           // First get any local consumers that I own and update my own global entries in my own store, this updates ttl.
+           // const selectConsumerSql = 'SELECT * FROM localStoreConsumers WHERE storeName="' + node.consumerStoreName +'"' + ' AND serviceName="' + node.name + '" AND consumerId="' + node.id + '"';
+
+           const sResult = alasql('SELECT storeName from stores WHERE storeName = "' + node.producerStoreName + '"');
+           const mResult = alasql('SELECT count(*) as myCount FROM inMessages    where read=false and storeName ="' + node.producerStoreName + '" and redlinkProducerId="' + node.id + '"');
+           const nResult = alasql('SELECT count(*) as myCount FROM notify        where read=false and storeName ="' + node.producerStoreName + '" and redlinkProducerId="' + node.id + '"');
+           const rResult = alasql('SELECT count(*) as myCount FROM replyMessages where read=false and storeName ="' + node.producerStoreName + '" and redlinkProducerId="' + node.id + '"');           
+           //console.log(alasql('select * from notify '));
+           //console.log(mResult[0].myCount,',',nResult[0].myCount,',',rResult[0].myCount);
+           if (sResult.length > 0) {
+             node.status({fill: "green", shape: "dot", text: 'C:'+node.producerStoreName+' M:'+ mResult[0].myCount +' N:'+nResult[0].myCount+' R:'+rResult[0].myCount});
+        } else{
+            node.status({fill: "red",    shape: "dot", text: 'Error: No C:'+node.producerStoreName});
+           }
+        },timeOut);
+    }
+
 
     node.on("close", (removed, done) => {
-        if(cleanInMessagesTask){
-            clearInterval(cleanInMessagesTask);
+        clearInterval(node.reSyncTimerId);
+        if(node.cleanInMessagesTask){
+            clearInterval(node.cleanInMessagesTask);
         }
         done();
     });
