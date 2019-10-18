@@ -63,7 +63,7 @@ module.exports = function (RED) {
         RED.httpAdmin.get("/north-peers", (req, res) => { res.json(RED.settings.northPeers || []); });
         RED.httpAdmin.get("/hostname",    (req, res) => { res.json(os.hostname()); });
         RED.httpAdmin.get("/mesh-names",  (req, res) => { res.json(getMeshNames()); });
-        RED.httpAdmin.get("/store-names", (req, res) => {
+        RED.httpAdmin.get("/store-names", (req, res) => { //todo safe delete this
             let returnStores = [];
             const mesh = req.query.mesh;
             if (!mesh) {
@@ -85,7 +85,7 @@ module.exports = function (RED) {
         });
 
         RED.httpAdmin.get("/all-store-names", (req, res) => { //TODO see if we can use the same route as store-names- maybe pass params?
-            let returnStores = [];
+            let returnStores = ['Please select a store'];
             const storesSql = 'SELECT DISTINCT storeName FROM stores'; //console.log(alasql('SELECT * FROM one WHERE a LIKE "abc%"'));
             const stores = alasql(storesSql);
             stores.forEach(meshStore => {
