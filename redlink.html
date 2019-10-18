@@ -419,7 +419,7 @@
         <label for="node-input-name"><i class="fa fa-sign-out"></i> Name </label>
         <input type="text" id="node-input-name" placeholder="name">
                         <input type="hidden" id="node-input-outputs"/>
-
+    </div>
     <div class="form-row" id="producer-store-div">
         <label for="node-input-producerStoreName"><i class="fa fa-link"></i> Store Name</label>
         <select id="node-input-producerStoreName">
@@ -530,7 +530,11 @@
         outputs:  3,
         defaults: {
             name: {value: 'REDLink producer'},
-            producerStoreName:      {value: '', required: true},
+            producerStoreName:      {value: '', validate: function (v) {
+                    v = v && v.trim().toLowerCase();
+                    return v && v !== 'please select a store';
+                }
+            },
             producerConsumer:       {value: '', required: false},
             producerTTL:            {value: 15, required: true},
             producerETT:            {value: 5 * 60, required: true, validate: validateNotifyAndETT},
@@ -562,7 +566,13 @@
         icon: "arrow-in.png",
         align: "right",
         label: function () {
-            return this.name || "";
+            let label1 = this.name;
+            let storeName = '';
+            if(this.producerStoreName && this.producerStoreName.trim().toLowerCase()!=='please select a store'){
+                storeName = '('+this.producerStoreName+')'
+            }
+            label1 = (this.name || "") + storeName;
+            return label1;
         },
         labelStyle: function () {
             return this.name ? "node_label_italic" : "";
@@ -671,11 +681,13 @@
         <input type="hidden" id="node-input-outputs"/>
     </div>
 
+<!--
     <div class="form-row" id="consumer-mesh-div">
         <label for="node-input-consumerMeshName"><i class="fa fa-plus-square-o"></i> Mesh Name</label>
         <select id="node-input-consumerMeshName">
         </select>
     </div>
+-->
 
     <div class="form-row" id="consumer-store-div">
         <label for="node-input-consumerStoreName"><i class="fa fa-link"></i> Store Name</label>
@@ -754,7 +766,7 @@
             name: {value: '', required: true},
             consumerMeshName: {value: '', required: true},
             consumerStoreName: {value: '', validate: function (v) {
-                    v = v.trim().toLowerCase();
+                    v = v && v.trim().toLowerCase();
                     return v && v !== 'please select a store';
                 }
             },
@@ -792,8 +804,40 @@
         },
         oneditprepare: function () {
             const selectedStore = this.consumerStoreName;
-            const selectedMesh = this.consumerMeshName;
-            function repopulateStores() {
+            // const selectedMesh = this.consumerMeshName;
+
+            function repopulateStores() { //todo refactor
+                let storeElement = $("#node-input-consumerStoreName");
+                storeElement.find('option').remove().end();
+                $.getJSON('all-store-names', stores => {
+                    let selectionSet = false;
+                    $.each(stores, function (index, obj) {
+                        if (selectedStore === obj) {
+                            selectionSet = true;
+                        }
+                        storeElement.append($('<option>', {
+                            value: obj,
+                            text: obj,
+                            selected: selectedStore === obj
+                        }));
+                    });
+                    if (!selectionSet) {
+                        var options = $('#node-input-consumerStoreName option');
+                        var values = $.map(options, function (option) {
+                            return option.value;
+                        });
+                        // $("#node-input-producerStoreName").prop("selectedIndex", 0);
+                        $("#node-input-consumerStoreName option:first").attr('selected', 'selected');
+                        // repopulateConsumers();
+                    }
+                });
+
+            }
+
+            repopulateStores();
+
+
+            /*function repopulateStores() {
                 let storeElement = $("#node-input-consumerStoreName");
                 storeElement.find('option').remove().end();
                 // console.log('value of node-input-producerStoreName:', );
@@ -807,13 +851,13 @@
                         }));
                     });
                 });
-            }
+            }*/
 
-            $("#node-input-consumerMeshName").change(() => {
+/*            $("#node-input-consumerMeshName").change(() => {
                 repopulateStores();
-            });
+            });*/
 
-            let meshesElement = $("#node-input-consumerMeshName");
+/*            let meshesElement = $("#node-input-consumerMeshName");
 
             $.getJSON('mesh-names', meshes => {
                 let selectionSet = false;
@@ -828,16 +872,16 @@
                     }));
                 });
                 if (!selectionSet) {
-/*
+/!*
                     var values = $.map($('#node-input-consumerMeshName option'), function (option) {
                         return option.value;
                     });
                     $("#node-input-producerStoreName").prop("selectedIndex", 0);
-*/
+*!/
                     $("#node-input-consumerMeshName option:first").attr('selected', 'selected');
                     repopulateStores();
                 }
-            });
+            });*/
 
 
             $('#node-input-manualReadReceiveSend').change(function () {
