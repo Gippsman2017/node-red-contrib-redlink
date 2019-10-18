@@ -20,10 +20,8 @@ module.exports.RedLinkConsumer = function (config) {
     node.reSyncTimerId = {};
 
     node.consumerStoreName = config.consumerStoreName;
-    node.consumerMeshName = config.consumerMeshName;
     node.manualRead = config.manualReadReceiveSend;
     node.inTransitLimit = config.intransit;
-    if (node.consumerMeshName) { node.consumerStoreName = node.consumerMeshName + ':' + node.consumerStoreName; }
     let watermark = 0;
     node.rateTypeReceiveSend = config.rateTypeReceiveSend;
     node.rateReceiveSend = config.rateReceiveSend;
