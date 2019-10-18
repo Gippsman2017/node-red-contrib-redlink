@@ -22,7 +22,7 @@ module.exports.RedLinkStore = function (config) {
     const log = require('./log.js')(node).log;
 
     node.reSyncTime = 30000; // This timer defines the routing mesh sync for any messages.
-    node.consumerlifeSpan = 120 // 2 Minutes;
+    node.consumerlifeSpan = 120; // 2 Minutes
     node.reSyncTimerId = {};
     node.listenAddress = config.listenAddress;
     node.listenPort = config.listenPort;
@@ -103,7 +103,7 @@ module.exports.RedLinkStore = function (config) {
       return peer.filter(function(addressPort) {
         return addressPort != address+':'+port;
         });
-    };
+    }
 
     function deleteGlobalStoreConsumers(store, direction, address, port) {
       const deleteSql = 'delete from globalStoreConsumers where localStoreName="'+store+'" and direction="'+direction+'" and transitAddress="'+address+'" and transitPort='+port;
@@ -133,7 +133,7 @@ module.exports.RedLinkStore = function (config) {
                     }
              else   
                if (direction === 'north') { // Ok, North Peers are hard wired, if the connection is a problem, then just delete the globalStoreConsumers.
-                 if (deleteGlobalStoreConsumers(node.name, direction, address, port)){;
+                 if (deleteGlobalStoreConsumers(node.name, direction, address, port)){
                     sendMessage({ registration: { storeName: node.name, action: 'notifyDeletePeerConsumer',   direction: direction, notifyData: address+':'+port, serviceName : consumer.serviceName}});
                    } 
                  }
@@ -296,6 +296,19 @@ module.exports.RedLinkStore = function (config) {
         log(e);
     }
 
+    function handleStoreStartError(e) {
+        const errorMsg = 'redlinkStore ' + node.name + ' Error starting listen server on ' + node.listenPort + ' Exception is ' + e;
+        sendMessage({
+            debug: {
+                storeName: node.name,
+                action: 'startServer',
+                error: errorMsg
+            }
+        });
+        clearInterval(node.reSyncTimerId); //should be alright to do this here- the store needs to be reinitialised to restart
+        node.status({fill: "red", shape: "dot", text: 'Error starting store server'});
+    }
+
     if (node.listenPort) {
         try {
             const args = [+node.listenPort];
@@ -321,9 +334,15 @@ module.exports.RedLinkStore = function (config) {
                     done();
                 });
             });
+            node.listenServer.listen(node.listenPort).on('error', e => {
+                if (e.code === 'EADDRINUSE') {
+                    console.log(e);
+                    handleStoreStartError(e);
+                }
+            });
             node.status({fill: "grey", shape: "dot", text:'Initialising'});
         } else{
-            node.status({fill: "red", shape: "dot", text:'Error starting store server'});
+            handleStoreStartError('Unable to start server');
         }
         log('started server at port:', node.listenPort);
     }
@@ -348,8 +367,7 @@ module.exports.RedLinkStore = function (config) {
 
     function deleteNotify(redlinkMsgId) {
         const deleteNotifyMsg = 'DELETE from notify WHERE redlinkMsgId = "' + redlinkMsgId + '" and storeName = "' + node.nam+'"';
-        const deleteNotify = alasql(deleteNotifyMsg);
-        return deleteNotify;
+        return alasql(deleteNotifyMsg);
     }
 
 
