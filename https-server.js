@@ -17,11 +17,7 @@ module.exports.startServer = function (port, key , cert) {
         server = https.createServer({
             key: _key,
             cert: _cert
-        }, app).listen(port).on( 'error', function (e) {
-            if (e.code === 'EADDRINUSE') {
-                console.log('Address in use');
-            }
-        });
+        }, app);
         // server.maxConnections = 3;
         return server;
     } catch (e) {
