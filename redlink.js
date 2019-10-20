@@ -20,7 +20,7 @@ module.exports = function (RED) {
         alasql('DROP TABLE IF EXISTS globalStoreConsumers');
         alasql('DROP TABLE IF EXISTS stores');
         alasql('DROP TABLE IF EXISTS replyMessages');
-        alasql('CREATE TABLE notify (storeName STRING, serviceName STRING, srcStoreAddress STRING, srcStorePort INT , redlinkMsgId STRING, notifySent STRING, read BOOLEAN, redlinkProducerId STRING)');
+        alasql('CREATE TABLE notify (storeName STRING, serviceName STRING, srcStoreAddress STRING, srcStorePort INT , redlinkMsgId STRING, notifySent STRING, read BOOLEAN, redlinkProducerId STRING, notifyPath STRING)');
         alasql('CREATE TABLE inMessages (redlinkMsgId STRING, storeName STRING, serviceName STRING, message STRING, ' +
             'read BOOLEAN, sendOnly BOOLEAN, redlinkProducerId STRING,preserved STRING, timestamp BIGINT, priority INT, ' +
             'isLargeMessage BOOLEAN, lifetime INT, timeSinceNotify INT)');

@@ -30,12 +30,18 @@ module.exports.RedLinkProducer = function (config) {
     node.notifyTimerInterval = 2 * 1000; //2 s- make sure this is an integer
     node.cleanInMessagesTask = setInterval(cleanInMessages, node.notifyTimerInterval) ;
     node.reSyncTimerId = reSyncStores(node.reSyncTime); // This is the main call to sync this producer with its store on startup and it also starts the interval timer.
+
+    node.reNotifyTime = 2000; // This timer defines the producer store update sync for replyNotifies
+    node.reNotifyTimerId = {};
+
     const rateType = node.manualRead ? 'none' : (node.rateTypeSendReceive || 'none');
     const limiter = rateType==='none' ? null: rateLimiterProvider.getRateLimiter(config.rateSendReceive, config.nbRateUnitsSendReceive, config.rateUnitsSendReceive);
     const log = require('./log.js')(node).log;
     const largeMessagesDirectory = require('./redlinkSettings.js')(RED, node.producerStoreName).largeMessagesDirectory;
     const largeMessageThreshold = require('./redlinkSettings.js')(RED, node.producerStoreName).largeMessageThreshold;
     let errorMsg = null;
+
+    node.reNotifyTimerId = reNotifyProducer(node.reNotifyTime); // This is the main call to sync this consumer with its store on startup and it also starts the interval timer.
 
     node.status({fill: "grey",    shape: "dot", text: 'Initialising'});
 
@@ -84,7 +90,7 @@ module.exports.RedLinkProducer = function (config) {
 
     function reNotify(msg){
         //simply remove message and reinsert to trigger notification
-        deleteNotifiesForMessage(msg.redlinkMsgId);
+//        deleteNotifiesForMessage(msg.redlinkMsgId);
         deleteMessage(msg.redlinkMsgId);
         msg.timeSinceNotify = 0;
         const reinsertMessageSql = "INSERT INTO inMessages ("+getInsertSql(msg)+")";
@@ -109,6 +115,23 @@ module.exports.RedLinkProducer = function (config) {
 
     const nodeId = config.id.replace('.', '');
     const replyMsgTriggerName = 'replyMessage' + nodeId;
+
+    function sendOutNotify(){
+       const nResult = alasql('SELECT COUNT(redlinkProducerId) as myCount from replyMessages  WHERE read=false and storeName="' + node.producerStoreName + '" AND redlinkProducerId="'+node.id+'"');
+       if (nResult[0].myCount > 0){
+          const data = alasql('SELECT * from replyMessages  WHERE storeName="' + node.producerStoreName + '" AND redlinkProducerId="' + node.id + '"');
+          const notifyMessage = { //todo store more info in replyMesssages- store, etc and populate in notify msg
+              producerName: node.name, 
+              redlinkProducerId: node.id,
+              redlinkMsgId: data[0].redlinkMsgId,
+              notifyType: 'producerReplyNotification',
+              replyCount: nResult[0].myCount
+          };
+          if (node.manualRead) {
+             sendMessage({notify: notifyMessage});
+          }
+       }
+    }
 
     alasql.fn[replyMsgTriggerName] = () => {
         //look up inMessages table to see if this producer actually sent the message
@@ -140,14 +163,12 @@ module.exports.RedLinkProducer = function (config) {
                 const relevanttReplySql = 'SELECT * FROM replyMessages WHERE redlinkMsgId="' + daId + '"';
                 let relevantReplies = alasql(relevanttReplySql); //should have just one result
                 if (relevantReplies && relevantReplies.length > 0) {
-                    const notifyMessage = { //todo store more info in replyMesssages- store, etc and populate in notify msg
-                        redlinkMsgId: daId,
-                        notifyType: 'producerReplyNotification',
-                    };
                     if (node.manualRead) {
-                        sendMessage({notify: notifyMessage})
-                    } else {
-                        sendMessage({notify: notifyMessage}); //send notify regardless of whether it is manual or auto read
+                       sendOutNotify();
+                    } 
+                  else 
+                    {
+                        sendOutNotify();
                         if (limiter === null) {
                             const reply = getReply(daId, relevanttReplySql, relevantReplies, msgsByThisProducer[0].preserved);
                             sendMessage({receive: reply});
@@ -284,16 +305,23 @@ module.exports.RedLinkProducer = function (config) {
            //console.log(alasql('select * from notify '));
            //console.log(mResult[0].myCount,',',nResult[0].myCount,',',rResult[0].myCount);
            if (sResult.length > 0) {
-             node.status({fill: "green", shape: "dot", text: 'C:'+node.producerStoreName+' M:'+ mResult[0].myCount +' N:'+nResult[0].myCount+' R:'+rResult[0].myCount});
+             node.status({fill: "green", shape: "dot", text: 'M:'+ mResult[0].myCount +' N:'+nResult[0].myCount+' R:'+rResult[0].myCount});
         } else{
-            node.status({fill: "red",    shape: "dot", text: 'Error: No C:'+node.producerStoreName});
+            node.status({fill: "red",    shape: "dot", text: 'Error: No Store:'+node.producerStoreName});
            }
         },timeOut);
     }
 
 
+    function reNotifyProducer(timeOut) {
+        return setInterval(function () {
+           sendOutNotify();
+        },timeOut);
+    }
+
     node.on("close", (removed, done) => {
         clearInterval(node.reSyncTimerId);
+        clearInterval(node.reNotifyTimerId);
         if(node.cleanInMessagesTask){
             clearInterval(node.cleanInMessagesTask);
         }

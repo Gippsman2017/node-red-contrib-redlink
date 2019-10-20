@@ -19,6 +19,9 @@ module.exports.RedLinkConsumer = function (config) {
     node.reSyncTime = 10000; // This timer defines the consumer store update sync for localStoreConsumers.
     node.reSyncTimerId = {};
 
+    node.reNotifyTime = 2000; // This timer defines the consumer store update sync for localStoreConsumers reNotifies
+    node.reNotifyTimerId = {};
+
     node.consumerStoreName = config.consumerStoreName;
     node.manualRead = config.manualReadReceiveSend;
     node.inTransitLimit = config.intransit;
@@ -54,46 +57,59 @@ module.exports.RedLinkConsumer = function (config) {
         readMessage(redlinkMsgId).then(response => sendMessage(response)).catch(err => sendMessage(err));
     }
 
+
+    function sendOutNofify() {
+       const nResult = alasql('SELECT COUNT(notifySent) as myCount from notify  WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '" and notifySent="'+node.id+'"');
+       if (nResult[0].myCount > 0){
+         const data = alasql('SELECT * from notify  WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '" and notifySent="'+node.id+'"');
+         const notifyMessage = {
+            redlinkMsgId: data[0].redlinkMsgId,
+            notifyType: 'producerNotification',
+            src: {storeName: data[0].storeName, address: data[0].srcStoreAddress + ':' + data[0].srcStorePort,},
+            dest: {storeName: data[0].storeName, serviceName: data[0].serviceName, consumer: node.id},
+            path: base64Helper.decode(data[0].notifyPath),
+            notifyCount:nResult[0].myCount
+            };
+         if (node.manualRead) {
+            sendMessage({notify: notifyMessage});
+            }
+          else {
+              //check inTransitLimit first
+              if (watermark < node.inTransitLimit) {
+                   sendMessage({notify: notifyMessage}); //send notify regardless of whether it is manual or auto read
+                   //todo read oldest message first- right now it reads the notifies in random order- see getNewNotifyAndCount() at beginning of trigger
+                   if (limiter === null) {
+                       readMessageAndSendToOutput(notifyMessage.redlinkMsgId);
+                   } else 
+                   {
+                       limiter.removeTokens(1, function (err, remainingRequests) {
+                           readMessageAndSendToOutput(notifyMessage.redlinkMsgId);
+                      });
+                   }
+              } 
+            else 
+              {
+                notifyMessage.warning = 'inTransitLimit ' + node.inTransitLimit + ' exceeded. This notify will be discarded';
+                sendMessage({notify: notifyMessage});  //TODO- still send the notify out?
+                const deleteNotify1 = deleteNotify(data[0].redlinkMsgId);
+              }
+          }
+ 
+       }
+    }
+
     alasql.fn[newMsgNotifyTrigger] = () => {
         // OK, this consumer will now add its own node.id to the notify trigger message since it comes in without one.
         const notifyAndCount = getNewNotifyAndCount();
         if (!notifyAndCount) {
             return;
         }
-        //console.log('Trigger=',getNewNotifyAndCount());
-
         const newNotify = notifyAndCount.notify;
         const notifyCount = notifyAndCount.notifyCount;
         updateNotifyTable(newNotify);
-        const notifyMessage = {
-            redlinkMsgId: newNotify.redlinkMsgId,
-            notifyType: 'producerNotification',
-            src: {storeName: newNotify.storeName, address: newNotify.srcStoreAddress + ':' + newNotify.srcStorePort,},
-            dest: {storeName: newNotify.storeName, serviceName: newNotify.serviceName, consumer: node.id},
-            notifyCount
-        };
-
-        if (node.manualRead) {
-            sendMessage({notify: notifyMessage});
-        } else {
-            //check inTransitLimit first
-            if (watermark < node.inTransitLimit) {
-                sendMessage({notify: notifyMessage}); //send notify regardless of whether it is manual or auto read
-                //todo read oldest message first- right now it reads the notifies in random order- see getNewNotifyAndCount() at beginning of trigger
-                if (limiter === null) {
-                    readMessageAndSendToOutput(notifyMessage.redlinkMsgId);
-                } else {
-                    limiter.removeTokens(1, function (err, remainingRequests) {
-                        readMessageAndSendToOutput(notifyMessage.redlinkMsgId);
-                    });
-                }
-            } else {
-                notifyMessage.warning = 'inTransitLimit ' + node.inTransitLimit + ' exceeded. This notify will be discarded';
-                sendMessage({notify: notifyMessage});  //TODO- still send the notify out?
-                const deleteNotify1 = deleteNotify(newNotify.redlinkMsgId);
-            }
-        }
+        sendOutNofify();
     };
+
 
     const createTriggerSql = 'CREATE TRIGGER ' + msgNotifyTriggerId + ' AFTER INSERT ON notify CALL ' + newMsgNotifyTrigger + '()';
     alasql(createTriggerSql);
@@ -113,10 +129,12 @@ module.exports.RedLinkConsumer = function (config) {
     }
 
     node.reSyncTimerId = reSyncStores(node.reSyncTime); // This is the main call to sync this consumer with its store on startup and it also starts the interval timer.
+    node.reNotifyTimerId = reNotifyConsumers(node.reNotifyTime); // This is the main call to sync this consumer with its store on startup and it also starts the interval timer.
 
     node.on('close', (removed, done) => {
         clearInterval(node.reSyncTimerId);
         //clean up like in the redlinkStore- reinit trigger function to empty
+        clearInterval(node.reNotifyTimerId);
         dropTrigger(msgNotifyTriggerId);
         //        log('dropped notify trigger...');
         const deleteConsumerSql = 'DELETE FROM localStoreConsumers WHERE storeName="' + node.consumerStoreName +'"' + ' AND serviceName="' + node.name + '" AND consumerId="' + node.id + '"';
@@ -138,9 +156,9 @@ module.exports.RedLinkConsumer = function (config) {
            const sResult = alasql('SELECT storeName from stores WHERE storeName = "' + node.consumerStoreName + '"');
            const nResult = alasql('SELECT COUNT(DISTINCT redlinkMsgId) as myCount from notify     WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"');
            if (sResult.length > 0) {
-             node.status({fill: "green", shape: "dot", text: 'C:'+node.consumerStoreName+' N:'+nResult[0].myCount});
+             node.status({fill: "green", shape: "dot", text: 'N:'+nResult[0].myCount});
            } else {
-             node.status({fill: "red",    shape: "dot", text: 'Error: No C:'+node.consumerStoreName});
+             node.status({fill: "red",    shape: "dot", text: 'Error: No Store:'+node.consumerStoreName});
            }
            if (sResult.length == 0) {
              const deleteFromConsumerSql = 'DELETE FROM localStoreConsumers where consumerId = "'+ node.id +'"';
@@ -148,6 +166,26 @@ module.exports.RedLinkConsumer = function (config) {
              alasql(deleteFromConsumerSql);
              alasql(insertIntoConsumerSql);
            }
+        },timeOut);    
+    }
+
+    function reNotifyConsumers(timeOut) {
+        return setInterval(function () {
+           const nResult = alasql('SELECT COUNT(notifySent) as myCount from notify  WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '" and notifySent="'+node.id+'"');
+           if (nResult[0].myCount > 0){
+             const data = alasql('SELECT * from notify  WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '" and notifySent="'+node.id+'"');
+             const notifyMessage = {
+                redlinkMsgId: data[0].redlinkMsgId,
+                notifyType: 'producerNotification',
+                src: {storeName: data[0].storeName, address: data[0].srcStoreAddress + ':' + data[0].srcStorePort,},
+                dest: {storeName: data[0].storeName, serviceName: data[0].serviceName, consumer: node.id},
+                path: base64Helper.decode(data[0].notifyPath),
+                notifyCount:nResult[0].myCount
+            };
+            if (node.manualRead) {
+              sendMessage({notify: notifyMessage});
+            }
+          }
         },timeOut);    
     }
 

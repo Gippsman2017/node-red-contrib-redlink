@@ -2,6 +2,7 @@ const httpsServer = require('./https-server.js');
 const alasql = require('alasql');
 const request = require('request').defaults({strictSSL: false});
 const fs = require('fs-extra');
+const base64Helper = require('./base64-helper.js');
 
 let RED;
 module.exports.initRED = function (_RED) {
@@ -245,7 +246,8 @@ module.exports.RedLinkStore = function (config) {
                 });
 
                 const remoteMatchingStores = [...new Set([...getRemoteMatchingStores(newMessage.serviceName, node.meshName)])];
-
+                let thisPath = [];
+                thisPath.push({store:node.name,address:node.listenAddress,port:node.listenPort});
                 remoteMatchingStores.forEach(remoteStore => {
                     const body = {
                         service: newMessage.serviceName,
@@ -253,6 +255,7 @@ module.exports.RedLinkStore = function (config) {
                         srcStorePort: node.listenPort,
                         transitAddress: node.listenAddress,
                         transitPort: node.listenPort,
+                        notifyPath: thisPath,
                         sendersHopCount: remoteStore.transitHopCount,
                         redlinkMsgId: newMessage.redlinkMsgId,
                         notifyType: 'producerNotification',
@@ -264,7 +267,6 @@ module.exports.RedLinkStore = function (config) {
                         body,
                         json: true
                     };
-                    //console.log(options);
                     request(options, function (error, response) {
                         if (error || response.statusCode !== 200) {
                             sendMessage({debug: {error: true, errorDesc: error || response.body}});
@@ -423,7 +425,6 @@ module.exports.RedLinkStore = function (config) {
                         break;
 
                     case 'north' : //Connection is connecting from the South and this is why the routing is indicating that the serviceName is south of this store
-                        //console.log('southInsert=',node.southInsert);
                         if (node.southInsert) {
                            insertGlobalConsumer(serviceName, consumerId, storeName, 'south', storeAddress, storePort, transitAddress, transitPort, hopCount, ttl);
                            notifyNorthStoreOfConsumers(consumer, node.listenAddress, node.listenPort); // Pass the registration forward to the next store
@@ -448,7 +449,10 @@ module.exports.RedLinkStore = function (config) {
 
 
             case 'producerNotification' :
-
+                let   notifyPath =[];
+                req.body.notifyPath.forEach(function (path) {    
+                    notifyPath.push(path);
+                });
                 sendMessage({
                     debug: {
                         storeName: node.name,
@@ -461,34 +465,44 @@ module.exports.RedLinkStore = function (config) {
                 const existingLocalConsumerSql = 'SELECT * FROM localStoreConsumers WHERE storeName="' + node.name + '" AND serviceName="' + req.body.service + '"';
                 const localCons = alasql(existingLocalConsumerSql);
                 if (localCons.length > 0) {
-                    //If this store has a local consumer on it then send out a local notify, note no forwarding will happen from this store.
+                    //If this store has a local consumer on it then send out a local notify, note that this store will terminate local service names here and will not forward them
+                   sendMessage({
+                        debug: {
+                            storeName: node.name,
+                            action: 'producerNotification',
+                            direction: 'LocalConsumerNotify',
+                            Data: req.body
+                        }
+                    });
+
                     const existingNotifySql = 'SELECT * FROM notify WHERE storeName="' + node.name + '" AND serviceName="' + req.body.service +
                                               '" AND srcStoreAddress="' + req.body.srcStoreAddress + '" AND srcStorePort=' + req.body.srcStorePort +
-                                              ' AND redlinkMsgId="' + req.body.redlinkMsgId + '"';
+                                              ' AND redlinkMsgId="' + req.body.redlinkMsgId +'"';
+
                     const existingNotify = alasql(existingNotifySql);
                     if (existingNotify && existingNotify.length > 0) {
-                        deleteNotify(req.body.redlinkMsgId);
-                        sendMessage({
-                            debug: {
-                                storeName: node.name,
-                                action: 'producerNotification',
-                                direction: 'LocalConsumerNotify',
-                                Data: req.body
-                            }
-                        });
+//                        deleteNotify(req.body.redlinkMsgId);
                     }    
-                    const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreAddress + '",' + req.body.srcStorePort + ',"' + req.body.redlinkMsgId + '","",false,"' + req.body.redlinkProducerId + '")';
+                  else
+                    {
+                    const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreAddress + '",' + 
+                                                                            req.body.srcStorePort + ',"' + req.body.redlinkMsgId + '","",false,"' + req.body.redlinkProducerId + '","'+
+                                                                            base64Helper.encode(notifyPath)+'")';
                     alasql(notifyInsertSql);
-                    
+
+                    }                    
                 } else {
-                    const remoteMatchingStores = [...new Set([...getRemoteMatchingStores(req.body.service, node.meshName)])];
-                    remoteMatchingStores.forEach(remoteStore => {
+                        const thisPath = {store:node.name,address:node.listenAddress,port:node.listenPort};
+                        notifyPath.unshift(thisPath);
+                        const remoteMatchingStores = [...new Set([...getRemoteMatchingStores(req.body.service, node.meshName)])];
+                        remoteMatchingStores.forEach(remoteStore => {
                         const body = {
                             service: req.body.service,
                             srcStoreAddress: req.body.srcStoreAddress,
                             srcStorePort: req.body.srcStorePort,
                             transitAddress: node.listenAddress,
                             transitPort: node.listenPort,
+                            notifyPath: notifyPath,
                             sendersHopCount: req.body.sendersHopCount,
                             redlinkMsgId: req.body.redlinkMsgId,
                             notifyType: 'producerNotification',
