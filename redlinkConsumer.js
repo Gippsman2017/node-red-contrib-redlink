@@ -59,9 +59,9 @@ module.exports.RedLinkConsumer = function (config) {
 
 
     function sendOutNofify() {
-       const nResult = alasql('SELECT COUNT(notifySent) as myCount from notify  WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '" and notifySent="'+node.id+'"');
+       const nResult = alasql('SELECT COUNT(notifySent) as myCount from notify  WHERE read=false and storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '" and notifySent="'+node.id+'"');
        if (nResult[0].myCount > 0){
-         const data = alasql('SELECT * from notify  WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '" and notifySent="'+node.id+'"');
+         const data = alasql('SELECT * from notify  WHERE read=false and storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '" and notifySent="'+node.id+'"');
          const notifyMessage = {
             redlinkMsgId: data[0].redlinkMsgId,
             notifyType: 'producerNotification',
@@ -138,8 +138,6 @@ module.exports.RedLinkConsumer = function (config) {
         dropTrigger(msgNotifyTriggerId);
         //        log('dropped notify trigger...');
         const deleteConsumerSql = 'DELETE FROM localStoreConsumers WHERE storeName="' + node.consumerStoreName +'"' + ' AND serviceName="' + node.name + '" AND consumerId="' + node.id + '"';
-        //console.log('deleteConsumers=',deleteConsumerSql,'  ==',        alasql(deleteConsumerSql)); //can have multiple consumers with same name registered to the same store
-        //        log('removed consumer from local store...');
         alasql(deleteConsumerSql);
         done();
     });
@@ -154,9 +152,8 @@ module.exports.RedLinkConsumer = function (config) {
         return setInterval(function () {
            // First get any local consumers that I own and update my own global entries in my own store, this updates ttl.
            const sResult = alasql('SELECT storeName from stores WHERE storeName = "' + node.consumerStoreName + '"');
-           const nResult = alasql('SELECT COUNT(DISTINCT redlinkMsgId) as myCount from notify     WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"');
            if (sResult.length > 0) {
-             node.status({fill: "green", shape: "dot", text: 'N:'+nResult[0].myCount});
+             node.status({fill: "green", shape: "dot", text: ''});
            } else {
              node.status({fill: "red",    shape: "dot", text: 'Error: No Store:'+node.consumerStoreName});
            }
@@ -172,6 +169,7 @@ module.exports.RedLinkConsumer = function (config) {
     function reNotifyConsumers(timeOut) {
         return setInterval(function () {
            const nResult = alasql('SELECT COUNT(notifySent) as myCount from notify  WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '" and notifySent="'+node.id+'"');
+            node.status({fill: "green", shape: "dot", text: 'N:'+nResult[0].myCount});
            if (nResult[0].myCount > 0){
              const data = alasql('SELECT * from notify  WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '" and notifySent="'+node.id+'"');
              const notifyMessage = {
@@ -210,10 +208,6 @@ module.exports.RedLinkConsumer = function (config) {
         }  //cmd read
         else {  // Reply message, this is where the reply is actually sent back to the replyMessages on the Producer.
             if (msg.redlinkMsgId && !msg.sendOnly) { //todo delete notify if sendOnly
-                // const msgSql = 'SELECT * FROM inMessages WHERE redlinkMsgId="' + msg.redlinkMsgId + '"';
-                // const matchingMessages = alasql(msgSql);
-                // sendMessage({debug: {action: 'replySend', direction: 'inBound', message: matchingMessages}});
-                // node.send([]);
                 if (/*matchingMessages.length > 0*/true) { //should have only one
                     const notifySql = 'SELECT * FROM notify WHERE redlinkMsgId="' + msg.redlinkMsgId + '"and notifySent LIKE "%' + node.id + '%"';
                     const notifies = alasql(notifySql); //should have only one
@@ -298,7 +292,6 @@ module.exports.RedLinkConsumer = function (config) {
                     json: true
                 };
                 sendMessage({debug: {"debugData": "storeName " + sendingStoreName + ' ' + node.name + "action:consumerRead" + options}});
-                //            node.send([null,{storeName: sendingStoreName,consumerName:node.name,action:'consumerRead',direction:'outBound',Data:options},null]);
                 const updateNotifyStatus = 'UPDATE notify SET read=' + true + ' WHERE redlinkMsgId="' + redlinkMsgId + '"  and notifySent LIKE "%' + node.id + '%"';
                 alasql(updateNotifyStatus);
                 request(options, function (error, response) {

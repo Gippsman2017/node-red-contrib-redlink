@@ -25,6 +25,10 @@ module.exports.RedLinkStore = function (config) {
     node.reSyncTime = 30000; // This timer defines the routing mesh sync for any messages.
     node.consumerlifeSpan = 120; // 2 Minutes
     node.reSyncTimerId = {};
+
+    node.statusTime = 4000; // This timer defines the routing mesh sync for any messages.
+    node.statusTimerId = {};
+
     node.listenAddress = config.listenAddress;
     node.listenPort = config.listenPort;
     node.southInsert = config.southInsert;
@@ -126,7 +130,6 @@ module.exports.RedLinkStore = function (config) {
             const options = {method: 'POST', url: 'https://' + address + ':' + port + '/notify', body, json: true};
             request(options, function (error, response) {
                if (error) {
-                    //console.log(direction, hopCount, '-',address,'-', port, '-',transitAddress, '-',transitPort);
                     if (direction === 'south') {
                       node.southPeers = deleteSouthPeer(address,port, node.southPeers); // Ok, looks like the peer has gone, so, lets delete the peer entry.
                       deleteGlobalStoreConsumers(node.name, direction, address, port);
@@ -290,9 +293,9 @@ module.exports.RedLinkStore = function (config) {
         } catch (e1) {
         }
 
-    // reSyncStores
     notifyAllNorthPeerStoresOnly(); // Register myself with my North Store
     node.reSyncTimerId = reSyncStores(node.reSyncTime); // This is the main call to sync all of the interconnected stores on startup and it also starts the interval timer.
+    node.statusTimerId = statusStores(node.statusTime); // This is the main call to display storeStatus info it starts the interval timer.
 
     } catch (e) {
         log(e);
@@ -352,7 +355,10 @@ module.exports.RedLinkStore = function (config) {
     function insertGlobalConsumer(serviceName, consumerId, storeName, direction, storeAddress, storePort, transitAddress, transitPort, hopCount, ttl) {
         const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND consumerId="' + consumerId +
             '" AND storeName="' + storeName + '" AND storeAddress = "' + storeAddress + '" AND storePort = ' + storePort;
+//        const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND consumerId="' + consumerId +
+//            '" AND storeName="' + storeName + '" AND storeAddress = "' + storeAddress + '" AND storePort = '+ storePort + ' AND transitAddress = "' + transitAddress + '" AND transitPort = ' + transitPort;
         const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
+
         const insertGlobalConsumersSql = 'INSERT INTO globalStoreConsumers("' + node.name + '","' + serviceName + '","' + consumerId + '","' + storeName + '","' + direction + '","' +
             storeAddress + '",' + storePort + ',"' + transitAddress + '",' + transitPort + ',' + hopCount + ',' + ttl + ')';
         if (!existingGlobalConsumer || existingGlobalConsumer.length === 0) {
@@ -662,16 +668,21 @@ module.exports.RedLinkStore = function (config) {
 
     function reSyncStores(timeOut) {
         return setInterval(function () {
+           // First get any local consumers that I own and update my own global entries in my own store, this updates ttl.
+           notifyPeerStoreOfLocalConsumers(node.listenAddress, node.listenPort, node.listenAddress, node.listenPort);
+           deleteOldConsumers();              // Next  clean up my store first to remove old entries that have not renewed themselves
+           notifyAllNorthPeerStoresOnly();    // Make sure the north store knows about me.
+        },timeOut);    
+    }
+
+    function statusStores(timeOut) {
+        return setInterval(function () {
            const consumers = getAllVisibleConsumers();
            if (consumers.localConsumers.length > 0) {
              node.status({fill: "green",  shape: "dot", text: 'Local('+consumers.localConsumers.length+') Global('+consumers.globalConsumers.length+')'});
         } else{
              node.status({fill: "yellow", shape: "dot", text: 'Local('+consumers.localConsumers.length+') Global('+consumers.globalConsumers.length+')'});
            }
-           // First get any local consumers that I own and update my own global entries in my own store, this updates ttl.
-           notifyPeerStoreOfLocalConsumers(node.listenAddress, node.listenPort, node.listenAddress, node.listenPort);
-           deleteOldConsumers();              // Next  clean up my store first to remove old entries that have not renewed themselves
-           notifyAllNorthPeerStoresOnly();    // Make sure the north store knows about me.
         },timeOut);    
     }
 
@@ -756,6 +767,7 @@ module.exports.RedLinkStore = function (config) {
 
     node.on('close', (removed, done) => {
         clearInterval(node.reSyncTimerId);
+        clearInterval(node.statusTimerId);
         node.northPeers = config.headers;
         node.southPeers = [];
 

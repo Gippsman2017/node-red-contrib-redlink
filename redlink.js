@@ -71,7 +71,6 @@ module.exports = function (RED) {
                 res.json(returnStores);
                 return;
             }
-            //console.log('query ',req.query);
             const storesSql = 'SELECT DISTINCT storeName FROM stores WHERE storeName LIKE "' + mesh + '%"'; //console.log(alasql('SELECT * FROM one WHERE a LIKE "abc%"'));
             const stores = alasql(storesSql);
             returnStores.push('Please select a store');
@@ -80,7 +79,6 @@ module.exports = function (RED) {
                 const storeName = meshStorename.indexOf(':') !== -1 ? meshStorename.substring(meshStorename.indexOf(':') + 1) : meshStorename;//todo this shouldnt happen
                 returnStores.push(storeName);
             });
-            //console.log('store-names=',req.query,' =',returnStores);
             res.json(returnStores);
         });
 
@@ -100,7 +98,6 @@ module.exports = function (RED) {
             if (!store) { //shouldnt happen- nothing we can do
                 //log('no store selected for producer- not populating consumers ');
             }
-            //console.log(req.query,'=',responseJson);
             res.json(responseJson);
         });
     }
