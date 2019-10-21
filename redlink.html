@@ -764,9 +764,12 @@
         outputs: 3,
         defaults: {
             name: {value: '', required: true},
-            consumerMeshName: {value: '', required: true},
-            consumerStoreName: {value: '', validate: function (v) {
+            consumerStoreName: {value: '', validate: v => {
                     v = v && v.trim().toLowerCase();
+                    const storeFromHtml = $("#node-input-consumerStoreName").find("option:selected").val();
+                    if(storeFromHtml){
+                        v = storeFromHtml.trim().toLowerCase();
+                    }
                     return v && v !== 'please select a store';
                 }
             },
@@ -804,8 +807,6 @@
         },
         oneditprepare: function () {
             const selectedStore = this.consumerStoreName;
-            // const selectedMesh = this.consumerMeshName;
-
             function repopulateStores() { //todo refactor
                 let storeElement = $("#node-input-consumerStoreName");
                 storeElement.find('option').remove().end();
@@ -828,7 +829,6 @@
                         });
                         // $("#node-input-producerStoreName").prop("selectedIndex", 0);
                         $("#node-input-consumerStoreName option:first").attr('selected', 'selected');
-                        // repopulateConsumers();
                     }
                 });
 
