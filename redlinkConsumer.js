@@ -19,7 +19,7 @@ module.exports.RedLinkConsumer = function (config) {
     node.reSyncTime = 10000; // This timer defines the consumer store update sync for localStoreConsumers.
     node.reSyncTimerId = {};
 
-    node.reNotifyTime = 2000; // This timer defines the consumer store update sync for localStoreConsumers reNotifies
+    node.reNotifyTime = 1000; // This timer defines the consumer store update sync for localStoreConsumers reNotifies
     node.reNotifyTimerId = {};
 
     node.consumerStoreName = config.consumerStoreName;
@@ -58,10 +58,10 @@ module.exports.RedLinkConsumer = function (config) {
     }
 
 
-    function sendOutNofify() {
-       const nResult = alasql('SELECT COUNT(notifySent) as myCount from notify  WHERE read=false and storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '" and notifySent="'+node.id+'"');
+    function sendOutNotify() {
+       const nResult = alasql('SELECT COUNT(notifySent) as myCount from notify  WHERE read=false and storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"' + ' AND notifySent LIKE "%' + node.id + '%"');
        if (nResult[0].myCount > 0){
-         const data = alasql('SELECT * from notify  WHERE read=false and storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '" and notifySent="'+node.id+'"');
+         const data = alasql('SELECT * from notify  WHERE read=false and storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"' + ' AND notifySent LIKE "%' + node.id + '%"');
          const notifyMessage = {
             redlinkMsgId: data[0].redlinkMsgId,
             notifyType: 'producerNotification',
@@ -107,7 +107,7 @@ module.exports.RedLinkConsumer = function (config) {
         const newNotify = notifyAndCount.notify;
         const notifyCount = notifyAndCount.notifyCount;
         updateNotifyTable(newNotify);
-        sendOutNofify();
+        sendOutNotify();
     };
 
 
@@ -168,7 +168,7 @@ module.exports.RedLinkConsumer = function (config) {
 
     function reNotifyConsumers(timeOut) {
         return setInterval(function () {
-           const nResult = alasql('SELECT COUNT(notifySent) as myCount from notify  WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '" and notifySent="'+node.id+'"');
+           const nResult = alasql('SELECT COUNT(notifySent) as myCount from notify  WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"' + ' AND notifySent LIKE "%' + node.id + '%"');
             node.status({fill: "green", shape: "dot", text: 'N:'+nResult[0].myCount});
            if (nResult[0].myCount > 0){
              const data = alasql('SELECT * from notify  WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '" and notifySent="'+node.id+'"');
@@ -180,9 +180,14 @@ module.exports.RedLinkConsumer = function (config) {
                 path: base64Helper.decode(data[0].notifyPath),
                 notifyCount:nResult[0].myCount
             };
+
             if (node.manualRead) {
               sendMessage({notify: notifyMessage});
             }
+          else
+            {
+              sendOutNotify();
+            }   
           }
         },timeOut);    
     }
@@ -223,7 +228,7 @@ module.exports.RedLinkConsumer = function (config) {
                         const replyService = notifies[0].serviceName;
                         const redlinkProducerId = notifies[0].redlinkProducerId;
                         const replyAddress = notifies[0].srcStoreAddress + ':' + notifies[0].srcStorePort;
-                        //                 delete msg.preserved;
+                        //  delete msg.preserved;
                         const body = {
                             redlinkProducerId,
                             replyingService: replyService,

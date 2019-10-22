@@ -1,3 +1,4 @@
+V 1.3.2 Fixed an issue with sendonly causing issues in the consumer with or without sendonly (#8 giminni)
 V 1.3.1 Added Producer ETT error data to the failure port on Producer.
         Fixed the ETT timer, it was incrementing by 2, strange bug.
         Fixed the HTML consumer / producer deploy, seem to have broken it in 1.3.0!
