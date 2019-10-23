@@ -1,3 +1,7 @@
+v 1.4.0 Feature added, will be completed in v 1.4.1, return paths for read and reply are now set by the producer.
+        This means that the producer and tell the consumer to transact via the stores that supplied the notify
+        instead of attemping to directly read and reply to the producer store.
+        This feature is what you need to use as a proxy gateway to the internet etc. 
 V 1.3.2 Fixed an issue with sendonly causing issues in the consumer with or without sendonly (#8 giminni)
 V 1.3.1 Added Producer ETT error data to the failure port on Producer.
         Fixed the ETT timer, it was incrementing by 2, strange bug.
