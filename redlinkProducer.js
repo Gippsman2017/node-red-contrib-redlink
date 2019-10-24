@@ -26,8 +26,8 @@ module.exports.RedLinkProducer = function (config) {
     node.nbRateUnitsSendReceive = config.nbRateUnitsSendReceive;
     node.priority = config.priority;
 
-    node.enforceReversePath = false; //UMA here it is
-    
+    node.enforceReversePath = config.enforceReversePath;
+
     node.notifyTimerInterval = 2 * 1000; //2 s- make sure this is an integer
     node.cleanInMessagesTask = setInterval(cleanInMessages, node.notifyTimerInterval) ;
 
@@ -419,6 +419,8 @@ module.exports.RedLinkProducer = function (config) {
         msg.redlinkMsgId = RED.util.generateId();
         const preserved = msg.preserved || '';
         delete msg.preserved;
+        node.enforceReversePath = msg.enforceReversePath ? msg.enforceReversePath : config.enforceReversePath;
+        console.log(node.enforceReversePath);
         const encodedMessage = base64Helper.encode(msg);
         const encodedPreserved = base64Helper.encode(preserved);
         if (node.producerConsumer === 'msg.topic') {

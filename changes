@@ -1,3 +1,4 @@
+v 1.4.1 Added html and flag to Producer, user can also use msg.enforceReturnPath to overide the config checkbox 
 v 1.4.0 Feature added, will be completed in v 1.4.1, return paths for read and reply are now set by the producer.
         This means that the producer and tell the consumer to transact via the stores that supplied the notify
         instead of attemping to directly read and reply to the producer store.

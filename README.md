@@ -11,6 +11,7 @@
 - [Why not simply use a message broker system](#why-not-simply-use-a-message-broker-system)
 - [Why is Redlink Consumer based messaging](#why-is-redlink-consumer-based-messaging)
 - [How Redlink actually communicates with other Redlink Instances](#how-redlink-actually-communicates-with-other-redlink-instances)
+- [Redlink has two modes of Read and Reply message retrieval](Redlink-has-two-modes-of-Read-and-Reply-message-retrieval)
 - [Tree Hierachy](#tree-hierachy)
 - [Producer Consumer to Sender Receiver Socket design](#producer-consumer-to-sender-receiver-socket-design)
 - [Redlink Using 3 Transit Nodes where each Transit node requires Service Isolation](#Redlink-Using-3-Transit-Nodes-where-each-Transit-node-requires-Service-Isolation)
@@ -78,6 +79,15 @@ based on merit and not a producer simply sending a message.
 ## How Redlink actually communicates with other Redlink Instances
 
 Each time a connection is established between redlink store nodes, only the notify request data is passed through the inter store mesh, the consumer actually retreives the message directly and the connection is closed, this provides a perfect way of using the least number of sockets with the maximum number of session / connections.
+
+## Redlink has two modes of Read and Reply message retrieval
+
+Redlink as of Version 1.4.1 now defaults to sending read and reply messages by the same path that the notify has traversed. 
+The reason that this has been implemented, is to cover messaging across networks and the internet where a single port at both ends can be opened and by providing the stores with an assigned certificate.
+This effectively secures the connection as all connections are HTTPS. 
+However the user can uncheck the flag or send a message with msg.enforceReturnPath = false (overrides the config checkbox on a per message basis).
+This will make the consumer read and reply directly to the producer without traversing any extra stores that may have been in the notify path. 
+Please check the "Producer Notification" message and look at the JSON "path" it will display the complete path that the notifcation message took to get to the consumer   
 
 ## Tree Hierachy
 
