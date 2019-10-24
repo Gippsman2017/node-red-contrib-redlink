@@ -11,7 +11,7 @@
 - [Why not simply use a message broker system](#why-not-simply-use-a-message-broker-system)
 - [Why is Redlink Consumer based messaging](#why-is-redlink-consumer-based-messaging)
 - [How Redlink actually communicates with other Redlink Instances](#how-redlink-actually-communicates-with-other-redlink-instances)
-- [Redlink has two modes of Read and Reply message retrieval](Redlink-has-two-modes-of-Read-and-Reply-message-retrieval)
+- [Redlink has two modes of Read and Reply message retrieval](#Redlink-has-two-modes-of-Read-and-Reply-message-retrieval)
 - [Tree Hierachy](#tree-hierachy)
 - [Producer Consumer to Sender Receiver Socket design](#producer-consumer-to-sender-receiver-socket-design)
 - [Redlink Using 3 Transit Nodes where each Transit node requires Service Isolation](#Redlink-Using-3-Transit-Nodes-where-each-Transit-node-requires-Service-Isolation)
