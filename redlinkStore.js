@@ -44,6 +44,7 @@ module.exports.RedLinkStore = function (config) {
     node.isUserCertificate = config.isUserCertificate;
     node.userKey = config.userKey;
     node.userCertificate = config.userCertificate;
+    node.interStoreLoadBalancer = config.interStoreLB;
     const largeMessagesDirectory = require('./redlinkSettings.js')(RED, node.name).largeMessagesDirectory;
     const largeMessageThreshold = require('./redlinkSettings.js')(RED, node.name).largeMessageThreshold;
     // Insert myself into the mesh.
@@ -317,15 +318,15 @@ module.exports.RedLinkStore = function (config) {
 
     if (node.listenPort) {
         try {
-            const args = [+node.listenPort];
-            if( node.isUserCertificate ) {
-                args.push(node.userKey);
-                args.push(node.userCertificate);
-            }
-            node.listenServer = httpsServer.startServer(...args);
-           } 
+              const args = [+node.listenPort];
+              if( node.isUserCertificate ) {
+                 args.push(node.userKey);
+                 args.push(node.userCertificate);
+              }
+              node.listenServer = httpsServer.startServer(...args);
+            } 
          catch (e) {
-            handleStoreStartError(e);
+              handleStoreStartError(e);
             }
 
         if (node.listenServer) {
@@ -374,6 +375,60 @@ module.exports.RedLinkStore = function (config) {
     }
 
 
+    function notifyTheRemoteStore(remoteStore, notifyPath, req) {
+//        console.log('Interstore ',node.name,' RemoteStore=',remoteStore.transitStoreAddress,' ',notifyPath,' ',req.body);
+        const body = {
+                service: req.body.service,
+                srcStoreAddress: req.body.srcStoreAddress,
+                srcStorePort: req.body.srcStorePort,
+                transitAddress: node.listenAddress,
+                transitPort: node.listenPort,
+                notifyPath: notifyPath,
+                sendersHopCount: req.body.sendersHopCount,
+                redlinkMsgId: req.body.redlinkMsgId,
+                notifyType: 'producerNotification',
+                redlinkProducerId: req.body.redlinkProducerId
+             };
+
+        sendMessage({
+                debug: {
+                   storeName: node.name,
+                   action: 'producerForwardNotification',
+                   direction: 'RemoteConsumerNotify',
+                   Data: req.body
+                },
+                registration: {
+                   storeName: node.name,
+                   action: 'producerForwardNotification',
+                   direction: 'RemoteConsumerNotify',
+                   Data: req.body
+                }
+        });
+        const originatorStoreAddress = req.body.transitAddress + ':' + req.body.transitPort;
+        const destinationStoreAddress = remoteStore.transitStoreAddress;
+        const options = {
+                method: 'POST',
+                url: 'https://' + remoteStore.transitStoreAddress + '/notify',
+                body,
+                json: true
+              };
+         // If this store has a consumer on it then send out a peer notify  , the hopcount must be less than the sender and the transitStoreAddress cannot be back to the sender
+        if (req.body.sendersHopCount > remoteStore.transitHopCount && originatorStoreAddress !== destinationStoreAddress) {
+              sendMessage({
+                 debug: {
+                   storeName: node.name,
+                   action: 'producerNotification',
+                   direction: 'Forward to ' + remoteStore.transitStoreAddress,
+                   Data: req.body
+                 }
+              });
+              request(options, function (error, response) {
+                 if (error || response.statusCode !== 200) {
+                    sendMessage({debug: {error: true, errorDesc: error || response.body}});
+                 }
+              });
+        } 
+    }
 
     const app = httpsServer.getExpressApp();
 
@@ -476,9 +531,8 @@ module.exports.RedLinkStore = function (config) {
                         }
                     });
 
-                    const existingNotifySql = 'SELECT * FROM notify WHERE storeName="' + node.name + '" AND serviceName="' + req.body.service +
-                                              '" AND srcStoreAddress="' + req.body.srcStoreAddress + '" AND srcStorePort=' + req.body.srcStorePort +
-                                              ' AND redlinkMsgId="' + req.body.redlinkMsgId +'"';
+                    const existingNotifySql = 'SELECT * FROM notify WHERE storeName="' + node.name + '" AND serviceName="' + req.body.service + '" AND srcStoreAddress="' + 
+                                               req.body.srcStoreAddress + '" AND srcStorePort=' + req.body.srcStorePort + ' AND redlinkMsgId="' + req.body.redlinkMsgId +'"';
 
                     const existingNotify = alasql(existingNotifySql);
                     if (existingNotify && existingNotify.length > 0) {
@@ -486,76 +540,43 @@ module.exports.RedLinkStore = function (config) {
                     }    
                   else
                     {
-                    const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreAddress + '",' + 
-                                                                            req.body.srcStorePort + ',"' + req.body.redlinkMsgId + '","",false,"' + req.body.redlinkProducerId + '","'+
-                                                                            base64Helper.encode(notifyPath)+'")';
+                    const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreAddress + '",' + req.body.srcStorePort + ',"' + 
+                                            req.body.redlinkMsgId + '","",false,"' + req.body.redlinkProducerId + '","'+ base64Helper.encode(notifyPath)+'")';
                     alasql(notifyInsertSql);
 
                     }                    
-                } else {
-                        // Note that the reverse path state is set in the first notify, so, we can use it to set subsequent notifies
-                        const thisPath = {store:node.name,enforceReversePath:notifyPath[0].enforceReversePath,address:node.listenAddress,port:node.listenPort};
-                        notifyPath.push(thisPath);
-                        const remoteMatchingStores = [...new Set([...getRemoteMatchingStores(req.body.service, node.meshName)])];
-                        remoteMatchingStores.forEach(remoteStore => {
-                        const body = {
-                            service: req.body.service,
-                            srcStoreAddress: req.body.srcStoreAddress,
-                            srcStorePort: req.body.srcStorePort,
-                            transitAddress: node.listenAddress,
-                            transitPort: node.listenPort,
-                            notifyPath: notifyPath,
-                            sendersHopCount: req.body.sendersHopCount,
-                            redlinkMsgId: req.body.redlinkMsgId,
-                            notifyType: 'producerNotification',
-                            redlinkProducerId: req.body.redlinkProducerId
-                        };
-                        sendMessage({
-                            debug: {
-                                storeName: node.name,
-                                action: 'producerForwardNotification',
-                                direction: 'RemoteConsumerNotify',
-                                Data: req.body
-                            },
-                            registration: {
-                                storeName: node.name,
-                                action: 'producerForwardNotification',
-                                direction: 'RemoteConsumerNotify',
-                                Data: req.body
-                            }
-                        });
-                        const originatorStoreAddress = req.body.transitAddress + ':' + req.body.transitPort;
-                        const destinationStoreAddress = remoteStore.transitStoreAddress;
-                        const options = {
-                            method: 'POST',
-                            url: 'https://' + remoteStore.transitStoreAddress + '/notify',
-                            body,
-                            json: true
-                        };
-                        // If this store has a consumer on it then send out a peer notify  , the hopcount must be less than the sender and the transitStoreAddress cannot be back to the sender
-                        if (req.body.sendersHopCount > remoteStore.transitHopCount && originatorStoreAddress !== destinationStoreAddress) {
-                            sendMessage({
-                                debug: {
-                                    storeName: node.name,
-                                    action: 'producerNotification',
-                                    direction: 'Forward to ' + remoteStore.transitStoreAddress,
-                                    Data: req.body
-                                }
-                            });
-                            request(options, function (error, response) {
-                                if (error || response.statusCode !== 200) {
-                                    sendMessage({debug: {error: true, errorDesc: error || response.body}});
-                                }
-                            });
-                        }
-
-                    }); // RemoteMatchingStores
+                } 
+              else 
+                {
+                  // Note that the reverse path state is set in the first notify, so, we can use it to set subsequent notifies
+                   const thisPath = {store:node.name,enforceReversePath:notifyPath[0].enforceReversePath,address:node.listenAddress,port:node.listenPort};
+                   notifyPath.push(thisPath);
+                   const remoteMatchingStores = [...new Set([...getRemoteMatchingStores(req.body.service, node.meshName)])];
+                   try {
+                         // This is the interstore notifier
+                         if (!node.interStoreLoadBalancer) {                    
+                            remoteMatchingStores.forEach(remoteStore => {
+                               notifyTheRemoteStore(remoteStore, notifyPath, req);
+                            }); // RemoteMatchingStores
+                         }
+                       else
+                         // This provides a random load balancer
+                         {
+                            var randomItem = [remoteMatchingStores[Math.floor(Math.random()*remoteMatchingStores.length)]];
+                            randomItem.forEach(remoteStore => {
+                               notifyTheRemoteStore(remoteStore, notifyPath, req);
+                            }); // RemoteMatchingStores
+                         }
+                       } 
+                   catch(e) 
+                       {
+                       }
                 }
-
                 res.status(200).send({action: 'producerNotification', status: 200});
                 break;
         } // case
     }); // notify
+
 
     app.post('/read-message', (req, res) => {
        try { // This function allows path recusion backwards to producer
@@ -648,32 +669,36 @@ module.exports.RedLinkStore = function (config) {
 
     app.post('/reply-message', (req, res) => {
        try { // This function allows path recusion backwards to producer
-            let notifyPathIn = base64Helper.decode(req.body.notifyPath);
-            const notifyPath=notifyPathIn.pop();
-            if (notifyPath.address === node.listenAddress && notifyPath.port === node.listenPort) 
-              {
-              }
-            else
-              {
-                const body = req.body;
-                body.notifyPath = base64Helper.encode(notifyPathIn);
-                const options = {
-                   method: 'POST',
-                   url: 'https://' + notifyPath.address + ':' + notifyPath.port+ '/reply-message',
-                   body,
-                   json: true
-                };
-                sendMessage({
-                   debug: {
-                      storeName: node.name,
-                      action: 'message-reply-forwarding',
-                      direction: 'relayingBackToProducer',
-                      Data: options
-                           }
-                });
-                request(options, function (error, response) {
-                  res.status(response.statusCode).send(response.body);
-                });
+             let notifyPathIn = base64Helper.decode(req.body.notifyPath);
+             const notifyPath=notifyPathIn.pop();
+             if (notifyPath.address === node.listenAddress && notifyPath.port === node.listenPort) 
+               {
+               }
+             else
+               {
+                 const body = req.body;
+                 body.notifyPath = base64Helper.encode(notifyPathIn);
+                 const options = {
+                    method: 'POST',
+                    url: 'https://' + notifyPath.address + ':' + notifyPath.port+ '/reply-message',
+                    body,
+                    json: true
+                 };
+                 sendMessage({
+                    debug: {
+                       storeName: node.name,
+                       action: 'message-reply-forwarding',
+                       direction: 'relayingBackToProducer',
+                       Data: options
+                            }
+                 });
+                 request(options, function (error, response) {
+                   try {
+                     res.status(response.statusCode).send(response.body);
+                     }
+                   catch(e){
+                   }  
+                 });
               }
            }     
        catch(e)

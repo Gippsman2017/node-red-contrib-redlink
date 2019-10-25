@@ -172,7 +172,7 @@ module.exports.RedLinkConsumer = function (config) {
            const nResult = alasql('SELECT COUNT(notifySent) as myCount from notify  WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"' + ' AND notifySent LIKE "%' + node.id + '%"');
             node.status({fill: "green", shape: "dot", text: 'N:'+nResult[0].myCount});
            if (nResult[0].myCount > 0){
-             const data = alasql('SELECT * from notify  WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '" and notifySent="'+node.id+'"');
+             const data = alasql('SELECT * from notify  WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '" and notifySent LIKE "%' + node.id + '%"');
              const notifyMessage = {
                 redlinkMsgId: data[0].redlinkMsgId,
                 notifyType: 'producerNotification',

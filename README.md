@@ -12,6 +12,7 @@
 - [Why is Redlink Consumer based messaging](#why-is-redlink-consumer-based-messaging)
 - [How Redlink actually communicates with other Redlink Instances](#how-redlink-actually-communicates-with-other-redlink-instances)
 - [Redlink has two modes of Read and Reply message retrieval](#Redlink-has-two-modes-of-Read-and-Reply-message-retrieval)
+- [Redlink has an Interstore Load Balancer](#Redlink-has-an-Interstore-Load-Balancer)
 - [Tree Hierachy](#tree-hierachy)
 - [Producer Consumer to Sender Receiver Socket design](#producer-consumer-to-sender-receiver-socket-design)
 - [Redlink Using 3 Transit Nodes where each Transit node requires Service Isolation](#Redlink-Using-3-Transit-Nodes-where-each-Transit-node-requires-Service-Isolation)
@@ -88,6 +89,13 @@ This effectively secures the connection as all connections are HTTPS.
 However the user can uncheck the flag or send a message with msg.enforceReturnPath = false (overrides the config checkbox on a per message basis).
 This will make the consumer read and reply directly to the producer without traversing any extra stores that may have been in the notify path. 
 Please check the "Producer Notification" message and look at the JSON "path" it will display the complete path that the notifcation message took to get to the consumer   
+
+## Redlink has an Interstore Load Balancer
+
+Redlink Stores as of Version 1.5.0, have the ability to randomly load balance. This feature has been added to provide "Interstore Load Balancing".
+When set in the store - that splits traffic to different target consumer stores.
+The the load balancer will detect multiple service registrations of the same name, it will then cause the store to send single producer message notifications using a random load balance algorythm to North / South destination consumer stores.
+This feature provides a more equitable consumption of producer messages and a reduction of notifications will be noticed at the consumers and overall in the mesh. It has been turned off by default.
 
 ## Tree Hierachy
 

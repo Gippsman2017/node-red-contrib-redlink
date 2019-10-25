@@ -1,3 +1,8 @@
+v 1.5.0 Feature added "Interstore Load Balancing", when set in the store, multiple service registrations of the same name
+        will cause the store to send single producer message notifications using randomly load balance to North / South destination consumer stores.
+        This will provide a more equitable consumption of producer messages and a reduction of notifications will be noticed.
+        Minor fixes for TLS errors under high message load.
+        More documentation.
 v 1.4.2 Small fix for msg.enforceReturnPath logic overrides config logic
         Now traps bad listener startup and displays it node.status
         More documentation
