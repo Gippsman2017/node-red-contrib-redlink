@@ -453,6 +453,12 @@
         <label for="node-input-priority"><i class="fa fa-arrow-up"></i> Priority</label>
         <input type="text" id="node-input-priority" style="width:30px; height:25px;"/>&nbsp;<br/>
     </div>
+
+    <div class="form-row">
+        <label for="node-input-enforceReversePath"><i class="fa fa-male"></i> Enforce Reverse Path</label>
+        <input type="checkbox" id="node-input-enforceReversePath" placeholder="Enforce Reverse Path">
+    </div>
+    
     <div class="form-row">
         <label for="node-input-sendOnly"><i class="fa fa-angle-double-right"></i> Send Only</label>
         <input type="checkbox" id="node-input-sendOnly" placeholder="Send Only">
@@ -501,15 +507,17 @@
   <p><b>  ETT (Estimated Transaction Time)</b> Time in seconds after which the input message is discarded. A message will be sent out via the failure port</p>
   <p><b>  Notify Interval</b> Time interval in seconds after which target consumers will be notified of unread messages</p>
   <p><b>  Priority</b> Messages with higher priority will be given precedence over those with lower priority. Defaults to zero</p>
+  <p><b>  Enforce Reverse Path</b> This forces the consumer to send Read and Reply messages back through all stores that the notify has traversed - defaults to true.</p>
   <p><b>  Send Only</b> A Send Only producer will not expect replies from consumers. Any reply sent to a Send Only producer will be discarded</p>
   <p><b>  Manual Read</b> Check this to read messages manually by injecting the read command in msg.topic- see Message Configuration below</p>
   <p><b>  Rate Limit Received Messages</b> configure this to ensure that the producer reads at specified rate and is not swamped with reply messages</p>
-
   <p><b>Message Configuration </b></p>
   <p><b> msg.payload </b> Can be a string or object</p>
   <p><b> msg.preserved </b> Preserves data and is stored in the producer until the reply message is received, at this point it is reatached to the msg</p>
   <p><b> msg.topic </b> Can be a service name to send to, however the store must already know about the service being registered.</p>
   <p><b> msg.topic </b> Reserved words are <b>read or  producerReplyRead</b> for the manual read function</p>
+  <p><b> msg.enforceReversePath </b> Boolean <b>true or false</b> defaults to true</p>
+  
 </script>
 
 <script type="text/javascript">
@@ -542,6 +550,7 @@
             timeout:                {value: -1},//TODO check with John,
             sendOnly:               {value: false},
             manualRead:             {value: false},
+            enforceReversePath:     {value: true},
             rateTypeSendReceive:    {value: "none"},
             rateSendReceive:        {value: 1},
             rateUnitsSendReceive:   {value: "second"},

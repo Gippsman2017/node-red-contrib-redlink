@@ -251,7 +251,6 @@ module.exports.RedLinkStore = function (config) {
                 const remoteMatchingStores = [...new Set([...getRemoteMatchingStores(newMessage.serviceName, node.meshName)])];
                 let thisPath = [];
                 thisPath.push({store:node.name,enforceReversePath:newMessage.enforceReversePath,address:node.listenAddress,port:node.listenPort});
-                //console.log('trigger=',thisPath);
                 remoteMatchingStores.forEach(remoteStore => {
                     const body = {
                         service: newMessage.serviceName,
@@ -311,29 +310,24 @@ module.exports.RedLinkStore = function (config) {
                 error: errorMsg
             }
         });
-        clearInterval(node.reSyncTimerId); // should be alright to do this here- the store needs to be reinitialised to restart
-        node.status({fill: "red", shape: "dot", text: 'Error starting store server'});
+        clearInterval(node.statusTimerId); // Stop the status data being updated.
+        clearInterval(node.reSyncTimerId); // Stop the store joining the mesh
+        node.status({fill: "red", shape: "dot", text: 'Error: Listener please check Debug'});
     }
 
     if (node.listenPort) {
         try {
             const args = [+node.listenPort];
-            if(node.isUserCertificate){
+            if( node.isUserCertificate ) {
                 args.push(node.userKey);
                 args.push(node.userCertificate);
             }
             node.listenServer = httpsServer.startServer(...args);
-        } catch (e) {
-            const errorMsg = 'redlinkStore '+ node.name+' Error starting listen server on '+ node.listenPort+' Exception is '+ e;
-            console.log(errorMsg);
-            sendMessage({
-                debug: {
-                    storeName: node.name,
-                    action: 'startServer',
-                    error: errorMsg
-                }
-            });
-        }
+           } 
+         catch (e) {
+            handleStoreStartError(e);
+            }
+
         if (node.listenServer) {
             node.on('close', (removed, done) => {
                 node.listenServer.close(() => {
@@ -342,7 +336,6 @@ module.exports.RedLinkStore = function (config) {
             });
             node.listenServer.listen(node.listenPort).on('error', e => {
                 if (e.code === 'EADDRINUSE') {
-                    console.log(e);
                     handleStoreStartError(e);
                 }
             });
@@ -350,7 +343,8 @@ module.exports.RedLinkStore = function (config) {
         } else{
             handleStoreStartError('Unable to start server');
         }
-        log('started server at port:', node.listenPort);
+        node.status({fill: "green", shape: "dot", text: 'Listen Port in OK'});
+//        log('started server at port:', node.listenPort);
     }
 
     function insertGlobalConsumer(serviceName, consumerId, storeName, direction, storeAddress, storePort, transitAddress, transitPort, hopCount, ttl) {
@@ -565,7 +559,6 @@ module.exports.RedLinkStore = function (config) {
 
     app.post('/read-message', (req, res) => {
        try { // This function allows path recusion backwards to producer
-             // console.log(node.name,' 1');
              let notifyPathIn = base64Helper.decode(req.body.notifyPath);
              const notifyPath=notifyPathIn.pop();
              if (notifyPath.address === node.listenAddress && notifyPath.port === node.listenPort) 
@@ -573,7 +566,6 @@ module.exports.RedLinkStore = function (config) {
                 }
               else
                 {
-                  // console.log(node.name,' 2');
                   const body = req.body;
                   body.notifyPath = base64Helper.encode(notifyPathIn);
                   const options = {
@@ -591,14 +583,12 @@ module.exports.RedLinkStore = function (config) {
                             }
                   });
                   request(options, function (error, response) {
-                    // console.log(response.statusCode,' = ',response.body);
                     res.status(response.statusCode).send(response.body);
                 });
               }
            }
         catch(e)
            {
-             // console.log(node.name,' 3');
              const redlinkMsgId = req.body.redlinkMsgId;
              sendMessage({debug: {storeName: node.name, action: 'read-message', direction: 'inBound', Data: req.body}});
              if (!redlinkMsgId) {
@@ -658,7 +648,6 @@ module.exports.RedLinkStore = function (config) {
 
     app.post('/reply-message', (req, res) => {
        try { // This function allows path recusion backwards to producer
-             // console.log(node.name,' 1 Reply');
             let notifyPathIn = base64Helper.decode(req.body.notifyPath);
             const notifyPath=notifyPathIn.pop();
             if (notifyPath.address === node.listenAddress && notifyPath.port === node.listenPort) 
@@ -666,7 +655,6 @@ module.exports.RedLinkStore = function (config) {
               }
             else
               {
-                // console.log(node.name,' 2 Reply');
                 const body = req.body;
                 body.notifyPath = base64Helper.encode(notifyPathIn);
                 const options = {
@@ -684,14 +672,12 @@ module.exports.RedLinkStore = function (config) {
                            }
                 });
                 request(options, function (error, response) {
-                // console.log(response.body);
                   res.status(response.statusCode).send(response.body);
                 });
               }
            }     
        catch(e)
            {
-             //             console.log(node.name,' 3 Reply');
              const redlinkMsgId = req.body.redlinkMsgId;
              const redlinkProducerId = req.body.redlinkProducerId;
              // const replyingService = req.body.replyingService;
@@ -874,5 +860,5 @@ module.exports.RedLinkStore = function (config) {
         // console.log('\n\n\n\nEmpty trigger called for consumer registration', triggerName);
         }
     }
-}; // function
+} // function
 

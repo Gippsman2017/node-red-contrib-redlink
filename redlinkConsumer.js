@@ -230,7 +230,6 @@ module.exports.RedLinkConsumer = function (config) {
                         const redlinkProducerId = notifies[0].redlinkProducerId;
 
                         let notifyPathIn = base64Helper.decode(notifies[0].notifyPath);
-                        // console.log('Consumer=',notifyPathIn);
                         let notifyPath = [];
                         // The first entry in the notify contains the enforseReversePath
                         // if (node.enforceReversePath) {

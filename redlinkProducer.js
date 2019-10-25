@@ -419,8 +419,8 @@ module.exports.RedLinkProducer = function (config) {
         msg.redlinkMsgId = RED.util.generateId();
         const preserved = msg.preserved || '';
         delete msg.preserved;
-        node.enforceReversePath = msg.enforceReversePath ? msg.enforceReversePath : config.enforceReversePath;
-        console.log(node.enforceReversePath);
+        if (typeof msg.enforceReversePath != 'undefined') {node.enforceReversePath = msg.enforceReversePath;}
+          else {node.enforceReversePath = config.enforceReversePath;}
         const encodedMessage = base64Helper.encode(msg);
         const encodedPreserved = base64Helper.encode(preserved);
         if (node.producerConsumer === 'msg.topic') {
