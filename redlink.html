@@ -10,6 +10,16 @@
         registration: 'Notify' //store
     };
 
+    function getStoreName(qualifiedStore){
+        let storeName ='';
+        if(qualifiedStore && qualifiedStore.trim().toLowerCase()!=='please select a store'){
+            if(qualifiedStore.indexOf(':')!=-1){
+                storeName = '(' + qualifiedStore.substring(qualifiedStore.indexOf(':')+1, qualifiedStore.length) +')'
+            }
+        }
+        return storeName;
+    }
+
     function getOutputs(receive, manual, failure, stats, debug) {
         const outputs = [];
         if (receive) { outputs.push(outputNames.receive); }
@@ -202,7 +212,7 @@
         },
         icon: "redis.png",
         label: function () {
-            return this.name || "";
+            return (this.name || "")+(this.meshName?'('+this.meshName+')':'');
         },
         labelStyle: function () {
             return this.name ? "node_label_italic" : "";
@@ -566,13 +576,7 @@
         icon: "arrow-in.png",
         align: "right",
         label: function () {
-            let label1 = this.name;
-            let storeName = '';
-            if(this.producerStoreName && this.producerStoreName.trim().toLowerCase()!=='please select a store'){
-                storeName = '('+this.producerStoreName+')'
-            }
-            label1 = (this.name || "") + storeName;
-            return label1;
+            return (this.name || "") + getStoreName(this.producerStoreName);
         },
         labelStyle: function () {
             return this.name ? "node_label_italic" : "";
@@ -800,7 +804,7 @@
         },
         icon: "arrow-in.png",
         label: function () {
-            return this.name || "";
+            return (this.name || "") + getStoreName(this.consumerStoreName);
         },
         labelStyle: function () {
             return this.name ? "node_label_italic" : "";
