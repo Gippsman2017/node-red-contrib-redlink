@@ -1,3 +1,18 @@
+v 1.5.0 Feature added "Interstore Load Balancing", when set in the store, multiple service registrations of the same name
+        will cause the store to send single producer message notifications using randomly load balance to North / South destination consumer stores.
+        This will provide a more equitable consumption of producer messages and a reduction of notifications will be noticed.
+        Minor fixes for TLS errors under high message load.
+        More documentation.
+v 1.4.2 Small fix for msg.enforceReturnPath logic overrides config logic
+        Now traps bad listener startup and displays it node.status
+        More documentation
+        Removed leftover console.log from producer
+v 1.4.1 Added html and flag to Producer, user can also use msg.enforceReturnPath to overide the config checkbox 
+v 1.4.0 Feature added, will be completed in v 1.4.1, return paths for read and reply are now set by the producer.
+        This means that the producer and tell the consumer to transact via the stores that supplied the notify
+        instead of attemping to directly read and reply to the producer store.
+        This feature is what you need to use as a proxy gateway to the internet etc. 
+V 1.3.2 Fixed an issue with sendonly causing issues in the consumer with or without sendonly (#8 giminni)
 V 1.3.1 Added Producer ETT error data to the failure port on Producer.
         Fixed the ETT timer, it was incrementing by 2, strange bug.
         Fixed the HTML consumer / producer deploy, seem to have broken it in 1.3.0!

@@ -102,6 +102,11 @@
         <input type="checkbox" id="node-input-southInsert" checked>
     </div>
 
+    <div class="form-row">
+        <label for="node-input-interStoreLB"><i class="fa fa-male"></i> Load Balance Interstore Messaging</label>
+        <input type="checkbox" id="node-input-interStoreLB" placeholder="Load Balance Interstore Messaging">
+    </div>
+    
     <div class="form-row node-input-headers-container-row">
         <label><i class="fa fa-cloud-upload "></i> North Peers (IP and Port)</label><br>
         <ol id="node-input-headers-container"></ol>
@@ -140,6 +145,7 @@
   <p><b>  Listen Address</b> The IP/hostname on which this store listens to for registration messages and routing traffic</p>
   <p><b>  Listen Port</b> The port on which this store listens to for registration messages and routing traffic</p>
   <p><b>  South Insert</b> This flag set allows inserts of globalConsumers sent from South bound stores into this store</p>
+  <p><b>  Loadbalance Interstore Messaging</b> This flag set causes the store to randomly loadbalance notifies to stores that have the same service registrations instead of sending notifies in parallel</p>
   <p><b>  North Peers</b> List of stores that this store is connected to. Each of these stores will be north of the current sore. Use this to build a mesh.</p>
   <p><b>  Show New Message Notifications</b> Advanced- use when debugging to show new message notifications flowing through this store</p>
   <p><b>  Show Debug</b> Advanced- use to turn on the debug port to output extra information</p>
@@ -193,6 +199,7 @@
             headers:       { value: [] },
             name:          { value: '',   required: true },
             meshName:      { value: 'mesh0', required: true },
+            interStoreLB:  { value: false },
             oldStore:      { value: false },
             showRegistration : { value: false },
             showDebug : { value: false },
@@ -206,6 +213,7 @@
                 command: true,
                 registration:  this.showRegistration,
                 southinsert: this.southInsert,
+                interStoreLB: this.interStoreLB,
                 debug:    this.showDebug
             });
             return labels[index];
@@ -367,12 +375,14 @@
         oneditsave: function () {
             //outputs begin
             let newSouthInsert = $('#node-input-southInsert').is(":checked");
+            let newInterStoreLB = $('#node-input-interStoreLB').is(":checked");
             let newShowRegistration = $('#node-input-showRegistration').is(":checked");
             let newShowDebug    = $('#node-input-showDebug').is(":checked");
             const existingOutputs = getStoreOutputs({
                 command: true,
                 registration:  this.showRegistration,
                 southInsert: this.southInsert,
+                interStoreLB: this.interStoreLB,
                 debug:  this.showDebug
             });
             // getOutputs(!this.sendOnly, this.manualRead, true, this.showStats, this.showDebug);
@@ -380,6 +390,7 @@
                 command: true,
                 registration:  newShowRegistration,
                 southInsert: newSouthInsert,
+                interStoreLB: newInterStoreLB,
                 debug:  newShowDebug
             });
             var nodeRedOutputsObject = getNodeRedOutputObject(existingOutputs, newOutputs);
@@ -463,6 +474,12 @@
         <label for="node-input-priority"><i class="fa fa-arrow-up"></i> Priority</label>
         <input type="text" id="node-input-priority" style="width:30px; height:25px;"/>&nbsp;<br/>
     </div>
+
+    <div class="form-row">
+        <label for="node-input-enforceReversePath"><i class="fa fa-male"></i> Enforce Reverse Path</label>
+        <input type="checkbox" id="node-input-enforceReversePath" placeholder="Enforce Reverse Path">
+    </div>
+    
     <div class="form-row">
         <label for="node-input-sendOnly"><i class="fa fa-angle-double-right"></i> Send Only</label>
         <input type="checkbox" id="node-input-sendOnly" placeholder="Send Only">
@@ -511,15 +528,17 @@
   <p><b>  ETT (Estimated Transaction Time)</b> Time in seconds after which the input message is discarded. A message will be sent out via the failure port</p>
   <p><b>  Notify Interval</b> Time interval in seconds after which target consumers will be notified of unread messages</p>
   <p><b>  Priority</b> Messages with higher priority will be given precedence over those with lower priority. Defaults to zero</p>
+  <p><b>  Enforce Reverse Path</b> This forces the consumer to send Read and Reply messages back through all stores that the notify has traversed - defaults to true.</p>
   <p><b>  Send Only</b> A Send Only producer will not expect replies from consumers. Any reply sent to a Send Only producer will be discarded</p>
   <p><b>  Manual Read</b> Check this to read messages manually by injecting the read command in msg.topic- see Message Configuration below</p>
   <p><b>  Rate Limit Received Messages</b> configure this to ensure that the producer reads at specified rate and is not swamped with reply messages</p>
-
   <p><b>Message Configuration </b></p>
   <p><b> msg.payload </b> Can be a string or object</p>
   <p><b> msg.preserved </b> Preserves data and is stored in the producer until the reply message is received, at this point it is reatached to the msg</p>
   <p><b> msg.topic </b> Can be a service name to send to, however the store must already know about the service being registered.</p>
   <p><b> msg.topic </b> Reserved words are <b>read or  producerReplyRead</b> for the manual read function</p>
+  <p><b> msg.enforceReversePath </b> Boolean <b>true or false</b> defaults to true</p>
+  
 </script>
 
 <script type="text/javascript">
@@ -552,6 +571,7 @@
             timeout:                {value: -1},//TODO check with John,
             sendOnly:               {value: false},
             manualRead:             {value: false},
+            enforceReversePath:     {value: true},
             rateTypeSendReceive:    {value: "none"},
             rateSendReceive:        {value: 1},
             rateUnitsSendReceive:   {value: "second"},
