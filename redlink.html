@@ -566,7 +566,10 @@
             },
             producerConsumer:       {value: '', required: false},
             producerTTL:            {value: 15, required: true},
-            producerETT:            {value: 5 * 60, required: true, validate: validateNotifyAndETT},
+            producerETT:            {value: 5 * 60, required: true, validate: function (v) {
+                    return RED.validators.number(v) && (v >= 0);
+                }
+            },
             priority:               {value: 0},
             timeout:                {value: -1},//TODO check with John,
             sendOnly:               {value: false},
@@ -583,7 +586,10 @@
             tba:                    {value: null},
             showDebug:              {value: false},
             outputs:                {value: 3},
-            notifyInterval:{ value: 15, required: true, validate: validateNotifyAndETT},
+            notifyInterval:{ value: 15, required: true, validate: function (v) {
+                    return RED.validators.number(v) && (v >= 0);
+                }
+            },
         },
         outputLabels: function (index) {
             const labels = getProducerOutputs({
