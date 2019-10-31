@@ -733,6 +733,10 @@
         <label for="node-input-showDebugReceiveSend"><i class="fa fa-bug"></i> Show Debug</label>
         <input type="checkbox" id="node-input-showDebugReceiveSend">
     </div>
+        <div class="form-row">
+        <label for="node-input-reNotifyInterval"><i class="fa fa-hourglass-1"></i> Re-notify Interval (s)</label>
+        <input type="text" id="node-input-reNotifyInterval" placeholder="Re-notify Interval in sec">
+    </div>
     <div class="form-row">
         <label style="width:100%; border-bottom:1px solid #eee;"><em><span>Receive</span></em></label>
     </div>
@@ -794,6 +798,10 @@
         outputs: 3,
         defaults: {
             name: {value: '', required: true},
+            reNotifyInterval:{ value: 1, required: true, validate: function (v) {
+                    return RED.validators.number(v) && (v >= 0);
+                }
+            },
             consumerStoreName: {value: '', validate: v => {
                     v = v && v.trim().toLowerCase();
                     const storeFromHtml = $("#node-input-consumerStoreName").find("option:selected").val();
