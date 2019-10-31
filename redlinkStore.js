@@ -653,15 +653,15 @@ module.exports.RedLinkStore = function (config) {
                 alasql(updateMsgStatus);
                }
              } else {
-               sendMessage({
+                 const msg = redlinkMsgId ? 'Message with id ' + redlinkMsgId + ' not found- it may have already been read' : 'No unread messages';
+                 sendMessage({
                   debug: {
                     storeName: node.name,
                     action: 'read-message',
                     direction: 'outBound',
-                    error: 'No unread messages'
+                    error: msg
                   }
                });
-               const msg = redlinkMsgId ? 'Message with id ' + redlinkMsgId + ' not found' : 'No unread messages';
                res.status(404).send({error: true, msg});
              }
            }  // catch
