@@ -19,7 +19,7 @@ module.exports.RedLinkConsumer = function (config) {
     node.reSyncTime = 10000; // This timer defines the consumer store update sync for localStoreConsumers.
     node.reSyncTimerId = {};
 
-    node.reNotifyTime = 1000; // This timer defines the consumer store update sync for localStoreConsumers reNotifies
+    node.reNotifyTime = +(config.reNotifyInterval || 1)*1000; // This timer defines the consumer store update sync for localStoreConsumers reNotifies
     node.reNotifyTimerId = {};
 
     node.enforceReversePath = false;
