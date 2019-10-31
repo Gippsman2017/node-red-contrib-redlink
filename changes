@@ -1,3 +1,4 @@
+v 1.5.2 Error messages fixed in store
 v 1.5.1 Completed the html changes for producer, consumer and store 
 v 1.5.0 Feature added "Interstore Load Balancing", when set in the store, multiple service registrations of the same name
         will cause the store to send single producer message notifications using randomly load balance to North / South destination consumer stores.
