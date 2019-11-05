@@ -58,8 +58,7 @@ module.exports.RedLinkProducer = function (config) {
 
     function cleanInMessages() {
         //1. increment lifetime, timeSinceNotify both by 2
-        const increment = 1; // Crazy Alasql thingy, ends up incrementing the lifetime by 2 when set to 1 ... go figure !!!
-        //node.notifyTimerInterval / 1000;
+        const increment = node.notifyTimerInterval / 1000;
         const updateSql = 'UPDATE inMessages SET lifetime = lifetime + ' + increment + ', timeSinceNotify = timeSinceNotify +' + increment;
         const updateSqlResult = alasql(updateSql);
         let msgsByThisProducerSql;
