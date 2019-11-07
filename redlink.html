@@ -444,6 +444,7 @@
     <div class="form-row" id="producer-store-div">
         <label for="node-input-producerStoreName"><i class="fa fa-link"></i> Store Name</label>
         <select id="node-input-producerStoreName">
+        <option value="" selected>Please select a store</option>
         </select>
     </div>
     <div class="form-row" id="producer-consumer-div">
@@ -559,9 +560,11 @@
         outputs:  3,
         defaults: {
             name: {value: 'REDLink producer'},
-            producerStoreName:      {value: '', validate: function (v) {
-                    v = v && v.trim().toLowerCase();
-                    return v && v !== 'please select a store';
+            producerStoreName:      {
+                value: '',
+                required: true,
+                validate: function (v) {
+                    return v && v.length > 0;
                 }
             },
             producerConsumer:       {value: '', required: false},
@@ -634,7 +637,6 @@
             });
             function repopulateStores() { //todo refactor
                 let storeElement = $("#node-input-producerStoreName");
-                storeElement.find('option').remove().end();
                 $.getJSON('all-store-names', stores => {
                     let selectionSet = false;
                     $.each(stores, function (index, obj) {
@@ -648,20 +650,16 @@
                         }));
                     });
                     if (!selectionSet) {
-                        var options = $('#node-input-producerStoreName option');
-                        var values = $.map(options, function (option) {
-                            return option.value;
-                        });
-                        // $("#node-input-producerStoreName").prop("selectedIndex", 0);
-                        $("#node-input-producerStoreName option:first").attr('selected', 'selected');
-                        repopulateConsumers();
+                        $('#node-input-producerStoreName option:selected').removeAttr('selected');
+                        $('#node-input-producerStoreName option:nth-child(0)').attr('selected','selected');
+                    }else{
+                        $('#node-input-producerStoreName').removeClass('input-error');
                     }
+                    repopulateConsumers();
                 });
-
             }
 
             repopulateStores();
-
 
             $('#node-input-manualRead').change(function () {
                 if (this.checked) {
@@ -711,17 +709,10 @@
         <input type="hidden" id="node-input-outputs"/>
     </div>
 
-<!--
-    <div class="form-row" id="consumer-mesh-div">
-        <label for="node-input-consumerMeshName"><i class="fa fa-plus-square-o"></i> Mesh Name</label>
-        <select id="node-input-consumerMeshName">
-        </select>
-    </div>
--->
-
     <div class="form-row" id="consumer-store-div">
         <label for="node-input-consumerStoreName"><i class="fa fa-link"></i> Store Name</label>
         <select id="node-input-consumerStoreName">
+            <option value="" selected>Please select a store</option>
         </select>
     </div>
     </div>
@@ -802,17 +793,16 @@
                     return RED.validators.number(v) && (v >= 0);
                 }
             },
-            consumerStoreName: {value: '', validate: v => {
-                    v = v && v.trim().toLowerCase();
-                    const storeFromHtml = $("#node-input-consumerStoreName").find("option:selected").val();
-                    if(storeFromHtml){
-                        v = storeFromHtml.trim().toLowerCase();
-                    }
-                    return v && v !== 'please select a store';
+            consumerStoreName: {
+                value: '',
+                required: true,
+                validate: function (v) {
+                    return v && v.length > 0;
                 }
             },
             intransit: {
-                value: 1, validate: function (v) {
+                value: 1,
+                validate: function (v) {
                     return RED.validators.number(v) && (v >= 0);
                 }
             },
@@ -847,7 +837,6 @@
             const selectedStore = this.consumerStoreName;
             function repopulateStores() { //todo refactor
                 let storeElement = $("#node-input-consumerStoreName");
-                storeElement.find('option').remove().end();
                 $.getJSON('all-store-names', stores => {
                     let selectionSet = false;
                     $.each(stores, function (index, obj) {
@@ -861,12 +850,10 @@
                         }));
                     });
                     if (!selectionSet) {
-                        var options = $('#node-input-consumerStoreName option');
-                        var values = $.map(options, function (option) {
-                            return option.value;
-                        });
-                        // $("#node-input-producerStoreName").prop("selectedIndex", 0);
-                        $("#node-input-consumerStoreName option:first").attr('selected', 'selected');
+                        $('#node-input-consumerStoreName option:selected').removeAttr('selected');
+                        $('#node-input-consumerStoreName option:nth-child(0)').attr('selected','selected');
+                    }else{
+                        $('#node-input-consumerStoreName').removeClass('input-error');
                     }
                 });
 
