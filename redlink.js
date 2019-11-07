@@ -63,27 +63,9 @@ module.exports = function (RED) {
         RED.httpAdmin.get("/north-peers", (req, res) => { res.json(RED.settings.northPeers || []); });
         RED.httpAdmin.get("/hostname",    (req, res) => { res.json(os.hostname()); });
         RED.httpAdmin.get("/mesh-names",  (req, res) => { res.json(getMeshNames()); });
-        RED.httpAdmin.get("/store-names", (req, res) => { //todo safe delete this
-            let returnStores = [];
-            const mesh = req.query.mesh;
-            if (!mesh) {
-                //log('mesh name not specified- going to return empty array in get store names route');
-                res.json(returnStores);
-                return;
-            }
-            const storesSql = 'SELECT DISTINCT storeName FROM stores WHERE storeName LIKE "' + mesh + '%"'; //console.log(alasql('SELECT * FROM one WHERE a LIKE "abc%"'));
-            const stores = alasql(storesSql);
-            returnStores.push('Please select a store');
-            stores.forEach(meshStore => {
-                const meshStorename = meshStore.storeName;
-                const storeName = meshStorename.indexOf(':') !== -1 ? meshStorename.substring(meshStorename.indexOf(':') + 1) : meshStorename;//todo this shouldnt happen
-                returnStores.push(storeName);
-            });
-            res.json(returnStores);
-        });
 
-        RED.httpAdmin.get("/all-store-names", (req, res) => { //TODO see if we can use the same route as store-names- maybe pass params?
-            let returnStores = ['Please select a store'];
+        RED.httpAdmin.get("/all-store-names", (req, res) => {
+            let returnStores = [];
             const storesSql = 'SELECT DISTINCT storeName FROM stores'; //console.log(alasql('SELECT * FROM one WHERE a LIKE "abc%"'));
             const stores = alasql(storesSql);
             stores.forEach(meshStore => {
