@@ -65,13 +65,8 @@ module.exports = function (RED) {
         RED.httpAdmin.get("/mesh-names",  (req, res) => { res.json(getMeshNames()); });
 
         RED.httpAdmin.get("/all-store-names", (req, res) => {
-            let returnStores = [];
-            const storesSql = 'SELECT DISTINCT storeName FROM stores'; //console.log(alasql('SELECT * FROM one WHERE a LIKE "abc%"'));
-            const stores = alasql(storesSql);
-            stores.forEach(meshStore => {
-                returnStores.push(meshStore.storeName);
-            });
-            res.json(returnStores);
+            const storesSql = 'SELECT DISTINCT storeName FROM stores';
+            res.json(alasql(storesSql).map(meshStore => meshStore.storeName));
         });
 
         RED.httpAdmin.get("/consumers", (req, res) => {
