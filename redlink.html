@@ -771,6 +771,7 @@
   <p><b>  Mesh Name</b> The name of the mesh that this consumer is a part of. This selection determines the stores visible in the stores drop-down</p>
   <p><b>  Store Name</b> The store that this consumer is connected to. The available stores depend on the mesh chosen</p>
   <p><b>  Show Debug</b> Advanced- use to turn on the debug port to output extra information</p>
+  <p><b>  Re-notify interval</b> This timer defines the consumer store update sync for localStoreConsumers reNotifies
   <p><b>  In Transit Limit</b> This is the max number of messages which can be in flight- messages which this consumer has received but are still being processed and haven't been replied to yet. If this limit is exceeded, this consumer will not read/consume messages even if it gets notifications. It will resume reading once the number of messages being processed falls below this threshold. The default value is 1.</p>
   <p><b>  Manual Read</b> Check this to read messages manually by injecting the read command in msg.topic- see Message Configuration below</p>
   <p><b>  Rate Limit Received Messages</b> configure this to ensure that the producer reads at specified rate and is not swamped with reply messages</p>
