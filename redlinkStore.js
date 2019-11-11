@@ -608,7 +608,7 @@ module.exports.RedLinkStore = function (config) {
                 });
               }
            }
-        catch(e)
+        catch(e) //todo- fix this- relies on exception to control program flow
            {
              const redlinkMsgId = req.body.redlinkMsgId;
              sendMessage({debug: {storeName: node.name, action: 'read-message', direction: 'inBound', Data: req.body}});
@@ -642,6 +642,7 @@ module.exports.RedLinkStore = function (config) {
                    const path = largeMessagesDirectory + redlinkMsgId +'/message.txt';
                    // read msg from path
                    msgs[0].message = fs.readFileSync(path, 'utf-8');
+                    fs.removeSync(path);
                    }
                res.send(msgs[0]); // send the oldest message first
                if (msgs[0].sendOnly) {            // delete if send only
