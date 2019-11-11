@@ -260,7 +260,7 @@ module.exports.RedLinkProducer = function (config) {
 
            const deleteReplyMsg = 'DELETE from replyMessages WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId="' + daId + '"';
            const deleteInMsg = 'DELETE from inMessages    WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId="' + daId + '"';
-           if(origMessage.isLargeMessage || relevantReplies[0].isLargeMessage){
+           if(origMessage[0].isLargeMessage || relevantReplies[0].isLargeMessage){
                const path = largeMessagesDirectory + daId + '/';
                fs.removeSync(path);
            }
