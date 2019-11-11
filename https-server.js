@@ -10,7 +10,8 @@ const pems = selfsigned.generate(attrs, {days: 3650,keySize:2048});
 let server;
 module.exports.startServer = function (port, key , cert) {
     app = express();
-    app.use(bodyParser.json());
+    app.use(bodyParser.json({limit: '1024mb'}));
+    app.use(bodyParser.urlencoded({limit: '1024mb', extended: true}));
     try {
         const _key = key? key.trim(): pems.private;
         const _cert = key && cert ? cert.trim(): pems.cert;
@@ -21,7 +22,7 @@ module.exports.startServer = function (port, key , cert) {
         // server.maxConnections = 3;
         return server;
     } catch (e) {
-        console.log(e); //todo error handling
+        console.log(e);
         throw e;
     }
 };
