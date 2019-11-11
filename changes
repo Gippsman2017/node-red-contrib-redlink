@@ -1,3 +1,5 @@
+v 1.5.5 fix timing issue when populating consumers from producer- clear existing options in consumer select just before
+        populating with available consumers;
 v 1.5.4 simplify all-store-names route; remove unused code in redlink.html and redlink.js;
         fix store select ui validation- populate default in ui rather than in backend route,
         tweaks to validate- see https://discourse.nodered.org/t/problem-with-validation-in-ui/17307/7 for more info
