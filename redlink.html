@@ -63,10 +63,10 @@
         //2. output is reordered
         //3. output removed
         //4. output added
-        existingOutputs.forEach((existingOutput, index) => { // handle cases 1, 2, 3
+        existingOutputs.forEach(function (existingOutput, index) { // handle cases 1, 2, 3
             nodeRedOutputObject[index] = newOutputs.indexOf(existingOutput);
         });
-        newOutputs.forEach((newOutput, index) => { // handle case 4
+        newOutputs.forEach(function (newOutput, index) { // handle case 4
             if (existingOutputs.indexOf(newOutput) === -1) { //newly added
                 nodeRedOutputObject[getRandomNumber()] = index;
             }
@@ -684,10 +684,10 @@
 
             const selectedConsumer = this.producerConsumer;
             function repopulateConsumers() {
-                let consumerElement = $("#node-input-producerConsumer");
-                consumerElement.find('option').remove().end();
                 const storeName = $("#node-input-producerStoreName").children("option:selected").val() || selectedStore;
-                $.getJSON('consumers', {"producer": this.name, "store": storeName}, stores => {
+                $.getJSON('consumers', {"producer": this.name, "store": storeName}, function (stores) {
+                    let consumerElement = $("#node-input-producerConsumer");
+                    consumerElement.find('option').remove().end();
                     $.each(stores, function (index, obj) {
                         consumerElement.append($('<option>', {
                             value: obj,
@@ -697,7 +697,9 @@
                     });
                 });
             }
-            $("#node-input-producerStoreName").change(() => { repopulateConsumers(); });
+            $("#node-input-producerStoreName").change(function () {
+                repopulateConsumers();
+            });
         }
     });
 </script>
