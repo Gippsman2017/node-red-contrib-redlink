@@ -301,9 +301,15 @@ module.exports.RedLinkProducer = function (config) {
              const message = msgs[0];
              const isLargeMessage = message.isLargeMessage;
              if (isLargeMessage) {
-                const path = largeMessagesDirectory + redlinkMsgId +'/message.txt';
-                // read msg from path
-                msgs[0].message = fs.readFileSync(path, 'utf-8');
+                const msgPath = largeMessagesDirectory + redlinkMsgId +'/message.txt';
+                // read msg from msgPath
+                 const preservedPath = largeMessagesDirectory + redlinkMsgId +'/preserved.txt';
+                 if(fs.pathExistsSync(msgPath)){
+                     msgs[0].message = fs.readFileSync(msgPath, 'utf-8');
+                 }
+                 if(fs.pathExistsSync(preservedPath)){
+                     msgs[0].preserved = fs.readFileSync(preservedPath, 'utf-8');
+                 }
              }
            }
            const data = msgs[0];
@@ -318,7 +324,9 @@ module.exports.RedLinkProducer = function (config) {
     function sendFailureMessage(redlinkMsgId) {
         let failure = readMessage(redlinkMsgId);
         failure.reply = getReplyMsgData(redlinkMsgId);
-
+        if(failure.reply && failure.reply.preserved){
+            delete failure.reply.preserved;
+        }
         if (node.sendOnly) {
             failure.error = 'Message ' + redlinkMsgId + ' not read in ' + node.ett + ' seconds';
         } else {
@@ -327,7 +335,9 @@ module.exports.RedLinkProducer = function (config) {
         sendMessage({
             failure,
             debug: failure
-        })
+        });
+        const path = largeMessagesDirectory + redlinkMsgId + '/';
+        fs.removeSync(path);
     }
 
     function isLargeMessage(encodedMessage, encodedPreserved) {
