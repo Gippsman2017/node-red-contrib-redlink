@@ -26,6 +26,7 @@ Redlink is a way of connecting many instances of Node-Red together using soft "s
 
 Redlink does not use a traditional messaging system, it actually creates a hierarchical mesh of interconnected web services 
 using HTTPS-POST as its transport and an OSPF like routing concept.
+It works as expected behind a proxy, note that NO_PROXY must not have a "." or wildcard infront of a url. eg, export no_proxy="abc.mydomain.com", this will wildcard anything in fron of the abc.
 
 ## Major benefits that this approach provides
 

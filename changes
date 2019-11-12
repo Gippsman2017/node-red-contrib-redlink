@@ -1,4 +1,8 @@
-v 1.5.5 fix timing issue when populating consumers from producer- clear existing options in consumer select just before
+v 1.6.0 Feature upgrade, large messages are now theoretically 1GB
+        Found bug in the request.js library, if you want to use no_proxy, then you must not put a wildcard or "." infront of the url
+        eg export no_proxy="abc.myurl.com", this will wildcard anything infront of the abc etc.
+        More html validation fixes.
+v 1.5.5 Fix timing issue when populating consumers from producer- clear existing options in consumer select just before
         populating with available consumers; fix large message support- increase bodyParser limit, clean up large message
         directory after read, redeploy and store startup
 v 1.5.4 simplify all-store-names route; remove unused code in redlink.html and redlink.js;
