@@ -865,6 +865,12 @@ module.exports.RedLinkStore = function (config) {
         // alasql(dropTriggerRegisterConsumer);
         dropTrigger(registerConsumerTriggerName);
 
+        const remainingMessages = alasql('SELECT * FROM inMessages WHERE storeName="' + node.name + '"');
+        remainingMessages.forEach(msg => {
+            const path = largeMessagesDirectory + msg.redlinkMsgId + '/';
+            fs.removeSync(path);
+        });
+
         const removeReplySql = 'DELETE FROM replyMessages WHERE storeName="' + node.name + '"';
         const removeNotifySql = 'DELETE FROM notify        WHERE storeName="' + node.name + '"';
         const removeInMessagesSql = 'DELETE FROM inMessages    WHERE storeName="' + node.name + '"';
