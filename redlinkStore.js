@@ -45,6 +45,7 @@ module.exports.RedLinkStore = function (config) {
     node.userKey = config.userKey;
     node.userCertificate = config.userCertificate;
     node.interStoreLoadBalancer = config.interStoreLB;
+    require('./redlinkSettings.js')(RED, node.name).cleanLargeMessagesDirectory();
     const largeMessagesDirectory = require('./redlinkSettings.js')(RED, node.name).largeMessagesDirectory;
     const largeMessageThreshold = require('./redlinkSettings.js')(RED, node.name).largeMessageThreshold;
     // Insert myself into the mesh.
