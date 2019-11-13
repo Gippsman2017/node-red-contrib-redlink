@@ -1,7 +1,7 @@
 const base64 = require('base64-coder-node')();
 
-const encodetype = 'binary';
-const decodetype = 'binary';
+const encodetype = 'utf16le';
+const decodetype = 'utf16le';
 
 module.exports.encode = function(obj){
     if(!obj){
@@ -18,6 +18,7 @@ module.exports.decode = function(str){
     try {
         returnVal = JSON.parse(returnVal);
     } catch (e) {
+        console.log(e);
     } finally {
         return returnVal;
     }
