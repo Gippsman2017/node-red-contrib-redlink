@@ -1,4 +1,4 @@
-v 1.6.1 Change encode/decode type to utf16le- using 'binary' for base64 encoding/decoding stores only first eight bits
+v 1.6.1 Fixed msg.payload encode/decode type to utf16le- this is due to using 'binary' for base64 encoding/decoding stores only first eight bits
         of each character and so doesn't handle special characters like apostrophe (’) .
         See https://www.npmjs.com/package/base64-coder-node#supported-encodings
 v 1.6.0 Feature upgrade, large messages are now theoretically 1GB
