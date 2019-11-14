@@ -1,5 +1,6 @@
-v 1.6.1 Fixed msg.payload encode/decode type to utf16le- this is due to using 'binary' for base64 encoding/decoding stores only first eight bits
-        of each character and so doesn't handle special characters like apostrophe (’) .
+v 1.6.2 Made reNotifyInterval field optional in consumer UI- it defaults to 1 in the backend.
+v 1.6.1 Fixed msg.payload encode/decode type to utf16le- this is due to using 'binary' for base64 encoding/decoding which
+        stores only first eight bits of each character and so doesn't handle special characters like apostrophe (’) .
         See https://www.npmjs.com/package/base64-coder-node#supported-encodings
 v 1.6.0 Feature upgrade, large messages are now theoretically 1GB
         Found bug in the request.js library, if you want to use no_proxy, then you must not put a wildcard or "." infront of the url
