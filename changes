@@ -1,3 +1,5 @@
+v 1.7.0 Feature addition, producer stores can now also loadbalance directly to north or south stores without the need to have a separate north store to provide
+        the functionality.
 v 1.6.1 Fixed msg.payload encode/decode type to utf16le- this is due to using 'binary' for base64 encoding/decoding stores only first eight bits
         of each character and so doesn't handle special characters like apostrophe (’) .
         See https://www.npmjs.com/package/base64-coder-node#supported-encodings
