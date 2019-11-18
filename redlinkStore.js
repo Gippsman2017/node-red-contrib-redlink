@@ -251,9 +251,21 @@ module.exports.RedLinkStore = function (config) {
                 });
 
                 const remoteMatchingStores = [...new Set([...getRemoteMatchingStores(newMessage.serviceName, node.meshName)])];
+                let producerStores = remoteMatchingStores;
                 let thisPath = [];
                 thisPath.push({store:node.name,enforceReversePath:newMessage.enforceReversePath,address:node.listenAddress,port:node.listenPort});
-                remoteMatchingStores.forEach(remoteStore => {
+
+                 // Just select a single store if LoadBalancer is active
+                 if (node.interStoreLoadBalancer) {
+                   var randomItem = [remoteMatchingStores[Math.floor(Math.random()*remoteMatchingStores.length)]];
+                   if (typeof randomItem[0] != 'undefined' ) {
+                      randomItem.forEach(remoteStore => {
+                         producerStores = randomItem;
+                      }); // RemoteMatchingStores
+                   }
+                 }
+
+                producerStores.forEach(remoteStore => {
                     const body = {
                         service: newMessage.serviceName,
                         srcStoreAddress: node.listenAddress,
