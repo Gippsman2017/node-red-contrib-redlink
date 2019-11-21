@@ -235,10 +235,8 @@ module.exports.RedLinkStore = function (config) {
             // inMessages (msgId STRING, storeName STRING, serviceName STRING, message STRING)'
             const newMessagesSql = 'SELECT * from inMessages WHERE storeName="' + node.name + '" AND read=' + false +' ORDER BY priority DESC';
             var newMessages = alasql(newMessagesSql);
-
-            const newMessage = newMessages[newMessages.length - 1];
-            if (newMessage) {
-
+            if (newMessages.length >0) {
+                const newMessage = newMessages[newMessages.length - 1];
                 sendMessage({
                     registration: { // todo rename to notify
                         service: newMessage.serviceName,
