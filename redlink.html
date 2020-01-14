@@ -311,8 +311,7 @@
                         class: "node-input-header-value",
                         type: "text",
                         style: "margin-left: 10px"
-                    })
-                        .appendTo(row)
+                    }).appendTo(row)
                         .typedInput({
                             types:
                                 header.h === 'content-type' ? contentTypes : [{
@@ -321,9 +320,14 @@
                                     icon: "red/images/typedInput/09.png"
                                 }]
                         });
-                    var redistribute = $('<input/>', {class: "node-input-header-redistribute", type: "text"})
-                        .appendTo(row)
+
+                    var redistribute = $('<input/>', {
+                        class: "node-input-header-redistribute",
+                        type: "text",
+                        style: "margin-left: 10px"
+                    }).appendTo(row)
                         .typedInput({types: redistributeTypes});
+
                     var matchedType = headerTypes.filter(function (ht) {
                         return ht.value === header.h
                     });
@@ -334,7 +338,6 @@
                         redistribute.typedInput('type', header.d);
                     } else {
                         propertyName.typedInput('type', header.h);
-
                         if (header.h === "content-type") {
                             matchedType = contentTypes.filter(function (ct) {
                                 return ct.value === header.v;
