@@ -27,9 +27,11 @@ module.exports = function (RED) {
         alasql('CREATE TABLE localStoreConsumers (storeName STRING, serviceName STRING, consumerId STRING)'); //can have multiple consumers with same name registered to the same store
         alasql('CREATE TABLE globalStoreConsumers (localStoreName STRING, serviceName STRING, consumerId STRING, storeName STRING, direction STRING, storeAddress STRING, storePort INT, transitAddress STRING, transitPort INT, hopCount INT, ttl INT)');
         alasql('CREATE TABLE stores (storeName STRING, storeAddress STRING, storePort INT)');
-        alasql('CREATE TABLE replyMessages (storeName STRING, redlinkMsgId STRING, redlinkProducerId STRING, replyMessage STRING, read BOOLEAN, isLargeMessage BOOLEAN)');
+        alasql('CREATE TABLE replyMessages (storeName STRING, redlinkMsgId STRING, redlinkProducerId STRING, replyMessage STRING, read BOOLEAN, isLargeMessage BOOLEAN, cerror STRING)');
         //log('created tables...');
     }
+
+
 
     function registerNodeRedTypes() {
         //Store
@@ -85,7 +87,7 @@ module.exports = function (RED) {
         }
         const meshName = storeName.substring(0, storeName.indexOf(':')); // Producers can only send to Consumers on the same mesh
         const globalConsumers = alasql('SELECT distinct serviceName from ( select * from globalStoreConsumers WHERE localStoreName LIKE "' + meshName + '%"' +
-                                                                               ' union select * from localStoreConsumers  WHERE storeName      LIKE "' + meshName + '%") ');
+                                                                          ' union select * from localStoreConsumers  WHERE storeName      LIKE "' + meshName + '%") ');
         const allConsumers = [...new Set([...globalConsumers])];
         let consumersArray = [];
         consumersArray.push('msg.topic'); //for dynamically specifying destination consumer- specify in msg.topic

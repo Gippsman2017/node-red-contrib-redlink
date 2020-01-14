@@ -1,3 +1,4 @@
+
 const alasql = require('alasql');
 const request = require('request').defaults({strictSSL: false});
 
@@ -71,6 +72,7 @@ module.exports.RedLinkConsumer = function (config) {
             path: base64Helper.decode(data[0].notifyPath),
             notifyCount:nResult[0].myCount
             };
+
          if (node.manualRead) {
             sendMessage({notify: notifyMessage});
             }
@@ -81,14 +83,14 @@ module.exports.RedLinkConsumer = function (config) {
                    // todo read oldest message first- right now it reads the notifies in random order- see getNewNotifyAndCount() at beginning of trigger
                    if (limiter === null) {
                        readMessageAndSendToOutput(notifyMessage.redlinkMsgId);
-                   } else 
+                   } else
                    {
                        limiter.removeTokens(1, function (err, remainingRequests) {
                            readMessageAndSendToOutput(notifyMessage.redlinkMsgId);
                       });
                    }
-              } 
-            else 
+              }
+            else
               {
                 notifyMessage.warning = 'inTransitLimit ' + node.inTransitLimit + ' exceeded. This notify will be discarded';
                 sendMessage({notify: notifyMessage});  // TODO- still send the notify out?
@@ -105,17 +107,19 @@ module.exports.RedLinkConsumer = function (config) {
         if (!notifyAndCount) {
             return;
         }
+
         const newNotify = notifyAndCount.notify;
         const notifyCount = notifyAndCount.notifyCount;
         updateNotifyTable(newNotify);
         sendOutNotify();
+
     };
 
 
     const createTriggerSql = 'CREATE TRIGGER ' + msgNotifyTriggerId + ' AFTER INSERT ON notify CALL ' + newMsgNotifyTrigger + '()';
     alasql(createTriggerSql);
 
-    // localStoreConsumers (storeName STRING, serviceName STRING)'); 
+    // localStoreConsumers (storeName STRING, serviceName STRING)');
     // can have multiple consumers with same name registered to the same store
     const deleteFromConsumerSql = 'DELETE FROM localStoreConsumers where consumerId = "'+ node.id +'"';
     const insertIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.consumerStoreName + '","' + node.name + '","' + node.id +'")';
@@ -153,19 +157,23 @@ module.exports.RedLinkConsumer = function (config) {
         return setInterval(function () {
            // First get any local consumers that I own and update my own global entries in my own store, this updates ttl.
            const sResult = alasql('SELECT storeName from stores WHERE storeName = "' + node.consumerStoreName + '"');
+
            if (sResult.length > 0) {
              node.status({fill: "green", shape: "dot", text: ''});
            } else {
              node.status({fill: "red",    shape: "dot", text: 'Error: No Store:'+node.consumerStoreName});
            }
+
            if (sResult.length == 0) {
              const deleteFromConsumerSql = 'DELETE FROM localStoreConsumers where consumerId = "'+ node.id +'"';
              const insertIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.consumerStoreName + '","' + node.name + '","' + node.id +'")';
              alasql(deleteFromConsumerSql);
              alasql(insertIntoConsumerSql);
            }
-        },timeOut);    
+        },timeOut);
     }
+
+
 
     function reNotifyConsumers(timeOut) {
         return setInterval(function () {
@@ -185,12 +193,13 @@ module.exports.RedLinkConsumer = function (config) {
             if (node.manualRead) {
               sendMessage({notify: notifyMessage});
             }
+
           else
             {
               sendOutNotify();
-            }   
+            }
           }
-        },timeOut);    
+        },timeOut);
     }
 
 
@@ -231,24 +240,26 @@ module.exports.RedLinkConsumer = function (config) {
 
                         let notifyPathIn = base64Helper.decode(notifies[0].notifyPath);
                         let notifyPath = [];
-                        // The first entry in the notify contains the enforseReversePath
+                        // The first entry in the notify contains the enforceReversePath
                         // if (node.enforceReversePath) {
                         if (notifyPathIn[0].enforceReversePath) {
                            notifyPath=notifyPathIn.pop();
                         } else {
                            notifyPath=notifyPathIn[0];
                            notifyPathIn =[];
-                        }   
-                        
+                        }
                         const replyAddress = notifyPath.address+':'+notifyPath.port;
                         notifyPathIn = base64Helper.encode(notifyPathIn);
+                        var cerror = '';
+                        if (msg.cerror) {cerror = base64Helper.encode(msg.cerror);}
                         // delete msg.preserved;
                         const body = {
                             redlinkProducerId,
                             replyingService: replyService,
                             redlinkMsgId: msg.redlinkMsgId,
                             payload: base64Helper.encode(msg.payload),
-                            notifyPath: notifyPathIn
+                            notifyPath: notifyPathIn,
+                            cerror: cerror,
                         };
                         const options = {
                             method: 'POST',
@@ -256,6 +267,7 @@ module.exports.RedLinkConsumer = function (config) {
                             body,
                             json: true
                         };
+
                         request(options, function (error, response) {
                             body.payload = base64Helper.decode(body.payload);
                         });
@@ -314,7 +326,7 @@ module.exports.RedLinkConsumer = function (config) {
                 } else {
                    notifyPath=notifyPathIn[0];
                    notifyPathIn =[];
-                }   
+                }
 
                 const address = notifyPath.address+':'+notifyPath.port;
                 notifyPathIn = base64Helper.encode(notifyPathIn);
@@ -325,6 +337,7 @@ module.exports.RedLinkConsumer = function (config) {
                     body: {redlinkMsgId, notifyPath:notifyPathIn},
                     json: true
                 };
+
                 sendMessage({debug: {"debugData": "storeName " + sendingStoreName + ' ' + node.name + "action:consumerRead" + options}});
                 const updateNotifyStatus = 'UPDATE notify SET read=' + true + ' WHERE redlinkMsgId="' + redlinkMsgId + '"  and notifySent LIKE "%' + node.id + '%"';
                 alasql(updateNotifyStatus);
@@ -333,6 +346,7 @@ module.exports.RedLinkConsumer = function (config) {
                         if (response.body.message) {
                             response.body.message = base64Helper.decode(response.body.message);
                         }
+
                         const msg = response.body;
                         if (msg) {
                             msg.payload = msg.message.payload;
@@ -365,6 +379,7 @@ module.exports.RedLinkConsumer = function (config) {
                         if (response && response.body && response.body.message) {
                             response.body.message = base64Helper.decode(response.body.message);
                         }
+
                         const msg = response ? response.body : null;
                         // OK the store has told me the message is no longer available, so I will remove this notify
                         const errorMessage = {
@@ -376,6 +391,7 @@ module.exports.RedLinkConsumer = function (config) {
                             redlinkMsgId: redlinkMsgId,
                             error: true
                         };
+
                         reject({failure: errorMessage});
                         deleteNotify(redlinkMsgId);
                     }
@@ -387,3 +403,5 @@ module.exports.RedLinkConsumer = function (config) {
         })
     } // readMessage
 };
+
+
