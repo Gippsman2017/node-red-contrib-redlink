@@ -10,6 +10,16 @@
         registration: 'Notify' //store
     };
 
+    function getBoolean(value){
+        switch(value){
+            case true:
+            case "true":
+                return true;
+            default:
+                return false;
+        }
+    }
+
     function getStoreName(qualifiedStore){
         let storeName ='';
         if(qualifiedStore && qualifiedStore.trim().toLowerCase()!=='please select a store'){
@@ -108,7 +118,7 @@
     </div>
     
     <div class="form-row node-input-headers-container-row">
-        <label><i class="fa fa-cloud-upload "></i> North Peers (IP and Port)</label><br>
+        <label><i class="fa fa-cloud-upload "></i> North Peers (IP, Port and Redistribute)</label><br>
         <ol id="node-input-headers-container"></ol>
     </div>
 
@@ -184,7 +194,10 @@
         {value: "image/png",        label: "image/png", hasValue: false},
         {value: "other", label: RED._("node-red:httpin.label.other"), icon: "red/images/typedInput/09.png"}
     ];
-
+    var redistributeTypes = [
+        {value: "true", label: "true", hasValue: false},
+        {value: "false", label: "false", hasValue: false}
+        ];
     RED.nodes.registerType('redlink store', {
         category: 'redlink',
         color: "#f56042",
@@ -269,7 +282,7 @@
             //TODO get all store names in this instance; then validate current store name on change to avoid duplicates
             function resizeRule(rule) {
                 var newWidth = rule.width();
-                rule.find('.red-ui-typedInput').typedInput("width", (newWidth - 15) / 2);
+                rule.find('.red-ui-typedInput').typedInput("width", (newWidth - 15) / 3);
             }
 
             var headerList = $("#node-input-headers-container").css('min-height', '10px').css('min-width', '400px').editableList({
@@ -279,6 +292,11 @@
                     }
                     if (!header.v) { //todo confirm with John
                         header.v = '2000';
+                    }
+                    if(typeof header.d === 'undefined'){
+                        header.d = true;
+                    } else{
+                        header.d = getBoolean(header.d)
                     }
                     var row = $('<div/>').css({
                         overflow: 'hidden',
@@ -303,7 +321,9 @@
                                     icon: "red/images/typedInput/09.png"
                                 }]
                         });
-
+                    var redistribute = $('<input/>', {class: "node-input-header-redistribute", type: "text"})
+                        .appendTo(row)
+                        .typedInput({types: redistributeTypes});
                     var matchedType = headerTypes.filter(function (ht) {
                         return ht.value === header.h
                     });
@@ -311,6 +331,7 @@
                         propertyName.typedInput('type', 'other');
                         propertyName.typedInput('value', header.h);
                         propertyValue.typedInput('value', header.v);
+                        redistribute.typedInput('type', header.d);
                     } else {
                         propertyName.typedInput('type', header.h);
 
@@ -362,12 +383,12 @@
                 this.headers.forEach((header) => {
                     const ip = header.ip;
                     const port = header.port;
-                    headerList.editableList('addItem', {h: ip, v: port});
+                    headerList.editableList('addItem', {h: ip, v: port, d: header.redistribute});
                 });
             } else if (!this.oldStore) {
                 $.getJSON('north-peers', northies => {
                     northies.map(northie => {
-                        headerList.editableList('addItem', {h: northie.address, v: northie.port});
+                        headerList.editableList('addItem', {h: northie.address, v: northie.port, d: northie.redistribute});
                     });
                 });
             }
@@ -407,6 +428,7 @@
                 var ip = header.find(".node-input-header-name").typedInput('value');
                 var valueType = header.find(".node-input-header-value").typedInput('type');
                 var port = header.find(".node-input-header-value").typedInput('value');
+                var redistribute = header.find(".node-input-header-redistribute").typedInput('type');
                 var key = keyType;
                 var value = valueType;
                 if (keyType === 'other') {
@@ -416,8 +438,7 @@
                     value = port;
                 }
                 if (key !== '') {
-                    node.headers.push({ip, port})
-                    // node.headers[key] = value;
+                    node.headers.push({ip, port, redistribute})
                 }
             });
         },
