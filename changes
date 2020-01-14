@@ -1,3 +1,4 @@
+v 1.7.2 Added redistribute option for north peers in stores- required for service isolation
 v 1.7.1 Made reNotifyInterval field optional in consumer UI- it defaults to 1 in the backend, fixed bug- new messages
         array can be empty in new message trigger of store
 v 1.7.0 Feature addition, producer stores can now also loadbalance directly to north or south stores without the need to have a separate north store to provide
