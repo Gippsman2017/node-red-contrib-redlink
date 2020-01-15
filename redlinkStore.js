@@ -48,7 +48,6 @@ module.exports.RedLinkStore = function (config) {
     require('./redlinkSettings.js')(RED, node.name).cleanLargeMessagesDirectory();
     const largeMessagesDirectory = require('./redlinkSettings.js')(RED, node.name).largeMessagesDirectory;
     const largeMessageThreshold = require('./redlinkSettings.js')(RED, node.name).largeMessageThreshold;
-console.log(node.name ,' = ',node.northPeers);
     // Insert myself into the mesh.
     const insertStoreSql = 'INSERT INTO stores("' + node.name + '","' + node.listenAddress + '",' + node.listenPort + ')';
     alasql(insertStoreSql);
