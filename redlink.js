@@ -85,9 +85,8 @@ module.exports = function (RED) {
         if (!storeName) {
             return {};
         }
-        const meshName = storeName.substring(0, storeName.indexOf(':')); // Producers can only send to Consumers on the same mesh
-        const globalConsumers = alasql('SELECT distinct serviceName from ( select * from globalStoreConsumers WHERE localStoreName LIKE "' + meshName + '%"' +
-                                                                          ' union select * from localStoreConsumers  WHERE storeName      LIKE "' + meshName + '%") ');
+        const globalConsumers = alasql('SELECT distinct serviceName from ( select * from globalStoreConsumers WHERE localStoreName = "' + storeName + '") order by serviceName ASC');
+
         const allConsumers = [...new Set([...globalConsumers])];
         let consumersArray = [];
         consumersArray.push('msg.topic'); //for dynamically specifying destination consumer- specify in msg.topic
