@@ -1,3 +1,4 @@
+v 1.8.1 Fixed redistribute bug- was returning false as a string instead of boolean; remove console.log from redlinkstore
 v 1.8.0 Added msg.cerror to consumer replies so that it forces the producer to send the response to its "failure" ouput, msg.cerror meaning "consumer error" can be an object
 v 1.7.2 Added redistribute option for north peers in stores- required for service isolation
 v 1.7.1 Made reNotifyInterval field optional in consumer UI- it defaults to 1 in the backend, fixed bug- new messages
