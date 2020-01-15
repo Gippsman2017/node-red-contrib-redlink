@@ -10,13 +10,13 @@
         registration: 'Notify' //store
     };
 
-    function getBoolean(value){
+    function getString(value){
         switch(value){
             case true:
             case "true":
-                return true;
+                return "true";
             default:
-                return false;
+                return "false";
         }
     }
 
@@ -294,9 +294,9 @@
                         header.v = '2000';
                     }
                     if(typeof header.d === 'undefined'){
-                        header.d = true;
+                        header.d = "true";
                     } else{
-                        header.d = getBoolean(header.d)
+                        header.d = getString(header.d)
                     }
                     var row = $('<div/>').css({
                         overflow: 'hidden',
@@ -432,7 +432,7 @@
                 var valueType = header.find(".node-input-header-value").typedInput('type');
                 var port = header.find(".node-input-header-value").typedInput('value');
                 var redistribute = header.find(".node-input-header-redistribute").typedInput('type');
-                redistribute = getBoolean(redistribute);
+                redistribute = getString(redistribute);
                 var key = keyType;
                 var value = valueType;
                 if (keyType === 'other') {
@@ -445,6 +445,7 @@
                     node.headers.push({ip, port, redistribute})
                 }
             });
+            console.log('on save north peers are:', node.headers);
         },
         oneditresize: function (size) {
             var rows = $("#dialog-form>div:not(.node-input-headers-container-row)");
