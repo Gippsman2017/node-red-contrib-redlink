@@ -60,7 +60,7 @@ module.exports.RedLinkProducer = function (config) {
     function cleanInMessages() {
         //1. increment lifetime, timeSinceNotify both by 2
         const increment = node.notifyTimerInterval / 1000;
-        const updateSql = 'UPDATE inMessages SET lifetime = lifetime + ' + increment + ', timeSinceNotify = timeSinceNotify +' + increment;
+        const updateSql = 'UPDATE inMessages SET lifetime = lifetime + ' + increment + ', timeSinceNotify = timeSinceNotify +' + increment+' WHERE redlinkProducerId="'+node.id+'"';
         const updateSqlResult = alasql(updateSql);
         let msgsByThisProducerSql;
         let msgsByThisProducer;
@@ -392,8 +392,8 @@ module.exports.RedLinkProducer = function (config) {
         } else {
             const msgInsertSql = 'INSERT INTO inMessages VALUES ("' + redlinkMsgId + '","' + node.producerStoreName + '","' + service + '","' + encodedMessage +
                 '",' + false + ',' + node.sendOnly + ',"' + node.id + '","' + encodedPreserved + '",' + Date.now() + ',' + node.priority + ',' + false +','+0+','+0+','+node.enforceReversePath+ ')';
-            // redlinkMsgId STRING, storeName STRING, serviceName STRING, message STRING, read BOOLEAN, sendOnly BOOLEAN, redlinkProducerId STRING,preserved STRING, timestamp BIGINT, priority INT,
-            // isLargeMessage BOOLEAN
+            /*redlinkMsgId STRING, storeName STRING, serviceName STRING, message STRING, ' +
+            'read BOOLEAN, sendOnly BOOLEAN, redlinkProducerId STRING,preserved STRING, timestamp BIGINT, priority INT, ' 'isLargeMessage BOOLEAN, lifetime INT, timeSinceNotify INT, enforceReversePath BOOLEAN*/
             alasql(msgInsertSql);
         }
     }
