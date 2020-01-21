@@ -1,3 +1,4 @@
+v 2.0.1 Fixed bug- timer should update lifetime for only this producer's messages
 v 2.0.0 Redlink is now service aware and full control of service visibility using redistribution on north connections and south inter controls are available
 	Producer visibility of services is now individual store aware and ordered.
 v 1.8.1 Fixed redistribute bug- was returning false as a string instead of boolean; remove console.log from redlinkstore
