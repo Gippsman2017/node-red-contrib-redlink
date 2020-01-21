@@ -13,7 +13,7 @@
 - [How Redlink actually communicates with other Redlink Instances](#how-redlink-actually-communicates-with-other-redlink-instances)
 - [Redlink has two modes of Read and Reply message retrieval](#Redlink-has-two-modes-of-Read-and-Reply-message-retrieval)
 - [Redlink has an Interstore Load Balancer](#Redlink-has-an-Interstore-Load-Balancer)
-- [Redlink can now control north bound peer connections to allow / disallow redistribution of services](#Redlink can now control north bound peer connections to allow / disallow redistribution of services)
+- [Redlink can now control north bound peer connections to allow / disallow redistribution of services](#Redlink-can-now-control-north-bound-peer-connections-to-allow-/-disallow-redistribution-of-services)
 - [Tree Hierachy](#tree-hierachy)
 - [Producer Consumer to Sender Receiver Socket design](#producer-consumer-to-sender-receiver-socket-design)
 - [Redlink Using 3 Transit Nodes where each Transit node requires Service Isolation](#Redlink-Using-3-Transit-Nodes-where-each-Transit-node-requires-Service-Isolation)
