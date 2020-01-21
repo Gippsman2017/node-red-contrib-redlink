@@ -1,3 +1,5 @@
+v 2.0.0 Redlink is now service aware and full control of service visibility using redistribution on north connections and south inter controls are available
+	Producer visibility of services is now individual store aware and ordered.
 v 1.8.1 Fixed redistribute bug- was returning false as a string instead of boolean; remove console.log from redlinkstore
 v 1.8.0 Added msg.cerror to consumer replies so that it forces the producer to send the response to its "failure" ouput, msg.cerror meaning "consumer error" can be an object
 v 1.7.2 Added redistribute option for north peers in stores- required for service isolation

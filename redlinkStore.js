@@ -48,6 +48,8 @@ module.exports.RedLinkStore = function (config) {
     require('./redlinkSettings.js')(RED, node.name).cleanLargeMessagesDirectory();
     const largeMessagesDirectory = require('./redlinkSettings.js')(RED, node.name).largeMessagesDirectory;
     const largeMessageThreshold = require('./redlinkSettings.js')(RED, node.name).largeMessageThreshold;
+
+    //console.log(node.name ,'(',node.northPeers,') = ',node.northPeers[0].redistribute);
     // Insert myself into the mesh.
     const insertStoreSql = 'INSERT INTO stores("' + node.name + '","' + node.listenAddress + '",' + node.listenPort + ')';
     alasql(insertStoreSql);
@@ -101,10 +103,8 @@ module.exports.RedLinkStore = function (config) {
                 sendMessage({ debug: { storeName: node.name, action: 'notifyRegistration', direction: 'outBound', notifyData: body } });
                 const options = {method: 'POST', url: 'https://' + address + ':' + port + '/notify', body, json: true};
                 request(options, function (error, response) {
-                    if (error) {
-                        sendMessage({ debug: { storeName: node.name, action: 'notifyRegistrationResult', direction: 'outBound', notifyData: body, error: error } });
-                    } else {
-                        sendMessage({ debug: { storeName: node.name, action: 'notifyRegistrationResult', direction: 'outBound', notifyData: response.body      } });
+                    if (error) { sendMessage({ debug: { storeName: node.name, action: 'notifyRegistrationResult', direction: 'outBound', notifyData: body, error: error } });
+                    } else {     sendMessage({ debug: { storeName: node.name, action: 'notifyRegistrationResult', direction: 'outBound', notifyData: response.body      } });
                     }
                 });
             }
@@ -137,6 +137,7 @@ module.exports.RedLinkStore = function (config) {
         if (address && address !== '0.0.0.0') {
             sendMessage({ debug: { storeName: node.name, action: 'notifyRegistration', direction: 'outBound', notifyData: body } });
             const options = {method: 'POST', url: 'https://' + address + ':' + port + '/notify', body, json: true};
+
             request(options, function (error, response) {
                if (error) {
                     if (direction === 'south') {
@@ -163,6 +164,7 @@ module.exports.RedLinkStore = function (config) {
                  sendMessage({ debug: { storeName: node.name, action: 'notifyRegistrationResult', direction: 'outBound', notifyData: response.body } });
                }
             });
+ 
         }
     }
 
@@ -195,7 +197,6 @@ module.exports.RedLinkStore = function (config) {
         node.southPeers.forEach(peer => {
             var [ip, port] = peer.split(':');
             if (consumer.storeAddress+':'+consumer.storePort !== ip+':'+port) {
-//console.log('Store=',node.name,' consumer=',consumer,' direction=',direction,' storePort=',storePort,' transitport=',transitPort);
                notifyPeerStoreOfConsumers(consumer, direction, consumer.hopCount+1, ip, port, transitAddress, transitPort);
             }
         });
@@ -514,22 +515,25 @@ module.exports.RedLinkStore = function (config) {
                     case 'north' : // Connection is connecting from the South and this is why the routing is indicating that the serviceName is south of this store
                         if (node.southInsert) {
                            insertGlobalConsumer(serviceName, consumerId, storeName, 'south', storeAddress, storePort, transitAddress, transitPort, hopCount, ttl);
+                        if (node.northPeers.filter( x=> x.ip == transitAddress && x.port == transitPort.toString() &&  x.redistribute=='true').length > 0) {
                            notifyNorthStoreOfConsumers(consumer, node.listenAddress, node.listenPort); // Pass the registration forward to the next store
                            notifyAllSouthStoreConsumers(notifyDirections.SOUTH);                       // Pass the resistration to any other south store
+                           }
                         }
                         res.status(200).send({action: 'consumerRegistration', status: 200});
                         break;
 
                     case 'south' : // Connection is connecting from the North and this is why the routing is indicating that the serviceName is north of this store
-//                        if (node.northPeers.filter( x=> x.ip == transitAddress && x.port == transitPort.toString() &&  x.redistribute).length > 0) {
-                        if (node.northPeers.filter( x=> x.ip == transitAddress && x.port == transitPort.toString()).length > 0) {
-                          insertGlobalConsumer(serviceName, consumerId, storeName, 'north', storeAddress, storePort, transitAddress, transitPort, hopCount, ttl);
-                          notifySouthStoreOfConsumers(consumer, notifyDirections.SOUTH, storeAddress, storePort, node.listenAddress, node.listenPort);
+                        insertGlobalConsumer(serviceName, consumerId, storeName, 'north', storeAddress, storePort, transitAddress, transitPort, hopCount, ttl);
+                        if (node.northPeers.filter( x=> x.ip == transitAddress && x.port == transitPort.toString() ).length > 0) {
+                          if (node.northPeers.filter( x=> x.ip == transitAddress && x.port == transitPort.toString() &&  x.redistribute=='true').length > 0) {
+                             notifySouthStoreOfConsumers(consumer, notifyDirections.SOUTH, storeAddress, storePort, node.listenAddress, node.listenPort);
+                             }
                           res.status(200).send({action: 'consumerRegistration', status: 200});
-                        } else
-                        {
-                          res.status(404).send({action: 'consumerRegistration', status: 404});
                         }
+                        else {
+                          res.status(404).send({action: 'consumerRegistration', status: 404});
+                        }  
                         break;
                 }
 
