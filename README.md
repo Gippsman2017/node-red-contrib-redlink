@@ -13,7 +13,7 @@
 - [How Redlink actually communicates with other Redlink Instances](#how-redlink-actually-communicates-with-other-redlink-instances)
 - [Redlink has two modes of Read and Reply message retrieval](#Redlink-has-two-modes-of-Read-and-Reply-message-retrieval)
 - [Redlink has an Interstore Load Balancer](#Redlink-has-an-Interstore-Load-Balancer)
-- [Redlink can now control north bound peer connections to allow / disallow redistribution of services](#Redlink-can-now-control-north-bound-peer-connections-to-allow-/-disallow-redistribution-of-services)
+- [Redlink can now control north bound peer connections to allow or disallow redistribution of services](#Redlink-can-now-control-north-bound-peer-connections-to-allow-or-disallow-redistribution-of-services)
 - [Tree Hierachy](#tree-hierachy)
 - [Producer Consumer to Sender Receiver Socket design](#producer-consumer-to-sender-receiver-socket-design)
 - [Redlink Using 3 Transit Nodes where each Transit node requires Service Isolation](#Redlink-Using-3-Transit-Nodes-where-each-Transit-node-requires-Service-Isolation)
@@ -99,7 +99,7 @@ When set in the store - that splits traffic to different target consumer stores.
 The the load balancer will detect multiple service registrations of the same name, it will then cause the store to send single producer message notifications using a random load balance algorythm to North / South destination consumer stores.
 This feature provides a more equitable consumption of producer messages and a reduction of notifications will be noticed at the consumers and overall in the mesh. It has been turned off by default.
 
-## Redlink can now control north bound peer connections to allow / disallow redistribution of services
+## Redlink can now control north bound peer connections to allow or disallow redistribution of services
 
 Redlink Stores as of Version 2.0.0 introduce the ability to control the redistribution of services from north connected stores, the services are then only visible from the south store and will not be distributed
 north or south.
