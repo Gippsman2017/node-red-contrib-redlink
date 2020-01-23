@@ -1,3 +1,22 @@
+v 2.0.2 Consumer changes/fixes:
+        1. topic can be read or consumerread- this has been made case insensistive
+        2. in case of manual read, notifies would still go out for messages already read (but not replied)- fixed
+        3. notify count in status was incorrect- fixed
+        4. added fields retrieveTime (difference in timestamps between the message being injected into the producer and the consumer reading it- please note that this value depends on the clocks of the systems running the producer and consumer) and readDelay (time in seconds that the message spent waiting to be read). Note that these two values will be roughly the same but will not coincide exactly
+
+        error messages- have handled the following cases
+        1. attempt to reply to message before reading. to recreate, feed the notify directly back into the consumer
+        2. attempt to reply to a sendonly message
+        3. missing redlinkmsgid when sending a reply message
+        4. attempt to manually read message when consumer set to auto read
+        5. when store sends a non 200 status code on consumerread, error message now contains the error and any description
+        6. all consumer errors are now standardised- they will contain at the minimum:
+            storename- the name of the store to which this consumer is connected
+            consumername- the name of this consumer
+            consumerid- the id of this consumer
+            action- the action taken when the error occurred- consumerRead, consumerReadWithoutId or consumerReply
+            error- the error description
+            redlinkMsgId- the redlinkMsgId of the msg if any
 v 2.0.1 Fixed bug- timer should update lifetime for only this producer's messages
 v 2.0.0 Redlink is now service aware and full control of service visibility using redistribution on north connections and south inter controls are available
 	Producer visibility of services is now individual store aware and ordered.
