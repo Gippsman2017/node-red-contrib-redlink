@@ -515,10 +515,8 @@ module.exports.RedLinkStore = function (config) {
                     case 'north' : // Connection is connecting from the South and this is why the routing is indicating that the serviceName is south of this store
                         if (node.southInsert) {
                            insertGlobalConsumer(serviceName, consumerId, storeName, 'south', storeAddress, storePort, transitAddress, transitPort, hopCount, ttl);
-                        if (node.northPeers.filter( x=> x.ip == transitAddress && x.port == transitPort.toString() &&  x.redistribute=='true').length > 0) {
                            notifyNorthStoreOfConsumers(consumer, node.listenAddress, node.listenPort); // Pass the registration forward to the next store
                            notifyAllSouthStoreConsumers(notifyDirections.SOUTH);                       // Pass the resistration to any other south store
-                           }
                         }
                         res.status(200).send({action: 'consumerRegistration', status: 200});
                         break;
