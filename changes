@@ -1,3 +1,4 @@
+v 2.1.0	Bumped to get npm to publish it
 v 2.0.4 Changed default behaviour to false on new north bound connections.
 v 2.0.3 Fixed the south to north store insert rule, this was broken on the v 2.0.0 deploy, it stopped the reverse north to south replication on multiple instances from working correctly distributing services.
 v 2.0.2 Consumer changes/fixes:

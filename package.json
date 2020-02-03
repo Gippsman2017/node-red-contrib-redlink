@@ -5,7 +5,7 @@
     "base64-coder-node": "^1.0.7",
     "express": "^4.17.1",
     "fs-extra": "^8.1.0",
-    "limiter": "^1.1.4",
+    "limiter": "^1.1.5",
     "needle": "^2.4.0",
     "selfsigned": "^1.10.7"
   },
@@ -28,5 +28,5 @@
     "type": "git",
     "url": "git+https://github.com/Gippsman2017/node-red-contrib-redlink.git"
   },
-  "version": "2.0.4"
+  "version": "2.1.0"
 }
