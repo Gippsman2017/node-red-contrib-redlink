@@ -58,15 +58,14 @@ module.exports.RedLinkConsumer = function (config) {
        const nResult = alasql('SELECT COUNT(notifySent) as myCount from notify  WHERE read=false and storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"' + ' AND notifySent LIKE "%' + node.id + '%"');
        if (nResult[0].myCount > 0){
          const data = alasql('SELECT * from notify  WHERE read=false and storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"' + ' AND notifySent LIKE "%' + node.id + '%"');
-         const notifyMessage = {
-            redlinkMsgId: data[0].redlinkMsgId,
-            notifyType: 'producerNotification',
-            src: {storeName: data[0].storeName, address: data[0].srcStoreAddress + ':' + data[0].srcStorePort,},
-            dest: {storeName: data[0].storeName, serviceName: data[0].serviceName, consumer: node.id},
-            path: base64Helper.decode(data[0].notifyPath),
-            notifyCount:nResult[0].myCount
-            };
-
+           const notifyMessage = {
+               redlinkMsgId: data[0].redlinkMsgId,
+               notifyType: 'producerNotification',
+               src: {redlinkProducerId: data[0].redlinkProducerId, storeName: data[0].storeName, storeAddress: data[0].srcStoreAddress + ':' + data[0].srcStorePort},
+               dest: {storeName: data[0].storeName, serviceName: data[0].serviceName, consumer: node.id},
+               path: base64Helper.decode(data[0].notifyPath),
+               notifyCount: nResult[0].myCount
+           };
          if (node.manualRead) {
             sendMessage({notify: notifyMessage});
             }
@@ -147,7 +146,7 @@ module.exports.RedLinkConsumer = function (config) {
            } else {
              node.status({fill: "red",    shape: "dot", text: 'Error: No Store:'+node.consumerStoreName});
            }
-           if (sResult.length == 0) {
+           if (sResult.length === 0) {
              const deleteFromConsumerSql = 'DELETE FROM localStoreConsumers where consumerId = "'+ node.id +'"';
              const insertIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.consumerStoreName + '","' + node.name + '","' + node.id +'")';
              alasql(deleteFromConsumerSql);
@@ -217,8 +216,8 @@ module.exports.RedLinkConsumer = function (config) {
                         }
                         const replyService = notifies[0].serviceName;
                         const redlinkProducerId = notifies[0].redlinkProducerId;
-                        let notifyPathIn = base64Helper.decode(notifies[0].notifyPath);
-                        let notifyPath = [];
+                        let notifyPathIn = base64Helper.decode(notifies[0].notifyPath); //todo this part looks shady
+                        let notifyPath;
                         // The first entry in the notify contains the enforceReversePath
                         // if (node.enforceReversePath) {
                         if (notifyPathIn[0].enforceReversePath) {
@@ -285,8 +284,7 @@ module.exports.RedLinkConsumer = function (config) {
 
     function deleteNotify(redlinkMsgId) {
         const deleteNotifyMsg = 'DELETE from notify WHERE redlinkMsgId = "' + redlinkMsgId + '" and storeName = "' + node.consumerStoreName + '" and notifySent LIKE "%' + node.id + '%"';
-        const deleteNotify = alasql(deleteNotifyMsg);
-        return deleteNotify;
+        return alasql(deleteNotifyMsg);
     }
 
     function readMessage(redlinkMsgId) {
@@ -300,7 +298,7 @@ module.exports.RedLinkConsumer = function (config) {
             const notifies = alasql(notifiesSql);
             if (notifies.length > 0) {
                 let notifyPathIn = base64Helper.decode(notifies[0].notifyPath);
-                let notifyPath = [];
+                let notifyPath; //todo revisit this- code duplication
                 // The first entry in the notify contains the enforseReversePath
                 if (notifyPathIn[0].enforceReversePath) {
                    notifyPath=notifyPathIn.pop();
@@ -314,7 +312,7 @@ module.exports.RedLinkConsumer = function (config) {
                 const options = {
                     method: 'POST',
                     url: 'https://' + address + '/read-message',
-                    body: {redlinkMsgId, notifyPath:notifyPathIn},
+                    body: {redlinkMsgId, notifyPath:notifyPathIn, redlinkProducerId: notifies[0].redlinkProducerId},
                     json: true
                 };
                 sendMessage({debug: {"debugData": "storeName " + sendingStoreName + ' ' + node.name + "action:consumerRead" + options}});
@@ -328,9 +326,9 @@ module.exports.RedLinkConsumer = function (config) {
                         const msg = response.body;
                         if (msg) {
                             msg.payload = msg.message.payload;
-                            let retrieveTime;
+                            let retrieveDelay;
                             if(msg.timestamp){
-                                retrieveTime = (Date.now()-msg.timestamp)/1000;
+                                retrieveDelay = (Date.now()-msg.timestamp)/1000;
                             }
                             let readDelay = msg.lifetime;
                             delete msg.preserved;
@@ -347,7 +345,7 @@ module.exports.RedLinkConsumer = function (config) {
                                 sendOnly: msg.sendOnly,
                                 payload: msg.payload,
                                 error: false,
-                                retrieveTime,
+                                retrieveDelay,
                                 readDelay
                             };
                             resolve({receive: receiveMsg});
@@ -369,6 +367,7 @@ module.exports.RedLinkConsumer = function (config) {
                         const body = response && response.body;
                         // OK the store has told me the message is no longer available, so I will remove this notify
                         let errorDesc;
+                        let producerId;
                         if (error) {
                             try {
                                 errorDesc = JSON.stringify(error);
@@ -377,9 +376,11 @@ module.exports.RedLinkConsumer = function (config) {
                             }
                         } else if (body) {
                             errorDesc = body.err ? body.err : body;
+                            producerId = body.redlinkProducerId;
                         }
                         const failureMessage = getFailureMessage(redlinkMsgId, errorDesc, 'consumerRead');
                         failureMessage.statusCode = statusCode;
+                        failureMessage.redlinkProducerId = producerId;
                         reject({failure: failureMessage});
                         deleteNotify(redlinkMsgId);
                     }
