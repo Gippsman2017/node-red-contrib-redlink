@@ -357,12 +357,6 @@ module.exports.RedLinkStore = function (config) {
             }
 
         if (node.listenServer) {
-            node.on('close', (removed, done) => {
-                node.listenServer.close(() => {
-                    done();
-                });
-            });
-
             node.listenServer.listen(node.listenPort).on('error', e => {
                 if (e.code === 'EADDRINUSE') {
                     handleStoreStartError(e);
@@ -613,7 +607,7 @@ module.exports.RedLinkStore = function (config) {
 
 
     app.post('/read-message', (req, res) => {
-       try { // This function allows path recusion backwards to producer
+        try { // This function allows path recusion backwards to producer
              let notifyPathIn = base64Helper.decode(req.body.notifyPath);
              const notifyPath=notifyPathIn.pop();
              if (notifyPath.address === node.listenAddress && notifyPath.port === node.listenPort)
@@ -646,6 +640,7 @@ module.exports.RedLinkStore = function (config) {
         catch(e) //todo- fix this- relies on exception to control program flow
            {
              const redlinkMsgId = req.body.redlinkMsgId;
+             const redlinkProducerId = req.body.redlinkProducerId;
              sendMessage({debug: {storeName: node.name, action: 'read-message', direction: 'inBound', Data: req.body}});
              if (!redlinkMsgId) {
                 sendMessage({
@@ -656,10 +651,9 @@ module.exports.RedLinkStore = function (config) {
                       error: 'redlinkMsgId not specified-400'
                           }
                 });
-                res.status(400).send({err: 'redlinkMsgId not specified'});
+                res.status(400).send({err: 'redlinkMsgId not specified', redlinkProducerId});
                 return;
              }
-
              const msgSql = 'SELECT * FROM inMessages WHERE redlinkMsgId="' + redlinkMsgId + '" AND read=' + false;
              const msgs = alasql(msgSql);// should get one or none
              if (msgs.length > 0) { // will be zero if the message has already been read
@@ -699,7 +693,7 @@ module.exports.RedLinkStore = function (config) {
                     error: msg
                   }
                });
-               res.status(404).send({error: true, msg});
+               res.status(404).send({err:msg, redlinkProducerId});
              }
            }  // catch
     });
@@ -733,7 +727,7 @@ module.exports.RedLinkStore = function (config) {
                    try {
                      res.status(response.statusCode).send(response.body);
                      }
-                   catch(e){
+                   catch(e){ //todo error handling and message
                    }
                  });
               }
@@ -764,7 +758,7 @@ module.exports.RedLinkStore = function (config) {
                  insertReplySql = 'INSERT INTO replyMessages ("' + node.name + '","' + redlinkMsgId + '","' + redlinkProducerId + '","' + message + '", false, false,"'+cerror+'")';
                }
                alasql(insertReplySql);
-               res.status(200).send({msg: 'Reply received for ', redlinkMsgId: redlinkMsgId});
+               res.status(200).send({msg: 'Reply received for ', redlinkMsgId: redlinkMsgId}); //todo fix error message
              } else {
                res.status(404).send({msg: 'Reply Rejected for ', redlinkMsgId: redlinkMsgId});
              }
@@ -891,6 +885,11 @@ module.exports.RedLinkStore = function (config) {
     });
 
     node.on('close', (removed, done) => {
+        if(node.listenServer){
+            node.listenServer.close(() => { //this is asynchronous- callback will be called only when all active connections end https://nodejs.org/api/net.html#net_server_close_callback
+                //waiting for all active connection to end may cause node-red to error with 'Error stopping node: Close timed out'
+            });
+        }
         clearInterval(node.reSyncTimerId);
         clearInterval(node.statusTimerId);
         node.northPeers = config.headers;
@@ -906,8 +905,10 @@ module.exports.RedLinkStore = function (config) {
 
         const remainingMessages = alasql('SELECT * FROM inMessages WHERE storeName="' + node.name + '"');
         remainingMessages.forEach(msg => {
-            const path = largeMessagesDirectory + msg.redlinkMsgId + '/';
-            fs.removeSync(path);
+            if(msg.isLargeMessage) {
+                const path = largeMessagesDirectory + msg.redlinkMsgId + '/';
+                fs.removeSync(path);
+            }
         });
 
         const removeReplySql = 'DELETE FROM replyMessages WHERE storeName="' + node.name + '"';
@@ -931,5 +932,5 @@ module.exports.RedLinkStore = function (config) {
         // console.log('\n\n\n\nEmpty trigger called for consumer registration', triggerName);
         }
     }
-} // function
+}; // function
 
