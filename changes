@@ -1,16 +1,21 @@
+v 2.1.2 Update of :
+	  Hop counter's north and south are now calculated consistantly when many node-red instances are used.
+	  Registration's are now near instantaneous when redeploying node-red flows.
+	  	  
 v 2.1.1 Consumer:
-        1. notify messages now have the producerId
-        2. retrieveTime renamed to retrieveDelay
-        3. consumer passes the producerId to the store when reading message so that the store can pass it back in case of error- tldr; consumer error message contains producerId when available
-        Producer:
-        Failure messages are now consistent- following error cases are covered:
-        1. timeout
-        2. inability to create large message directory/ write message/preserved to large message directory
-        3. unknown or missing service
+            1. notify messages now have the producerId
+            2. retrieveTime renamed to retrieveDelay
+            3. consumer passes the producerId to the store when reading message so that the store can pass it back in case of error- tldr; consumer error message contains producerId when available
+	
+	Producer:  	
+	  Failure messages are now consistent- following error cases are covered:        
+  	    1. timeout
+            2. inability to create large message directory/ write message/preserved to large message directory
+            3. unknown or missing service
         Store:
-        speed up cleanup on node close
-        1. only make calls to delete large message directories for remaining messages if they are large
-        2. https server is now closed asynchronously- using only one event listener for the node close event should also help
+          speed up cleanup on node close
+            1. only make calls to delete large message directories for remaining messages if they are large
+            2. https server is now closed asynchronously- using only one event listener for the node close event should also help
 v 2.1.0	Bumped to get npm to publish it
 v 2.0.4 Changed default behaviour to false on new north bound connections.
 v 2.0.3 Fixed the south to north store insert rule, this was broken on the v 2.0.0 deploy, it stopped the reverse north to south replication on multiple instances from working correctly distributing services.

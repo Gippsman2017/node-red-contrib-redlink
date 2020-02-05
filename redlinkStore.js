@@ -184,20 +184,23 @@ module.exports.RedLinkStore = function (config) {
     }
 
 
-    function notifyNorthStoreOfConsumers(consumer, transitAddress, transitPort) {
+    function notifyNorthStoreOfConsumers(consumer, transitAddress, transitPort) {    
+        const newHopCount = consumer.hopCount+1;
         node.northPeers.forEach(peer => {
            if (consumer.transitAddress+':'+consumer.transitPort != peer.ip+':'+peer.port) {
-              notifyPeerStoreOfConsumers(consumer, notifyDirections.NORTH, consumer.hopCount+1, peer.ip, peer.port, transitAddress, transitPort);
+
+              notifyPeerStoreOfConsumers(consumer, notifyDirections.NORTH, newHopCount, peer.ip, peer.port, transitAddress, transitPort);
             }
         });
     }
 
 
     function notifySouthStoreOfConsumers(consumer, direction, storeAddress, storePort, transitAddress, transitPort) {
+        const newHopCount = consumer.hopCount+1;
         node.southPeers.forEach(peer => {
             var [ip, port] = peer.split(':');
             if (consumer.storeAddress+':'+consumer.storePort !== ip+':'+port) {
-               notifyPeerStoreOfConsumers(consumer, direction, consumer.hopCount+1, ip, port, transitAddress, transitPort);
+               notifyPeerStoreOfConsumers(consumer, direction, newHopCount, ip, port, transitAddress, transitPort);
             }
         });
     }
@@ -490,6 +493,7 @@ module.exports.RedLinkStore = function (config) {
                     case 'store' : // Store only rego, this causes the southPeers list to update;
                         if (!node.southPeers.includes(transitAddress + ':' + transitPort)) {
                            node.southPeers.push(transitAddress + ':' + transitPort);
+                           notifyAllSouthStoreConsumers(notifyDirections.SOUTH);                       // Pass the resistration to any other south store
                         } // Add this call as it is actually a store south calling this north store
                         res.status(200).send({action: 'consumerRegistration', status: 200});
                         break;
@@ -502,6 +506,7 @@ module.exports.RedLinkStore = function (config) {
                     case 'local' :  // Connection is connecting from the local consumer
                         insertGlobalConsumer(serviceName, consumerId, storeName, direction, storeAddress, storePort, transitAddress, transitPort, hopCount, ttl);
                         notifyNorthStoreOfConsumers(consumer, storeAddress, storePort);  //  Pass the registration forward to the next store
+                        consumer.hopCount = hopCount;
                         notifySouthStoreOfConsumers(consumer, notifyDirections.SOUTH, storeAddress, storePort, node.listenAddress, node.listenPort);
                         res.status(200).send({action: 'consumerRegistration', status: 200});
                         break;
