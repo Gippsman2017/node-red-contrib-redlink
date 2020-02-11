@@ -89,7 +89,7 @@ module.exports.RedLinkStore = function (config) {
                 transitPort: transitPort,
                 direction: 'local',
                 hopCount: 0,
-                ttl: Math.floor(new Date().getTime() / 1000)+node.consumerlifeSpan // Setup the overall lifetime for this service, its epoch secs + overall lifespan in secs
+                ttl: Math.floor(new Date().getTime()/1000)+node.consumerlifeSpan // Setup the overall lifetime for this service, its epoch secs + overall lifespan in secs
             });
 
             let consumer = qualifiedLocalConsumers[0]; // todo filter this for unique consumers
@@ -188,7 +188,6 @@ module.exports.RedLinkStore = function (config) {
         const newHopCount = consumer.hopCount+1;
         node.northPeers.forEach(peer => {
            if (consumer.transitAddress+':'+consumer.transitPort != peer.ip+':'+peer.port) {
-
               notifyPeerStoreOfConsumers(consumer, notifyDirections.NORTH, newHopCount, peer.ip, peer.port, transitAddress, transitPort);
             }
         });
@@ -228,16 +227,42 @@ module.exports.RedLinkStore = function (config) {
     const newMsgTriggerName = 'onNewMessage' + nodeId;
     const registerConsumerTriggerName = 'registerConsumer' + nodeId;
 
-    function getRemoteMatchingStores(serviceName, meshName) {
-        const globalStoresSql = 'SELECT distinct transitAddress,transitPort,hopCount FROM globalStoreConsumers WHERE serviceName="' + serviceName + '" AND localStoreName = "' + node.name + '"';
-        const matchingGlobalStores = alasql(globalStoresSql);
+    function getRemoteMatchingStores(serviceName, meshName, loadBalancer) {
+        let globalStoresSql = "";
         const matchingGlobalStoresAddresses = [];
-        matchingGlobalStores.forEach(store => {
-            matchingGlobalStoresAddresses.push({
+        globalStoresSql = 'SELECT distinct consumerId,transitAddress,transitPort,hopCount,ecm,erm FROM globalStoreConsumers WHERE serviceName="' + serviceName + '" AND localStoreName = "' + node.name + '"';
+        if (loadBalancer) {    
+           globalStoresSql = 'select * from ('+globalStoresSql+') where (ecm > 0 and erm > 0) or (ecm = 0) order by erm'; // find all the free consumers
+           const matchingGlobalStores = alasql(globalStoresSql);
+           
+           matchingGlobalStoresAddresses.push({
+                transitStoreAddress: matchingGlobalStores[0].transitAddress + ':' + matchingGlobalStores[0].transitPort,
+                transitHopCount: matchingGlobalStores[0].hopCount,
+                transitEcm : matchingGlobalStores[0].ecm,
+                transitErm : matchingGlobalStores[0].erm
+              });
+           //console.log(node.name,'=', matchingGlobalStoresAddresses);
+           //now for each of the return rows, we clean out the ecm,erm in our store, this is due to the next query picking out a free consumer and a more distributed dealer capability
+           let updateConsumerEcm = 'UPDATE globalStoreConsumers SET ecm=0,erm=0  WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '"';
+           alasql(updateConsumerEcm);
+           //now set the consumer we are notifying up the ecm-erm range, so that the others get a notify when the producer decides to re-notify.
+           updateConsumerEcm = 'UPDATE globalStoreConsumers SET ecm=10000,erm=10000  WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" and consumerId = "'+matchingGlobalStores[0].consumerId+'"';
+           alasql(updateConsumerEcm);
+
+        }
+     else
+        {
+           const matchingGlobalStores = alasql(globalStoresSql);
+           matchingGlobalStores.forEach(store => {
+              matchingGlobalStoresAddresses.push({
                 transitStoreAddress: store.transitAddress + ':' + store.transitPort,
-                transitHopCount: store.hopCount
-            });
-        });
+                transitHopCount: store.hopCount,
+                transitEcm : store.ecm,
+                transitErm : store.erm
+              });
+          });
+        }        
+
         return matchingGlobalStoresAddresses;
     }
 
@@ -264,20 +289,12 @@ module.exports.RedLinkStore = function (config) {
                     }
                 });
 
-                const remoteMatchingStores = [...new Set([...getRemoteMatchingStores(newMessage.serviceName, node.meshName)])];
+
+                //console.log('node.name=',node.name);
+                const remoteMatchingStores = [...new Set([...getRemoteMatchingStores(newMessage.serviceName, node.meshName, node.interStoreLoadBalancer)])];
                 let producerStores = remoteMatchingStores;
                 let thisPath = [];
                 thisPath.push({store:node.name,enforceReversePath:newMessage.enforceReversePath,address:node.listenAddress,port:node.listenPort});
-
-                // Just select a single store if LoadBalancer is active
-                if (node.interStoreLoadBalancer) {
-                   var randomItem = [remoteMatchingStores[Math.floor(Math.random()*remoteMatchingStores.length)]];
-                   if (typeof randomItem[0] != 'undefined' ) {
-                      randomItem.forEach(remoteStore => {
-                         producerStores = randomItem;
-                      }); // RemoteMatchingStores
-                   }
-                 }
 
                 producerStores.forEach(remoteStore => {
                     const body = {
@@ -374,15 +391,14 @@ module.exports.RedLinkStore = function (config) {
     }
 
 
-    function insertGlobalConsumer(serviceName, consumerId, storeName, direction, storeAddress, storePort, transitAddress, transitPort, hopCount, ttl) {
+    function insertGlobalConsumer(serviceName, consumerId, storeName, direction, storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm) {
         const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND consumerId="' + consumerId +
             '" AND storeName="' + storeName + '" AND storeAddress = "' + storeAddress + '" AND storePort = ' + storePort;
-        // const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND consumerId="' + consumerId +
-        // '" AND storeName="' + storeName + '" AND storeAddress = "' + storeAddress + '" AND storePort = '+ storePort + ' AND transitAddress = "' + transitAddress + '" AND transitPort = ' + transitPort;
+
         const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
 
         const insertGlobalConsumersSql = 'INSERT INTO globalStoreConsumers("' + node.name + '","' + serviceName + '","' + consumerId + '","' + storeName + '","' + direction + '","' +
-            storeAddress + '",' + storePort + ',"' + transitAddress + '",' + transitPort + ',' + hopCount + ',' + ttl + ')';
+            storeAddress + '",' + storePort + ',"' + transitAddress + '",' + transitPort + ',' + hopCount + ',' + ttl + ','+ ecm + ',' + erm + ')';
         if (!existingGlobalConsumer || existingGlobalConsumer.length === 0) {
             const inserted = alasql(insertGlobalConsumersSql);
         } else {
@@ -395,6 +411,31 @@ module.exports.RedLinkStore = function (config) {
         }
     }
 
+    
+    function updateGlobalConsumerEcm(serviceName, consumerId, storeName, ecm) {
+        const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND consumerId="' + consumerId + 
+                                                                                    '" AND storeName="' + storeName + '"' ;
+        const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
+        if (existingGlobalConsumer) {
+            const updateConsumerEcm = 'UPDATE globalStoreConsumers SET ecm=' + ecm + ' WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND consumerId="' + consumerId + 
+                                                                                     '" AND storeName="' + storeName + '"' ;
+            alasql(updateConsumerEcm);
+            }
+    }
+
+
+    function updateGlobalConsumerErm(serviceName, consumerId, storeName, erm) {
+        const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND consumerId="' + consumerId + 
+                                                                                    '" AND storeName="' + storeName + '"' ;
+        const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
+        if (existingGlobalConsumer) {
+            const updateConsumerErm = 'UPDATE globalStoreConsumers SET erm=' + erm + ' WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND consumerId="' + consumerId + 
+                                                                                     '" AND storeName="' + storeName + '"' ;
+            alasql(updateConsumerErm);
+            }
+    }
+
+
     function deleteNotify(redlinkMsgId) {
         const deleteNotifyMsg = 'DELETE from notify WHERE redlinkMsgId = "' + redlinkMsgId + '" and storeName = "' + node.nam+'"';
         return alasql(deleteNotifyMsg);
@@ -402,7 +443,6 @@ module.exports.RedLinkStore = function (config) {
 
 
     function notifyTheRemoteStore(remoteStore, notifyPath, req) {
-//        console.log('Interstore ',node.name,' RemoteStore=',remoteStore.transitStoreAddress,' ',notifyPath,' ',req.body);
         const body = {
                 service: req.body.service,
                 srcStoreAddress: req.body.srcStoreAddress,
@@ -486,6 +526,8 @@ module.exports.RedLinkStore = function (config) {
                 const transitPort = consumer.transitPort;
                 const hopCount = consumer.hopCount || 0;
                 const ttl = consumer.ttl;
+                const ecm = 0;
+                const erm = 0;
 
 
                 switch (direction) {
@@ -499,12 +541,12 @@ module.exports.RedLinkStore = function (config) {
                         break;
 
                     case 'reSync' : // Just insert or refresh the globalConsumers entries, no other action.
-                        insertGlobalConsumer(serviceName, consumerId, storeName, direction, storeAddress, storePort, transitAddress, transitPort, hopCount, ttl);
+                        insertGlobalConsumer(serviceName, consumerId, storeName, direction, storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm);
                         res.status(200).send({action: 'consumerRegistration', status: 200});
                         break;
 
                     case 'local' :  // Connection is connecting from the local consumer
-                        insertGlobalConsumer(serviceName, consumerId, storeName, direction, storeAddress, storePort, transitAddress, transitPort, hopCount, ttl);
+                        insertGlobalConsumer(serviceName, consumerId, storeName, direction, storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm);
                         notifyNorthStoreOfConsumers(consumer, storeAddress, storePort);  //  Pass the registration forward to the next store
                         consumer.hopCount = hopCount;
                         notifySouthStoreOfConsumers(consumer, notifyDirections.SOUTH, storeAddress, storePort, node.listenAddress, node.listenPort);
@@ -513,7 +555,7 @@ module.exports.RedLinkStore = function (config) {
 
                     case 'north' : // Connection is connecting from the South and this is why the routing is indicating that the serviceName is south of this store
                         if (node.southInsert) {
-                           insertGlobalConsumer(serviceName, consumerId, storeName, 'south', storeAddress, storePort, transitAddress, transitPort, hopCount, ttl);
+                           insertGlobalConsumer(serviceName, consumerId, storeName, 'south', storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm);
                            notifyNorthStoreOfConsumers(consumer, node.listenAddress, node.listenPort); // Pass the registration forward to the next store
                            notifyAllSouthStoreConsumers(notifyDirections.SOUTH);                       // Pass the resistration to any other south store
                         }
@@ -521,7 +563,7 @@ module.exports.RedLinkStore = function (config) {
                         break;
 
                     case 'south' : // Connection is connecting from the North and this is why the routing is indicating that the serviceName is north of this store
-                        insertGlobalConsumer(serviceName, consumerId, storeName, 'north', storeAddress, storePort, transitAddress, transitPort, hopCount, ttl);
+                        insertGlobalConsumer(serviceName, consumerId, storeName, 'north', storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm);
                         if (node.northPeers.filter( x=> x.ip == transitAddress && x.port == transitPort.toString() ).length > 0) {
                           if (node.northPeers.filter( x=> x.ip == transitAddress && x.port == transitPort.toString() &&  x.redistribute=='true').length > 0) {
                              notifySouthStoreOfConsumers(consumer, notifyDirections.SOUTH, storeAddress, storePort, node.listenAddress, node.listenPort);
@@ -564,18 +606,19 @@ module.exports.RedLinkStore = function (config) {
                             Data: req.body
                         }
                     });
-
                     const existingNotifySql = 'SELECT * FROM notify WHERE storeName="' + node.name + '" AND serviceName="' + req.body.service + '" AND srcStoreAddress="' +
                                                req.body.srcStoreAddress + '" AND srcStorePort=' + req.body.srcStorePort + ' AND redlinkMsgId="' + req.body.redlinkMsgId +'"';
 
                     const existingNotify = alasql(existingNotifySql);
                     if (existingNotify && existingNotify.length > 0) {
-                    // deleteNotify(req.body.redlinkMsgId);
                     }
                   else
                     {
+                    //console.log('Local Notify');
+
                     const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreAddress + '",' + req.body.srcStorePort + ',"' +
-                                            req.body.redlinkMsgId + '","",false,"' + req.body.redlinkProducerId + '","'+ base64Helper.encode(notifyPath)+'")';
+                                            req.body.redlinkMsgId + '","",false,"' + req.body.redlinkProducerId + '","'+ base64Helper.encode(notifyPath)+'",'+Date.now()+')';
+                    //console.log(notifyInsertSql);
                     alasql(notifyInsertSql);
                     }
                 }
@@ -620,6 +663,8 @@ module.exports.RedLinkStore = function (config) {
                 }
               else
                 {
+                  updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay);
+                  updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay); // Dont know if the consumer actually read the job, so, set to the same read score.
                   const body = req.body;
                   body.notifyPath = base64Helper.encode(notifyPathIn);
                   const options = {
@@ -646,6 +691,7 @@ module.exports.RedLinkStore = function (config) {
            {
              const redlinkMsgId = req.body.redlinkMsgId;
              const redlinkProducerId = req.body.redlinkProducerId;
+             const redlinkReadDelay = req.body.readDelay;
              sendMessage({debug: {storeName: node.name, action: 'read-message', direction: 'inBound', Data: req.body}});
              if (!redlinkMsgId) {
                 sendMessage({
@@ -679,18 +725,30 @@ module.exports.RedLinkStore = function (config) {
                    msgs[0].message = fs.readFileSync(path, 'utf-8');
                     fs.removeSync(path);
                    }
-               res.send(msgs[0]); // send the oldest message first
+
+               //This ecm is calculated in and by the consumer, it is the delay between receiving the notify and then performing this read, manual reads drastically increase this time in mS.
+               updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay);
+               updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, 0); //Hasnt replied yet, so, no scrore
+
+               res.send(msgs[0]); // send the oldest message first <<<<<<<<<<<<<<<<<<<<<<<
+               
                if (msgs[0].sendOnly) {            // delete if send only
                   const deleteMsgSql = 'DELETE FROM inMessages WHERE redlinkMsgId="' + redlinkMsgId +'"';
                   const deleteMsg = alasql(deleteMsgSql);
-               } else {
+               } 
+             else 
+               {
                 // update message to read=true
                 const updateMsgStatus = 'UPDATE inMessages SET read=' + true + ' WHERE redlinkMsgId="' + msgs[0].redlinkMsgId + '"';
                 alasql(updateMsgStatus);
                }
-             } else {
-                 const msg = redlinkMsgId ? 'Message with id ' + redlinkMsgId + ' not found- it may have already been read' : 'No unread messages';
-                 sendMessage({
+             } 
+           else 
+             {
+               updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay);
+               updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay); // Didnt get to do the job, so, give the reply the same read score.
+               const msg = redlinkMsgId ? 'Message with id ' + redlinkMsgId + ' not found- it may have already been read' : 'No unread messages';
+               sendMessage({
                   debug: {
                     storeName: node.name,
                     action: 'read-message',
@@ -712,6 +770,7 @@ module.exports.RedLinkStore = function (config) {
                }
              else
                {
+             updateGlobalConsumerErm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.replyDelay); // Update the is score.
                  const body = req.body;
                  body.notifyPath = base64Helper.encode(notifyPathIn);
                  const options = {
@@ -739,6 +798,7 @@ module.exports.RedLinkStore = function (config) {
            }
        catch(e)
            {
+             updateGlobalConsumerErm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.replyDelay); // Update the is score.
              const redlinkMsgId = req.body.redlinkMsgId;
              const redlinkProducerId = req.body.redlinkProducerId;
              // const replyingService = req.body.replyingService;

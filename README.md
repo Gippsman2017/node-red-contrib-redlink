@@ -94,9 +94,16 @@ Please check the "Producer Notification" message and look at the JSON "path" it 
 
 ## Redlink has an Interstore Load Balancer
 
-Redlink Stores as of Version 1.5.0, have the ability to randomly load balance. This feature has been added to provide "Interstore Load Balancing".
-When set in the store - that splits traffic to different target consumer stores.
-The the load balancer will detect multiple service registrations of the same name, it will then cause the store to send single producer message notifications using a random load balance algorythm to North / South destination consumer stores.
+Redlink Stores as of Version 2.2.0
+        1. Removed random code as it wasnt really random and it tended to bias the seed values at the ends.
+        2. Added two new parameters called ECM (Expected consumer read metric), ERM (Expected consumer reply metric), both values are calculated in milliseconds.
+        3. Algorythm uses ECM to workout when a consumer has read the message from the first time it was notified and then informs the stores in reverse order the value all the way back to the producer store
+        4. Algorythm uses ERM to workout when a consumer has replied to the message from the time it was notified and then informs the stores in reverse order the value all the way back to the producer store
+        5. Loadbalancers can then decide when to send a message to either:
+                a. A consumer that is free.
+                b. A consumer has a low reply time.
+When set in the store - it splits traffic to different target consumer stores.
+The the load balancer will detect multiple service registrations of the same name, it will then cause the store to send single producer message notifications using ECM and ERM values to load balance to North / South destination consumer stores.
 This feature provides a more equitable consumption of producer messages and a reduction of notifications will be noticed at the consumers and overall in the mesh. It has been turned off by default.
 
 ## Redlink can now control north bound peer connections to allow or disallow redistribution of services

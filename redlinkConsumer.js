@@ -58,7 +58,7 @@ module.exports.RedLinkConsumer = function (config) {
        const nResult = alasql('SELECT COUNT(notifySent) as myCount from notify  WHERE read=false and storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"' + ' AND notifySent LIKE "%' + node.id + '%"');
        if (nResult[0].myCount > 0){
          const data = alasql('SELECT * from notify  WHERE read=false and storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"' + ' AND notifySent LIKE "%' + node.id + '%"');
-           const notifyMessage = {
+         const notifyMessage = {
                redlinkMsgId: data[0].redlinkMsgId,
                notifyType: 'producerNotification',
                src: {redlinkProducerId: data[0].redlinkProducerId, storeName: data[0].storeName, storeAddress: data[0].srcStoreAddress + ':' + data[0].srcStorePort},
@@ -69,7 +69,8 @@ module.exports.RedLinkConsumer = function (config) {
          if (node.manualRead) {
             sendMessage({notify: notifyMessage});
             }
-          else {
+          else 
+            {
               // check inTransitLimit first
               if (watermark < node.inTransitLimit) {
                    sendMessage({notify: notifyMessage}); // send notify regardless of whether it is manual or auto read
@@ -89,9 +90,35 @@ module.exports.RedLinkConsumer = function (config) {
                 sendMessage({notify: notifyMessage});  // TODO- still send the notify out?
                 deleteNotify(data[0].redlinkMsgId);
               }
-          }
+            }
        }
     }
+
+
+    function updateGlobalConsumerEcm(serviceName, consumerId, storeName, ecm) {
+        const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + storeName + '" AND serviceName="' + serviceName + '" AND consumerId="' + consumerId + 
+                                                                                    '" AND storeName="' + storeName + '"' ;
+        const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
+        if (existingGlobalConsumer) {
+            const updateConsumerEcm = 'UPDATE globalStoreConsumers SET ecm=' + ecm + ' WHERE localStoreName="' + storeName + '" AND serviceName="' + serviceName + '" AND consumerId="' + consumerId + 
+                                                                                     '" AND storeName="' + storeName + '"' ;
+            alasql(updateConsumerEcm);
+            }
+    }
+
+
+    function updateGlobalConsumerErm(serviceName, consumerId, storeName, erm) {
+        const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + storeName + '" AND serviceName="' + serviceName + '" AND consumerId="' + consumerId + 
+                                                                                    '" AND storeName="' + storeName + '"' ;
+        const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
+        if (existingGlobalConsumer) {
+            const updateConsumerErm = 'UPDATE globalStoreConsumers SET erm=' + erm + ' WHERE localStoreName="' + storeName + '" AND serviceName="' + serviceName + '" AND consumerId="' + consumerId + 
+                                                                                     '" AND storeName="' + storeName + '"' ;
+            alasql(updateConsumerErm);
+            }
+    }
+
+
 
     alasql.fn[newMsgNotifyTrigger] = () => {
         // OK, this consumer will now add its own node.id to the notify trigger message since it comes in without one.
@@ -199,7 +226,9 @@ module.exports.RedLinkConsumer = function (config) {
                 sendMessage({failure: getFailureMessage(msg.redlinkMsgId, 'Attempt to manually read message when consumer set to auto read', 'consumerRead')});
             }
         }  // cmd read
+        
         else {  // Reply message, this is where the reply is actually sent back to the replyMessages on the Producer.
+        
             if (msg.redlinkMsgId) {
                 if (!msg.sendOnly) { // todo delete notify if sendOnly
                     const notifySql = 'SELECT * FROM notify WHERE redlinkMsgId="' + msg.redlinkMsgId + '"and notifySent LIKE "%' + node.id + '%"';
@@ -214,6 +243,10 @@ module.exports.RedLinkConsumer = function (config) {
                             });
                             return;
                         }
+                        const replyDelayCalc = Date.now()-notifies[0].notifyTime;
+        
+                        updateGlobalConsumerErm(node.name, node.id, node.consumerStoreName, replyDelayCalc); 
+
                         const replyService = notifies[0].serviceName;
                         const redlinkProducerId = notifies[0].redlinkProducerId;
                         let notifyPathIn = base64Helper.decode(notifies[0].notifyPath); //todo this part looks shady
@@ -236,7 +269,10 @@ module.exports.RedLinkConsumer = function (config) {
                         const body = {
                             redlinkProducerId,
                             replyingService: replyService,
+                            replyingServiceId: node.id,
+                            replyingStoreName: msg.consumerStoreName,
                             redlinkMsgId: msg.redlinkMsgId,
+                            replyDelay : replyDelayCalc,
                             payload: base64Helper.encode(msg.payload),
                             notifyPath: notifyPathIn,
                             cerror: cerror,
@@ -309,10 +345,16 @@ module.exports.RedLinkConsumer = function (config) {
                 const address = notifyPath.address+':'+notifyPath.port;
                 notifyPathIn = base64Helper.encode(notifyPathIn);
                 const sendingStoreName = notifies[0].storeName;
+                const readDelayCalc =  Date.now()-notifies[0].notifyTime;
+
+                // Update My Consumers Read Stats
+                updateGlobalConsumerEcm(node.name, node.id, node.consumerStoreName, readDelayCalc);
+                updateGlobalConsumerErm(node.name, node.id, node.consumerStoreName, readDelayCalc); 
+
                 const options = {
                     method: 'POST',
                     url: 'https://' + address + '/read-message',
-                    body: {redlinkMsgId, notifyPath:notifyPathIn, redlinkProducerId: notifies[0].redlinkProducerId},
+                    body: {redlinkMsgId, notifyPath:notifyPathIn, redlinkProducerId: notifies[0].redlinkProducerId, consumerId:node.id, consumerService: node.name, consumerStoreName: node.consumerStoreName, readDelay : readDelayCalc},
                     json: true
                 };
                 sendMessage({debug: {"debugData": "storeName " + sendingStoreName + ' ' + node.name + "action:consumerRead" + options}});
@@ -328,16 +370,17 @@ module.exports.RedLinkConsumer = function (config) {
                             msg.payload = msg.message.payload;
                             let retrieveDelay;
                             if(msg.timestamp){
-                                retrieveDelay = (Date.now()-msg.timestamp)/1000;
+                                retrieveDelay = (Date.now()-msg.timestamp);
                             }
-                            let readDelay = msg.lifetime;
+//                            let readDelay = msg.lifetime;
                             delete msg.preserved;
                             delete msg.message;
                             delete msg.read;
                             const receiveMsg = {
                                 redlinkMsgId,
                                 consumerName: node.name,
-                                localStoreName: sendingStoreName,
+                                consumerId: node.id,
+                                consumerStoreName: sendingStoreName,
                                 action: 'consumerRead',
                                 direction: 'inBound',
                                 redlinkProducerId: msg.redlinkProducerId,
@@ -345,8 +388,8 @@ module.exports.RedLinkConsumer = function (config) {
                                 sendOnly: msg.sendOnly,
                                 payload: msg.payload,
                                 error: false,
-                                retrieveDelay,
-                                readDelay
+                                notifyReadDelay : readDelayCalc,
+                                readTransport : retrieveDelay - readDelayCalc
                             };
                             resolve({receive: receiveMsg});
                             if (msg.sendOnly) {
