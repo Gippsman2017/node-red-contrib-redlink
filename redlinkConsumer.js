@@ -21,7 +21,7 @@ module.exports.RedLinkConsumer = function (config) {
     node.consumerStoreName = config.consumerStoreName;
     node.manualRead = config.manualReadReceiveSend;
     node.inTransitLimit = config.intransit;
-    let watermark = 0;
+    let  watermark = 0;
     node.rateTypeReceiveSend = config.rateTypeReceiveSend;
     node.rateReceiveSend = config.rateReceiveSend;
     node.rateUnitsReceiveSend = config.rateUnitsReceiveSend;
@@ -58,6 +58,7 @@ module.exports.RedLinkConsumer = function (config) {
        const nResult = alasql('SELECT COUNT(notifySent) as myCount from notify  WHERE read=false and storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"' + ' AND notifySent LIKE "%' + node.id + '%"');
        if (nResult[0].myCount > 0){
          const data = alasql('SELECT * from notify  WHERE read=false and storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"' + ' AND notifySent LIKE "%' + node.id + '%"');
+         
          const notifyMessage = {
                redlinkMsgId: data[0].redlinkMsgId,
                notifyType: 'producerNotification',
@@ -66,6 +67,7 @@ module.exports.RedLinkConsumer = function (config) {
                path: base64Helper.decode(data[0].notifyPath),
                notifyCount: nResult[0].myCount
            };
+
          if (node.manualRead) {
             sendMessage({notify: notifyMessage});
             }
@@ -121,15 +123,20 @@ module.exports.RedLinkConsumer = function (config) {
 
 
     alasql.fn[newMsgNotifyTrigger] = () => {
-        // OK, this consumer will now add its own node.id to the notify trigger message since it comes in without one.
+        // OK, this consumer will now add its own node.id to the notify.notifySent trigger message since it comes in without one, unfortunately alasql does not send data with triggers.
+
         const notifyAndCount = getNewNotifyAndCount();
         if (!notifyAndCount) {
             return;
         }
-        const newNotify = notifyAndCount.notify;
-        updateNotifyTable(newNotify);
-        sendOutNotify();
+      else 
+        {
+          const newNotify = notifyAndCount.notify;
+          updateNotifyTable(newNotify);
+          sendOutNotify();
+        };
     };
+    
     const createTriggerSql = 'CREATE TRIGGER ' + msgNotifyTriggerId + ' AFTER INSERT ON notify CALL ' + newMsgNotifyTrigger + '()';
     alasql(createTriggerSql);
     // can have multiple consumers with same name registered to the same store
@@ -360,6 +367,7 @@ module.exports.RedLinkConsumer = function (config) {
                 sendMessage({debug: {"debugData": "storeName " + sendingStoreName + ' ' + node.name + "action:consumerRead" + options}});
                 const updateNotifyStatus = 'UPDATE notify SET read=' + true + ' WHERE redlinkMsgId="' + redlinkMsgId + '"  and notifySent LIKE "%' + node.id + '%"';
                 alasql(updateNotifyStatus);
+
                 request(options, function (error, response) {
                     if (response && response.statusCode === 200) {
                         if (response.body.message) {
@@ -372,7 +380,6 @@ module.exports.RedLinkConsumer = function (config) {
                             if(msg.timestamp){
                                 retrieveDelay = (Date.now()-msg.timestamp);
                             }
-//                            let readDelay = msg.lifetime;
                             delete msg.preserved;
                             delete msg.message;
                             delete msg.read;

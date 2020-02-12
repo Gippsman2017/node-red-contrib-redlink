@@ -1,3 +1,5 @@
+
+v 2.2.1 Completed the loab balancer to consumer notifications, reduced the notifys where multiple consumer for the same services are being load balanced and sped up the renotify when reading / replying
 v 2.2.0 Major update of interstore loadbalancer
 	1. Removed random code as it wasnt really random and it tended to bias the seed values at the ends.
 	2. Added two new parameters called ECM (Expected consumer read metric), ERM (Expected consumer reply metric), both values are calculated in milliseconds.

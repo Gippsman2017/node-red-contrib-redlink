@@ -229,29 +229,31 @@ module.exports.RedLinkStore = function (config) {
 
     function getRemoteMatchingStores(serviceName, meshName, loadBalancer) {
         let globalStoresSql = "";
-        const matchingGlobalStoresAddresses = [];
-        globalStoresSql = 'SELECT distinct consumerId,transitAddress,transitPort,hopCount,ecm,erm FROM globalStoreConsumers WHERE serviceName="' + serviceName + '" AND localStoreName = "' + node.name + '"';
+        let matchingGlobalStoresAddresses = [];
+        globalStoresSql = 'SELECT * from (select * FROM globalStoreConsumers WHERE serviceName="' + serviceName + '" AND localStoreName = "' + node.name + '" order by erm ) group by transitAddress,transitPort';
         if (loadBalancer) {    
-           globalStoresSql = 'select * from ('+globalStoresSql+') where (ecm > 0 and erm > 0) or (ecm = 0) order by erm'; // find all the free consumers
+           globalStoresSql = 'select * from (select * from ('+globalStoresSql+') where not (ecm = 999999999 and erm = 999999999) order by erm desc)'; // find all the free consumers
            const matchingGlobalStores = alasql(globalStoresSql);
-           
-           matchingGlobalStoresAddresses.push({
+
+           if (matchingGlobalStores.length > 0) {
+              matchingGlobalStoresAddresses.push({
                 transitStoreAddress: matchingGlobalStores[0].transitAddress + ':' + matchingGlobalStores[0].transitPort,
                 transitHopCount: matchingGlobalStores[0].hopCount,
                 transitEcm : matchingGlobalStores[0].ecm,
                 transitErm : matchingGlobalStores[0].erm
               });
-           //console.log(node.name,'=', matchingGlobalStoresAddresses);
-           //now for each of the return rows, we clean out the ecm,erm in our store, this is due to the next query picking out a free consumer and a more distributed dealer capability
-           let updateConsumerEcm = 'UPDATE globalStoreConsumers SET ecm=0,erm=0  WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '"';
-           alasql(updateConsumerEcm);
-           //now set the consumer we are notifying up the ecm-erm range, so that the others get a notify when the producer decides to re-notify.
-           updateConsumerEcm = 'UPDATE globalStoreConsumers SET ecm=10000,erm=10000  WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" and consumerId = "'+matchingGlobalStores[0].consumerId+'"';
-           alasql(updateConsumerEcm);
 
+              //now set the consumer we are notifying up the ecm-erm range, so that the others get a notify when the producer decides to re-notify.
+              updateConsumerEcm = 'UPDATE globalStoreConsumers SET ecm=999999999,erm=999999999  WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + 
+                                            '" and transitAddress = "'+ matchingGlobalStores[0].transitAddress+'" and transitPort = '+ matchingGlobalStores[0].transitPort;
+           
+              alasql(updateConsumerEcm);
+           }
+         else
+          matchingGlobalStoresAddresses = [];
         }
-     else
-        {
+      else
+        { // No Load Balancer on this store
            const matchingGlobalStores = alasql(globalStoresSql);
            matchingGlobalStores.forEach(store => {
               matchingGlobalStoresAddresses.push({
@@ -262,68 +264,69 @@ module.exports.RedLinkStore = function (config) {
               });
           });
         }        
-
         return matchingGlobalStoresAddresses;
     }
 
+
+    function NotifyEveryMsgNotRead() {
+        // check if the input message is for this store
+        // inMessages (msgId STRING, storeName STRING, serviceName STRING, message STRING)'
+        const newMessagesSql = 'SELECT * from inMessages WHERE storeName="' + node.name + '" AND read=' + false +' ORDER BY priority DESC';
+        var newMessages = alasql(newMessagesSql);
+
+        const newMessage = newMessages[newMessages.length - 1];
+        if (newMessage) {
+            sendMessage({
+               registration: { // todo rename to notify
+                 service: newMessage.serviceName,
+                 srcStoreAddress: node.listenAddress,
+                 srcStorePort: node.listenPort,
+                 redlinkMsgId: newMessage.redlinkMsgId,
+                 action: 'producerNotification',
+                 redlinkProducerId: newMessage.redlinkProducerId
+                }
+            });
+
+            const remoteMatchingStores = [...new Set([...getRemoteMatchingStores(newMessage.serviceName, node.meshName, node.interStoreLoadBalancer)])];
+            let producerStores = remoteMatchingStores;
+            let thisPath = [];
+            thisPath.push({store:node.name,enforceReversePath:newMessage.enforceReversePath,address:node.listenAddress,port:node.listenPort});
+
+            producerStores.forEach(remoteStore => {
+               const body = {
+                   service: newMessage.serviceName,
+                   srcStoreAddress: node.listenAddress,
+                   srcStorePort: node.listenPort,
+                   transitAddress: node.listenAddress,
+                   transitPort: node.listenPort,
+                   notifyPath: thisPath,
+                   sendersHopCount: remoteStore.transitHopCount,
+                   redlinkMsgId: newMessage.redlinkMsgId,
+                   notifyType: 'producerNotification',
+                   redlinkProducerId: newMessage.redlinkProducerId
+                   };
+
+               const options = {
+                   method: 'POST',
+                   url: 'https://' + remoteStore.transitStoreAddress + '/notify',
+                   body,
+                   json: true
+                   };
+
+                request(options, function (error, response) {
+                   if (error || response.statusCode !== 200) {
+                      sendMessage({debug: {error: true, errorDesc: error || response.body}});
+                   }
+                });
+            });
+        }
+    };
 
     //---------------------------------------------------  Notify Triggers  ---------------------------------------------------------
     try {
         log('newMsgTriggerName:', newMsgTriggerName);
         alasql.fn[newMsgTriggerName] = () => {
-            // check if the input message is for this store
-            // inMessages (msgId STRING, storeName STRING, serviceName STRING, message STRING)'
-            const newMessagesSql = 'SELECT * from inMessages WHERE storeName="' + node.name + '" AND read=' + false +' ORDER BY priority DESC';
-            var newMessages = alasql(newMessagesSql);
-
-            const newMessage = newMessages[newMessages.length - 1];
-            if (newMessage) {
-                sendMessage({
-                    registration: { // todo rename to notify
-                        service: newMessage.serviceName,
-                        srcStoreAddress: node.listenAddress,
-                        srcStorePort: node.listenPort,
-                        redlinkMsgId: newMessage.redlinkMsgId,
-                        action: 'producerNotification',
-                        redlinkProducerId: newMessage.redlinkProducerId
-                    }
-                });
-
-
-                //console.log('node.name=',node.name);
-                const remoteMatchingStores = [...new Set([...getRemoteMatchingStores(newMessage.serviceName, node.meshName, node.interStoreLoadBalancer)])];
-                let producerStores = remoteMatchingStores;
-                let thisPath = [];
-                thisPath.push({store:node.name,enforceReversePath:newMessage.enforceReversePath,address:node.listenAddress,port:node.listenPort});
-
-                producerStores.forEach(remoteStore => {
-                    const body = {
-                        service: newMessage.serviceName,
-                        srcStoreAddress: node.listenAddress,
-                        srcStorePort: node.listenPort,
-                        transitAddress: node.listenAddress,
-                        transitPort: node.listenPort,
-                        notifyPath: thisPath,
-                        sendersHopCount: remoteStore.transitHopCount,
-                        redlinkMsgId: newMessage.redlinkMsgId,
-                        notifyType: 'producerNotification',
-                        redlinkProducerId: newMessage.redlinkProducerId
-                    };
-
-                    const options = {
-                        method: 'POST',
-                        url: 'https://' + remoteStore.transitStoreAddress + '/notify',
-                        body,
-                        json: true
-                    };
-
-                    request(options, function (error, response) {
-                        if (error || response.statusCode !== 200) {
-                            sendMessage({debug: {error: true, errorDesc: error || response.body}});
-                        }
-                    });
-                });
-            }
+            NotifyEveryMsgNotRead();
         };
 
 
@@ -413,26 +416,22 @@ module.exports.RedLinkStore = function (config) {
 
     
     function updateGlobalConsumerEcm(serviceName, consumerId, storeName, ecm) {
-        const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND consumerId="' + consumerId + 
-                                                                                    '" AND storeName="' + storeName + '"' ;
+        const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND storeName="' + storeName + '"' ;
         const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
         if (existingGlobalConsumer) {
-            const updateConsumerEcm = 'UPDATE globalStoreConsumers SET ecm=' + ecm + ' WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND consumerId="' + consumerId + 
-                                                                                     '" AND storeName="' + storeName + '"' ;
+            const updateConsumerEcm = 'UPDATE globalStoreConsumers SET ecm=' + ecm + ' WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND storeName="' + storeName + '"' ;
             alasql(updateConsumerEcm);
-            }
+        }
     }
 
 
     function updateGlobalConsumerErm(serviceName, consumerId, storeName, erm) {
-        const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND consumerId="' + consumerId + 
-                                                                                    '" AND storeName="' + storeName + '"' ;
+        const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND storeName="' + storeName + '"' ;
         const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
         if (existingGlobalConsumer) {
-            const updateConsumerErm = 'UPDATE globalStoreConsumers SET erm=' + erm + ' WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND consumerId="' + consumerId + 
-                                                                                     '" AND storeName="' + storeName + '"' ;
+            const updateConsumerErm = 'UPDATE globalStoreConsumers SET erm=' + erm + ' WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND storeName="' + storeName + '"' ;
             alasql(updateConsumerErm);
-            }
+        }
     }
 
 
@@ -614,11 +613,9 @@ module.exports.RedLinkStore = function (config) {
                     }
                   else
                     {
-                    //console.log('Local Notify');
 
                     const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreAddress + '",' + req.body.srcStorePort + ',"' +
                                             req.body.redlinkMsgId + '","",false,"' + req.body.redlinkProducerId + '","'+ base64Helper.encode(notifyPath)+'",'+Date.now()+')';
-                    //console.log(notifyInsertSql);
                     alasql(notifyInsertSql);
                     }
                 }
@@ -627,23 +624,13 @@ module.exports.RedLinkStore = function (config) {
                   // Note that the reverse path state is set in the first notify, so, we can use it to set subsequent notifies
                    const thisPath = {store:node.name,enforceReversePath:notifyPath[0].enforceReversePath,address:node.listenAddress,port:node.listenPort};
                    notifyPath.push(thisPath);
-                   const remoteMatchingStores = [...new Set([...getRemoteMatchingStores(req.body.service, node.meshName)])];
+                   const remoteMatchingStores = [...new Set([...getRemoteMatchingStores(req.body.service, node.meshName, node.interStoreLoadBalancer)])];
                    try {
                          // This is the interstore notifier
-                         if (!node.interStoreLoadBalancer) {
                             remoteMatchingStores.forEach(remoteStore => {
                                notifyTheRemoteStore(remoteStore, notifyPath, req);
                             }); // RemoteMatchingStores
                          }
-                       else
-                         // This provides a random load balancer
-                         {
-                            var randomItem = [remoteMatchingStores[Math.floor(Math.random()*remoteMatchingStores.length)]];
-                            randomItem.forEach(remoteStore => {
-                               notifyTheRemoteStore(remoteStore, notifyPath, req);
-                            }); // RemoteMatchingStores
-                         }
-                       }
                    catch(e)
                        {
                        }
@@ -730,21 +717,24 @@ module.exports.RedLinkStore = function (config) {
                updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay);
                updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, 0); //Hasnt replied yet, so, no scrore
 
+//               console.log(alasql('SELECT count(*) as mCount from inMessages WHERE storeName="' + node.name + '"  and serviceName = "'+req.body.consumerService+'"')[0].mCount);
+
                res.send(msgs[0]); // send the oldest message first <<<<<<<<<<<<<<<<<<<<<<<
                
                if (msgs[0].sendOnly) {            // delete if send only
                   const deleteMsgSql = 'DELETE FROM inMessages WHERE redlinkMsgId="' + redlinkMsgId +'"';
                   const deleteMsg = alasql(deleteMsgSql);
+               NotifyEveryMsgNotRead(); // <------------------------------------------------------------
                } 
              else 
-               {
-                // update message to read=true
+               { 
+                // update message to read=true , as this consumer won the message
                 const updateMsgStatus = 'UPDATE inMessages SET read=' + true + ' WHERE redlinkMsgId="' + msgs[0].redlinkMsgId + '"';
                 alasql(updateMsgStatus);
                }
              } 
            else 
-             {
+             { // Message has already been read.
                updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay);
                updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay); // Didnt get to do the job, so, give the reply the same read score.
                const msg = redlinkMsgId ? 'Message with id ' + redlinkMsgId + ' not found- it may have already been read' : 'No unread messages';
@@ -798,7 +788,9 @@ module.exports.RedLinkStore = function (config) {
            }
        catch(e)
            {
-             updateGlobalConsumerErm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.replyDelay); // Update the is score.
+             NotifyEveryMsgNotRead(); // <------------------------------------------------------------
+             updateGlobalConsumerErm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.replyDelay); // Update the reply score.
+
              const redlinkMsgId = req.body.redlinkMsgId;
              const redlinkProducerId = req.body.redlinkProducerId;
              // const replyingService = req.body.replyingService;
