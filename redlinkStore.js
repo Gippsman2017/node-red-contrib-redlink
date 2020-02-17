@@ -1,8 +1,10 @@
-const httpsServer = require('./https-server.js');
 const alasql = require('alasql');
-const request = require('request').defaults({strictSSL: false});
 const fs = require('fs-extra');
+const Readable = require('stream').Readable;
+const request = require('request').defaults({strictSSL: false});
+
 const base64Helper = require('./base64-helper.js');
+const httpsServer = require('./https-server.js');
 
 let RED;
 module.exports.initRED = function (_RED) {
@@ -49,7 +51,6 @@ module.exports.RedLinkStore = function (config) {
     const largeMessagesDirectory = require('./redlinkSettings.js')(RED, node.name).largeMessagesDirectory;
     const largeMessageThreshold = require('./redlinkSettings.js')(RED, node.name).largeMessageThreshold;
 
-    //console.log(node.name ,'(',node.northPeers,') = ',node.northPeers[0].redistribute);
     // Insert myself into the mesh.
     const insertStoreSql = 'INSERT INTO stores("' + node.name + '","' + node.listenAddress + '",' + node.listenPort + ')';
     alasql(insertStoreSql);
@@ -244,9 +245,9 @@ module.exports.RedLinkStore = function (config) {
               });
 
               //now set the consumer we are notifying up the ecm-erm range, so that the others get a notify when the producer decides to re-notify.
-              updateConsumerEcm = 'UPDATE globalStoreConsumers SET ecm=999999999,erm=999999999  WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + 
+              updateConsumerEcm = 'UPDATE globalStoreConsumers SET ecm=999999999,erm=999999999  WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName +
                                             '" and transitAddress = "'+ matchingGlobalStores[0].transitAddress+'" and transitPort = '+ matchingGlobalStores[0].transitPort;
-           
+
               alasql(updateConsumerEcm);
            }
          else
@@ -263,7 +264,7 @@ module.exports.RedLinkStore = function (config) {
                 transitErm : store.erm
               });
           });
-        }        
+        }
         return matchingGlobalStoresAddresses;
     }
 
@@ -320,7 +321,7 @@ module.exports.RedLinkStore = function (config) {
                 });
             });
         }
-    };
+    }
 
     //---------------------------------------------------  Notify Triggers  ---------------------------------------------------------
     try {
@@ -408,13 +409,10 @@ module.exports.RedLinkStore = function (config) {
             const updateConsumerTtl = 'UPDATE globalStoreConsumers SET ttl=' + ttl + '  WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND consumerId="' + consumerId +
                                       '" AND storeName="' + storeName + '" AND storeAddress = "' + storeAddress + '" AND storePort = ' + storePort;
             alasql(updateConsumerTtl);
-               // console.log('ServiceName ',serviceName,'  Exists and TTl updated=',alasql(updateConsumerTtl));
                // Possibly Need to add a delete and an insert here for lower hopCount routes, it will reduce the number of notifies on high complexity redlink store layouts.
-               // console.log('Insert Failed, globalStore ',node.name, 'service ',serviceName,' has an entry with a hopCount of ',existingGlobalConsumer[0].hopCount,' compared with ',hopCount);
         }
     }
 
-    
     function updateGlobalConsumerEcm(serviceName, consumerId, storeName, ecm) {
         const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND storeName="' + storeName + '"' ;
         const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
@@ -424,7 +422,6 @@ module.exports.RedLinkStore = function (config) {
         }
     }
 
-
     function updateGlobalConsumerErm(serviceName, consumerId, storeName, erm) {
         const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND storeName="' + storeName + '"' ;
         const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
@@ -433,13 +430,6 @@ module.exports.RedLinkStore = function (config) {
             alasql(updateConsumerErm);
         }
     }
-
-
-    function deleteNotify(redlinkMsgId) {
-        const deleteNotifyMsg = 'DELETE from notify WHERE redlinkMsgId = "' + redlinkMsgId + '" and storeName = "' + node.nam+'"';
-        return alasql(deleteNotifyMsg);
-    }
-
 
     function notifyTheRemoteStore(remoteStore, notifyPath, req) {
         const body = {
@@ -502,9 +492,7 @@ module.exports.RedLinkStore = function (config) {
     app.post('/notify', (req, res) => { // todo validation on params
         const notifyType = req.body.notifyType;
         switch (notifyType) {
-
             case 'consumerRegistration' :
-
                 sendMessage({
                     debug: {
                         storeName: node.name,
@@ -694,60 +682,63 @@ module.exports.RedLinkStore = function (config) {
              }
              const msgSql = 'SELECT * FROM inMessages WHERE redlinkMsgId="' + redlinkMsgId + '" AND read=' + false;
              const msgs = alasql(msgSql);// should get one or none
-             if (msgs.length > 0) { // will be zero if the message has already been read
-                sendMessage({
-                  debug: {
-                      storeName: node.name,
-                      action: 'read-message',
-                      direction: 'outBound',
-                      Data: msgs[msgs.length - 1],
-                      error: 'none'
-                         }
-                });
-                const message = msgs[0];
-                const isLargeMessage = message.isLargeMessage;
-                if (isLargeMessage) {
-                   const path = largeMessagesDirectory + redlinkMsgId +'/message.txt';
-                   // read msg from path
-                   msgs[0].message = fs.readFileSync(path, 'utf-8');
-                    fs.removeSync(path);
+               if (msgs.length > 0) { // will be zero if the message has already been read
+                   sendMessage({
+                       debug: {
+                           storeName: node.name,
+                           action: 'read-message',
+                           direction: 'outBound',
+                           Data: msgs[msgs.length - 1],
+                           error: 'none'
+                       }
+                   });
+                   const message = msgs[0];
+                   const headersObj = {};
+                   Object.assign(headersObj, message);
+                   delete headersObj.message;
+                   res.set(headersObj);
+                   const isLargeMessage = message.isLargeMessage;
+                   if (isLargeMessage) {
+                       const path = largeMessagesDirectory + redlinkMsgId + '/message.txt';
+                       const src = fs.createReadStream(path);
+                       src.pipe(res);
+                       // read msg from path
+                       // msgs[0].message = fs.readFileSync(path, 'utf-8');
+                       src.on('end', () => {
+                           fs.removeSync(path);
+                       });
+                   }else{
+                       const src = new Readable();
+                       src.push(message.message);
+                       src.push(null);
+                       src.pipe(res);
                    }
-
-               //This ecm is calculated in and by the consumer, it is the delay between receiving the notify and then performing this read, manual reads drastically increase this time in mS.
-               updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay);
-               updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, 0); //Hasnt replied yet, so, no scrore
-
-//               console.log(alasql('SELECT count(*) as mCount from inMessages WHERE storeName="' + node.name + '"  and serviceName = "'+req.body.consumerService+'"')[0].mCount);
-
-               res.send(msgs[0]); // send the oldest message first <<<<<<<<<<<<<<<<<<<<<<<
-               
-               if (msgs[0].sendOnly) {            // delete if send only
-                  const deleteMsgSql = 'DELETE FROM inMessages WHERE redlinkMsgId="' + redlinkMsgId +'"';
-                  const deleteMsg = alasql(deleteMsgSql);
-               NotifyEveryMsgNotRead(); // <------------------------------------------------------------
-               } 
-             else 
-               { 
-                // update message to read=true , as this consumer won the message
-                const updateMsgStatus = 'UPDATE inMessages SET read=' + true + ' WHERE redlinkMsgId="' + msgs[0].redlinkMsgId + '"';
-                alasql(updateMsgStatus);
+                   //This ecm is calculated in and by the consumer, it is the delay between receiving the notify and then performing this read, manual reads drastically increase this time in mS.
+                   updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay);
+                   updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, 0); //Hasnt replied yet, so, no scrore
+                   if (msgs[0].sendOnly) {            // delete if send only
+                       const deleteMsgSql = 'DELETE FROM inMessages WHERE redlinkMsgId="' + redlinkMsgId + '"';
+                       const deleteMsg = alasql(deleteMsgSql);
+                       NotifyEveryMsgNotRead(); // <------------------------------------------------------------
+                   } else {
+                       // update message to read=true , as this consumer won the message
+                       const updateMsgStatus = 'UPDATE inMessages SET read=' + true + ' WHERE redlinkMsgId="' + msgs[0].redlinkMsgId + '"';
+                       alasql(updateMsgStatus);
+                   }
+               } else { // Message has already been read.
+                   updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay);
+                   updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay); // Didnt get to do the job, so, give the reply the same read score.
+                   const msg = redlinkMsgId ? 'Message with id ' + redlinkMsgId + ' not found- it may have already been read' : 'No unread messages';
+                   sendMessage({
+                       debug: {
+                           storeName: node.name,
+                           action: 'read-message',
+                           direction: 'outBound',
+                           error: msg
+                       }
+                   });
+                   res.status(404).send({err: msg, redlinkProducerId});
                }
-             } 
-           else 
-             { // Message has already been read.
-               updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay);
-               updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay); // Didnt get to do the job, so, give the reply the same read score.
-               const msg = redlinkMsgId ? 'Message with id ' + redlinkMsgId + ' not found- it may have already been read' : 'No unread messages';
-               sendMessage({
-                  debug: {
-                    storeName: node.name,
-                    action: 'read-message',
-                    direction: 'outBound',
-                    error: msg
-                  }
-               });
-               res.status(404).send({err:msg, redlinkProducerId});
-             }
            }  // catch
     });
 
@@ -953,11 +944,7 @@ module.exports.RedLinkStore = function (config) {
         node.southPeers = [];
 
         //also delete all associated consumers for this store name
-        // const dropTriggerNewMsg = 'DROP TRIGGER ' + newMsgTriggerName;
-        // alasql(dropTriggerNewMsg);
         dropTrigger(newMsgTriggerName);
-        // const dropTriggerRegisterConsumer = 'DROP TRIGGER ' + registerConsumerTriggerName;
-        // alasql(dropTriggerRegisterConsumer);
         dropTrigger(registerConsumerTriggerName);
 
         const remainingMessages = alasql('SELECT * FROM inMessages WHERE storeName="' + node.name + '"');
