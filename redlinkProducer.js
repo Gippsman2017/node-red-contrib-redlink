@@ -196,7 +196,7 @@ module.exports.RedLinkProducer = function (config) {
     const createReplyMsgTriggerSql = 'CREATE TRIGGER ' + replyMsgTriggerName + ' AFTER INSERT ON replyMessages CALL ' + replyMsgTriggerName + '()';
     alasql(createReplyMsgTriggerSql);
 
-    function getReplyMessage(relevantReply) {
+    function getReplyMessage(relevantReply) { //todo see if we want to convert to streams here- may not be worthwhile
         if(relevantReply && relevantReply.isLargeMessage){
            // read from disk and return;
            const path = largeMessagesDirectory + relevantReply.redlinkMsgId +'/reply.txt';
