@@ -2,12 +2,13 @@ module.exports = function (RED) {
 
     "use strict";
     const alasql = require('alasql');
+    alasql.options.cache = false;
+    alasql.MAXSQLCACHESIZE = 0;
     const os = require('os');
 
     const redlinkConsumer = require('./redlinkConsumer.js');
     const redlinkProducer = require('./redlinkProducer.js');
     const redlinkStore    = require('./redlinkStore.js');
-    const log = require('./log.js')().log; //dont have node yet over here
 
     initTables();
     registerNodeRedTypes();
@@ -30,8 +31,6 @@ module.exports = function (RED) {
         alasql('CREATE TABLE replyMessages (storeName STRING, redlinkMsgId STRING, redlinkProducerId STRING, replyMessage STRING, read BOOLEAN, isLargeMessage BOOLEAN, cerror STRING)');
         //log('created tables...');
     }
-
-
 
     function registerNodeRedTypes() {
         //Store
