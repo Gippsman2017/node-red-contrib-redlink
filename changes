@@ -1,4 +1,4 @@
-v 2.2.2 use streams to more efficiently transfer large messages and reduce load on store; memory optimisation in alasql
+v 2.3.0 use streams to more efficiently transfer large messages and reduce load on store; memory optimisation in alasql
     1. redlink.js
        prevent alasql from caching queries- will free up some RAM
     2. redlinkConstants.js
