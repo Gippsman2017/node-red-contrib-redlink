@@ -1,10 +1,18 @@
-
-v 2.2.1 Completed the loab balancer to consumer notifications, reduced the notifys where multiple consumer for the same services are being load balanced and sped up the renotify when reading / replying
+v 2.2.2 use streams to more efficiently transfer large messages and reduce load on store; memory optimisation in alasql
+    1. redlink.js
+       prevent alasql from caching queries- will free up some RAM
+    2. redlinkConstants.js
+       we pass message metadata in headers- header keys are lowercased by http- we use this constant to fix case at the receiver
+    3. redlinkConsumer.js
+       change consumer to read message metadata from headers; change to consume message sent as stream from store rather than as json object;
+    4. redlinkStore.js
+       store now streams messages on read; message metadata is passed as headers
+v 2.2.1 Completed the load balancer to consumer notifications, reduced the notifys where multiple consumer for the same services are being load balanced and sped up the renotify when reading / replying
 v 2.2.0 Major update of interstore loadbalancer
 	1. Removed random code as it wasnt really random and it tended to bias the seed values at the ends.
 	2. Added two new parameters called ECM (Expected consumer read metric), ERM (Expected consumer reply metric), both values are calculated in milliseconds.
-	3. Algorythm uses ecm to workout when a consumer has read the message from the first time it was notified and then informs the stores in reverse order the value all the way back to the producer store
-	4. Algorythm uses erm to workout when a consumer has replied to the message from the time it was notified and then informs the stores in reverse order the value all the way back to the producer store
+	3. Algorithm uses ecm to workout when a consumer has read the message from the first time it was notified and then informs the stores in reverse order the value all the way back to the producer store
+	4. Algorithm uses erm to workout when a consumer has replied to the message from the time it was notified and then informs the stores in reverse order the value all the way back to the producer store
 	5. Loadbalancers can then decide when to send a message to either:
 		a. A consumer that is free.
 		b. A consumer has a low reply time.
