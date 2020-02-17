@@ -1,8 +1,10 @@
 const alasql = require('alasql');
 const request = require('request').defaults({strictSSL: false});
+const stream = require('stream');
 
 const base64Helper = require('./base64-helper.js');
 const rateLimiterProvider = require('./rateLimiter.js');
+const redlinkConstants = require('./redlinkConstants');
 
 let RED;
 module.exports.initRED = function (_RED) {
@@ -21,7 +23,7 @@ module.exports.RedLinkConsumer = function (config) {
     node.consumerStoreName = config.consumerStoreName;
     node.manualRead = config.manualReadReceiveSend;
     node.inTransitLimit = config.intransit;
-    let  watermark = 0;
+    let watermark = 0;
     node.rateTypeReceiveSend = config.rateTypeReceiveSend;
     node.rateReceiveSend = config.rateReceiveSend;
     node.rateUnitsReceiveSend = config.rateUnitsReceiveSend;
@@ -50,7 +52,9 @@ module.exports.RedLinkConsumer = function (config) {
     }
 
     function readMessageAndSendToOutput(redlinkMsgId) {
-        readMessage(redlinkMsgId).then(response => sendMessage(response)).catch(err => sendMessage(err));
+        readMessage(redlinkMsgId).then(response => {
+            sendMessage(response);
+        }).catch(err => sendMessage(err));
     }
 
 
@@ -58,7 +62,6 @@ module.exports.RedLinkConsumer = function (config) {
        const nResult = alasql('SELECT COUNT(notifySent) as myCount from notify  WHERE read=false and storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"' + ' AND notifySent LIKE "%' + node.id + '%"');
        if (nResult[0].myCount > 0){
          const data = alasql('SELECT * from notify  WHERE read=false and storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '"' + ' AND notifySent LIKE "%' + node.id + '%"');
-         
          const notifyMessage = {
                redlinkMsgId: data[0].redlinkMsgId,
                notifyType: 'producerNotification',
@@ -67,7 +70,6 @@ module.exports.RedLinkConsumer = function (config) {
                path: base64Helper.decode(data[0].notifyPath),
                notifyCount: nResult[0].myCount
            };
-
          if (node.manualRead) {
             sendMessage({notify: notifyMessage});
             }
@@ -92,7 +94,7 @@ module.exports.RedLinkConsumer = function (config) {
                 sendMessage({notify: notifyMessage});  // TODO- still send the notify out?
                 deleteNotify(data[0].redlinkMsgId);
               }
-            }
+          }
        }
     }
 
@@ -129,14 +131,13 @@ module.exports.RedLinkConsumer = function (config) {
         if (!notifyAndCount) {
             return;
         }
-      else 
+      else
         {
           const newNotify = notifyAndCount.notify;
           updateNotifyTable(newNotify);
           sendOutNotify();
-        };
+        }
     };
-    
     const createTriggerSql = 'CREATE TRIGGER ' + msgNotifyTriggerId + ' AFTER INSERT ON notify CALL ' + newMsgNotifyTrigger + '()';
     alasql(createTriggerSql);
     // can have multiple consumers with same name registered to the same store
@@ -235,8 +236,10 @@ module.exports.RedLinkConsumer = function (config) {
         }  // cmd read
         
         else {  // Reply message, this is where the reply is actually sent back to the replyMessages on the Producer.
-        
             if (msg.redlinkMsgId) {
+                if(msg.sendOnly==='false') {
+                    msg.sendOnly = false;
+                }
                 if (!msg.sendOnly) { // todo delete notify if sendOnly
                     const notifySql = 'SELECT * FROM notify WHERE redlinkMsgId="' + msg.redlinkMsgId + '"and notifySent LIKE "%' + node.id + '%"';
                     const notifies = alasql(notifySql); // should have only one
@@ -330,6 +333,31 @@ module.exports.RedLinkConsumer = function (config) {
         return alasql(deleteNotifyMsg);
     }
 
+    function getMessageMetadataFromHeaders(headers) {
+        const metadata = {};
+        for (const property in redlinkConstants.messageFields) { //key- lowercase, value- camelCase
+            if (headers[property]) {
+                metadata[redlinkConstants.messageFields[property]] = headers[property];
+            }
+        }
+        if (Object.keys(metadata).length === 0)
+            return undefined;
+        return metadata;
+    }
+
+    function getPayload(res) {
+        return new Promise((resolve, reject)=>{
+            if(res instanceof stream.Stream){
+                let data = "";
+                res.on("data", chunk => data += chunk);
+                res.on("end", () => resolve(base64Helper.decode(data)));
+                res.on("error", error => reject(error));
+            }else{
+                resolve(base64Helper.decode(res));
+            }
+        });
+    }
+
     function readMessage(redlinkMsgId) {
         return new Promise((resolve, reject) => {
             let notifiesSql;
@@ -364,18 +392,13 @@ module.exports.RedLinkConsumer = function (config) {
                     body: {redlinkMsgId, notifyPath:notifyPathIn, redlinkProducerId: notifies[0].redlinkProducerId, consumerId:node.id, consumerService: node.name, consumerStoreName: node.consumerStoreName, readDelay : readDelayCalc},
                     json: true
                 };
-                sendMessage({debug: {"debugData": "storeName " + sendingStoreName + ' ' + node.name + "action:consumerRead" + options}});
+                sendMessage({debug: {"debugData": `storeName ${sendingStoreName} ${node.name}action:consumerRead${options}`}});
                 const updateNotifyStatus = 'UPDATE notify SET read=' + true + ' WHERE redlinkMsgId="' + redlinkMsgId + '"  and notifySent LIKE "%' + node.id + '%"';
                 alasql(updateNotifyStatus);
-
                 request(options, function (error, response) {
                     if (response && response.statusCode === 200) {
-                        if (response.body.message) {
-                            response.body.message = base64Helper.decode(response.body.message);
-                        }
-                        const msg = response.body;
+                        const msg = getMessageMetadataFromHeaders(response.headers);
                         if (msg) {
-                            msg.payload = msg.message.payload;
                             let retrieveDelay;
                             if(msg.timestamp){
                                 retrieveDelay = (Date.now()-msg.timestamp);
@@ -393,19 +416,30 @@ module.exports.RedLinkConsumer = function (config) {
                                 redlinkProducerId: msg.redlinkProducerId,
                                 producerStoreName: msg.storeName,
                                 sendOnly: msg.sendOnly,
-                                payload: msg.payload,
                                 error: false,
                                 notifyReadDelay : readDelayCalc,
                                 readTransport : retrieveDelay - readDelayCalc
                             };
-                            resolve({receive: receiveMsg});
-                            if (msg.sendOnly) {
-                                deleteNotify(redlinkMsgId);
-                            } else {
-                                watermark++;
+                            if (response.body) {
+                                getPayload(response.body).then(payload => {
+                                    receiveMsg.payload = payload.payload ? payload.payload : payload;
+                                    resolve({receive: receiveMsg});
+                                    if (msg.sendOnly === 'false') {
+                                        msg.sendOnly = false;
+                                    }
+                                    if (msg.sendOnly) {
+                                        deleteNotify(redlinkMsgId);
+                                    } else {
+                                        watermark++;
+                                    }
+                                }).catch(err => {
+                                    const errorDesc = `Error reading payload from store at :${address} ${err}`;
+                                    reject({failure: getFailureMessage(redlinkMsgId, errorDesc, 'consumerRead')});
+                                    deleteNotify(redlinkMsgId);
+                                });
                             }
                         } else {
-                            const errorDesc = 'Empty response got when reading message';
+                            const errorDesc = 'Message metadata not received';
                             reject({failure: getFailureMessage(redlinkMsgId, errorDesc, 'consumerRead')});
                             deleteNotify(redlinkMsgId);
                         }
@@ -436,7 +470,7 @@ module.exports.RedLinkConsumer = function (config) {
                     }
                 }); // request
             } else {
-                const errorDesc = 'Store ' + node.consumerStoreName + ' does not have notifies for msgid ' + redlinkMsgId + ' and this consumer';
+                const errorDesc = `Store ${node.consumerStoreName} does not have notifies for msgid ${redlinkMsgId} and this consumer`;
                 reject({failure: getFailureMessage(redlinkMsgId, errorDesc, 'consumerRead')});
                 // no notify in the first place- need not call deleteNotify
             } // notifies
