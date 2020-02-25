@@ -317,7 +317,6 @@ console.log('SELECTION=',alasql(globalStoresSql));
 
                                         // Ok, if a consumerId is not empty, then use the returned path to go directly to the consumer store and confirm the message, this will cause the consumer store to notify the consumerId 
                                         if (response.consumerId != '') {
-                                           const destinationAddress = response.notifyPath[0];
                                            let confirmBody = body;
                                            confirmBody.notifyPath = response.notifyPath;
                                            confirmBody.consumerId = response.consumerId;
