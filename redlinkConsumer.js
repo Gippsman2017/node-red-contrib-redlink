@@ -94,7 +94,7 @@ module.exports.RedLinkConsumer = function (config) {
     }
     }
 
-    function calculateEnm(serviceName,consumerId) {
+    function calculateEnm(serviceName, consumerId) {
         const existingLocalConsumerSql = 'SELECT * FROM localStoreConsumers   WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + serviceName + '"';
         const notifyCountSql = 'select count(*) nc from (SELECT * FROM notify WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + serviceName + '" AND consumerId="'+consumerId+'")';
         const nc = alasql(notifyCountSql)[0].nc;
@@ -256,6 +256,10 @@ module.exports.RedLinkConsumer = function (config) {
                         }
                         const replyDelayCalc = Date.now()-notifies[0].notifyTime;
         
+                        // OK, I have completed the whole job and sent the reply, now to finally remove the original Notifiy for this job.
+                        // Then recalculate the enm before replying with it.
+                        deleteNotify(msg.redlinkMsgId);
+
                         updateGlobalConsumerEnm(node.name, node.id, node.consumerStoreName, calculateEnm(node.name,node.id)); 
                         updateGlobalConsumerErm(node.name, node.id, node.consumerStoreName, replyDelayCalc); 
 
@@ -300,8 +304,6 @@ module.exports.RedLinkConsumer = function (config) {
                             body.payload = base64Helper.decode(body.payload);
                         });
                     }
-                    // OK, I have completed the whole job and sent the reply, now to finally remove the original Notifiy for this job.
-                    deleteNotify(msg.redlinkMsgId);
                     watermark--;
                 } 
               else 

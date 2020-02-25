@@ -90,10 +90,15 @@ module.exports.RedLinkProducer = function (config) {
     function reNotify(msg){
         // simply remove message and reinsert to trigger notification
         //  deleteNotifiesForMessage(msg.redlinkMsgId);
-        deleteMessage(msg.redlinkMsgId);
-        msg.timeSinceNotify = 0;
-        const reinsertMessageSql = "INSERT INTO inMessages ("+getInsertSql(msg)+")";
-        alasql(reinsertMessageSql);
+        //Notify Only if a consumer has NOT picked up this message
+        const msgsByThisProducerSql = 'SELECT * FROM inMessages WHERE redlinkMsgId = "'+msg.redlinkMsgId+'" AND redlinkProducerId="' + node.id + '" and storeName ="'+node.producerStoreName+'" and consumerId=""';
+        if (alasql(msgsByThisProducerSql).length > 0) {
+//          console.log('QWERTY');
+          deleteMessage(msg.redlinkMsgId);
+          msg.timeSinceNotify = 0;
+          const reinsertMessageSql = "INSERT INTO inMessages ("+getInsertSql(msg)+")";
+          alasql(reinsertMessageSql);
+        }
     }
 
     function deleteMessage(redlinkMsgId) {

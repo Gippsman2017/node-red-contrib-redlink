@@ -1,3 +1,4 @@
+v 3.0.1 Fixed LB, enm, renotify from producer.
 v 3.0.0 Complete re-write of socket handling.
 	1.All messages are now confirmed with the inMessages store before a notification is sent, this removes wrong notifications to consumers
 	2.Loadbalancer now has a different method of determining consumer load using a new parameter called ENM (Expected Noticifaction Metric), each consumer has a % load value based on interansit limit.
