@@ -140,15 +140,10 @@ module.exports.RedLinkConsumer = function (config) {
         // OK, this consumer will now add its own node.id to the notify.notifySent trigger message since it comes in without one, unfortunately alasql does not send data with triggers.
         // console.log('CONSUMER ',node.id,' NOTIFIED');
         const notify = getNewNotify();
-        if (notify == null) 
-        { 
-          return; 
+        if (notify !== null) {
+            updateNotifyTable(notify.notify);
+            sendOutNotify();
         }
-      else 
-        {
-          updateNotifyTable(notify.notify);
-          sendOutNotify();
-        };
     };
     
     const createTriggerSql = 'CREATE TRIGGER ' + msgNotifyTriggerId + ' AFTER INSERT ON notify CALL ' + newMsgNotifyTrigger + '()';
@@ -195,7 +190,7 @@ module.exports.RedLinkConsumer = function (config) {
            }
            if (sResult.length === 0) {
              const deleteFromConsumerSql = 'DELETE FROM localStoreConsumers where consumerId = "'+ node.id +'"';
-             const insertIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.consumerStoreName + '","' + node.name + '","' + node.id +'", node.inTransitLimit)';
+             const insertIntoConsumerSql = 'INSERT INTO localStoreConsumers ("' + node.consumerStoreName + '","' + node.name + '","' + node.id +'",'+ node.inTransitLimit+')';
              alasql(deleteFromConsumerSql);
              alasql(insertIntoConsumerSql);
            }
@@ -204,7 +199,7 @@ module.exports.RedLinkConsumer = function (config) {
 
     function reNotifyConsumers(timeOut) {
         return setInterval(function () {
-            const notifyCount = updateStatusCounter()
+            const notifyCount = updateStatusCounter();
             if (notifyCount > 0) {
                 const data = alasql('SELECT * from notify  WHERE storeName="' + node.consumerStoreName + '" AND serviceName="' + node.name + '" and consumerId= "' + node.id + '" AND read=false');
                 const notifyMessage = {
@@ -358,7 +353,7 @@ module.exports.RedLinkConsumer = function (config) {
             if (notifies.length > 0) {
                 //console.log('readMessage -- Node = ',node.name, ' Read Consumer = ',node.id,' notifies = ',notifies[0].redlinkMsgId);
 
-                const updateNotifyStatus = 'UPDATE notify SET read=' + true + ' WHERE redlinkMsgId="' + redlinkMsgId + '"  AND consumerId = "' + node.id + '"';;
+                const updateNotifyStatus = 'UPDATE notify SET read=' + true + ' WHERE redlinkMsgId="' + redlinkMsgId + '"  AND consumerId = "' + node.id + '"';
                 alasql(updateNotifyStatus);
                 let notifyPathIn = base64Helper.decode(notifies[0].notifyPath);
                 let notifyPath; //todo revisit this- code duplication
