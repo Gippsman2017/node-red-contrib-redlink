@@ -88,30 +88,36 @@ module.exports.RedLinkProducer = function (config) {
     }
 
     function reNotify(msg){
+//        console.log('producerStoreName = ',node.producerStoreName);
         // simply remove message and reinsert to trigger notification
         //  deleteNotifiesForMessage(msg.redlinkMsgId);
-        deleteMessage(msg.redlinkMsgId);
-        msg.timeSinceNotify = 0;
-        const reinsertMessageSql = "INSERT INTO inMessages ("+getInsertSql(msg)+")";
-        alasql(reinsertMessageSql);
+        //Notify Only if a consumer has NOT picked up this message
+        const msgsByThisProducerSql = 'SELECT * FROM inMessages WHERE redlinkMsgId = "'+msg.redlinkMsgId+'" AND redlinkProducerId="' + node.id + '" and storeName ="'+node.producerStoreName+'" and consumerId=""';
+        if (alasql(msgsByThisProducerSql).length > 0) { 
+//          console.log('QWERTY');
+          deleteMessage(msg.redlinkMsgId);
+          msg.timeSinceNotify = 0;
+          const reinsertMessageSql = "INSERT INTO inMessages ("+getInsertSql(msg)+")";
+          alasql(reinsertMessageSql);
+        }
     }
 
     function deleteMessage(redlinkMsgId) {
         const deleteInMsg = 'DELETE from inMessages WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId="' + redlinkMsgId + '"';
         alasql(deleteInMsg);
-        console.log('Delete Message Producer ',node.id,' msg = ',redlinkMsgId);
+        //console.log('Delete Message Producer ',node.id,' msg = ',redlinkMsgId);
     }
 
     function deleteNotifiesForMessage(redlinkMsgId) {
         const deleteNotifyMsg = 'DELETE from notify WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId = "' + redlinkMsgId + '" and redlinkProducerId="' + node.id + '"';
         alasql(deleteNotifyMsg);
-        console.log('Delete Notify  Producer ',node.id,' msg = ',redlinkMsgId);
+        //console.log('Delete Notify  Producer ',node.id,' msg = ',redlinkMsgId);
     }
 
     function deleteReplyForMessage(redlinkMsgId) {
         const deleteReplyMsg = 'DELETE from replyMessages WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId="' + redlinkMsgId + '"';
         alasql(deleteReplyMsg);
-        console.log('Delete Reply   Producer ',node.id,' msg = ',redlinkMsgId);
+        //console.log('Delete Reply   Producer ',node.id,' msg = ',redlinkMsgId);
     }
 
     function failMessageAndRemove(redlinkMsgId){
