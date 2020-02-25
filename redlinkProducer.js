@@ -99,19 +99,16 @@ module.exports.RedLinkProducer = function (config) {
     function deleteMessage(redlinkMsgId) {
         const deleteInMsg = 'DELETE from inMessages WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId="' + redlinkMsgId + '"';
         alasql(deleteInMsg);
-        console.log('Delete Message Producer ',node.id,' msg = ',redlinkMsgId);
     }
 
     function deleteNotifiesForMessage(redlinkMsgId) {
         const deleteNotifyMsg = 'DELETE from notify WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId = "' + redlinkMsgId + '" and redlinkProducerId="' + node.id + '"';
         alasql(deleteNotifyMsg);
-        console.log('Delete Notify  Producer ',node.id,' msg = ',redlinkMsgId);
     }
 
     function deleteReplyForMessage(redlinkMsgId) {
         const deleteReplyMsg = 'DELETE from replyMessages WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId="' + redlinkMsgId + '"';
         alasql(deleteReplyMsg);
-        console.log('Delete Reply   Producer ',node.id,' msg = ',redlinkMsgId);
     }
 
     function failMessageAndRemove(redlinkMsgId){
