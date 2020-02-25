@@ -99,16 +99,19 @@ module.exports.RedLinkProducer = function (config) {
     function deleteMessage(redlinkMsgId) {
         const deleteInMsg = 'DELETE from inMessages WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId="' + redlinkMsgId + '"';
         alasql(deleteInMsg);
+        console.log('Delete Message Producer ',node.id,' msg = ',redlinkMsgId);
     }
 
     function deleteNotifiesForMessage(redlinkMsgId) {
         const deleteNotifyMsg = 'DELETE from notify WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId = "' + redlinkMsgId + '" and redlinkProducerId="' + node.id + '"';
         alasql(deleteNotifyMsg);
+        console.log('Delete Notify  Producer ',node.id,' msg = ',redlinkMsgId);
     }
 
     function deleteReplyForMessage(redlinkMsgId) {
         const deleteReplyMsg = 'DELETE from replyMessages WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId="' + redlinkMsgId + '"';
         alasql(deleteReplyMsg);
+        console.log('Delete Reply   Producer ',node.id,' msg = ',redlinkMsgId);
     }
 
     function failMessageAndRemove(redlinkMsgId){
@@ -196,7 +199,7 @@ module.exports.RedLinkProducer = function (config) {
     const createReplyMsgTriggerSql = 'CREATE TRIGGER ' + replyMsgTriggerName + ' AFTER INSERT ON replyMessages CALL ' + replyMsgTriggerName + '()';
     alasql(createReplyMsgTriggerSql);
 
-    function getReplyMessage(relevantReply) { //todo see if we want to convert to streams here- may not be worthwhile
+    function getReplyMessage(relevantReply) {
         if(relevantReply && relevantReply.isLargeMessage){
            // read from disk and return;
            const path = largeMessagesDirectory + relevantReply.redlinkMsgId +'/reply.txt';
@@ -359,15 +362,18 @@ module.exports.RedLinkProducer = function (config) {
                 return;
             }
             const msgInsertSql = 'INSERT INTO inMessages VALUES ("' + redlinkMsgId + '","' + node.producerStoreName + '","' + service + '",""' +
-                ',' + false + ',' + node.sendOnly + ',"' + node.id + '","",' + Date.now() + ',' + node.priority + ',' + true +','+0+','+0+ ','+node.enforceReversePath+')';
+                ',' + false + ',' + node.sendOnly + ',"' + node.id + '","",' + Date.now() + ',' + node.priority + ',' + true +','+0+','+0+ ','+node.enforceReversePath+',"")';
             // redlinkMsgId STRING, storeName STRING, serviceName STRING, message STRING,
             // read BOOLEAN, sendOnly BOOLEAN, redlinkProducerId STRING,preserved STRING, timestamp BIGINT, priority INT, isLargeMessage BOOLEAN
             alasql(msgInsertSql);
-        } else {
+        } 
+      else 
+        {
+//        console.log('redlinkMsgId=',redlinkMsgId);
             const msgInsertSql = 'INSERT INTO inMessages VALUES ("' + redlinkMsgId + '","' + node.producerStoreName + '","' + service + '","' + encodedMessage +
-                '",' + false + ',' + node.sendOnly + ',"' + node.id + '","' + encodedPreserved + '",' + Date.now() + ',' + node.priority + ',' + false +','+0+','+0+','+node.enforceReversePath+ ')';
+                '",' + false + ',' + node.sendOnly + ',"' + node.id + '","' + encodedPreserved + '",' + Date.now() + ',' + node.priority + ',' + false +','+0+','+0+','+node.enforceReversePath+',"")';
             /*redlinkMsgId STRING, storeName STRING, serviceName STRING, message STRING, ' +
-            'read BOOLEAN, sendOnly BOOLEAN, redlinkProducerId STRING,preserved STRING, timestamp BIGINT, priority INT, ' 'isLargeMessage BOOLEAN, lifetime INT, timeSinceNotify INT, enforceReversePath BOOLEAN*/
+            'read BOOLEAN, sendOnly BOOLEAN, redlinkProducerId STRING,preserved STRING, timestamp BIGINT, priority INT, ' 'isLargeMessage BOOLEAN, lifetime INT, timeSinceNotify INT, enforceReversePath BOOLEAN, consumerId STRING*/
             alasql(msgInsertSql);
         }
     }
@@ -436,11 +442,8 @@ module.exports.RedLinkProducer = function (config) {
         // Assume that this is an insert Producer message
         msg.redlinkMsgId = RED.util.generateId();
         const preserved = msg.preserved || '';
-        if (typeof msg.enforceReversePath != 'undefined') {
-            node.enforceReversePath = msg.enforceReversePath;
-        } else {
-            node.enforceReversePath = config.enforceReversePath;
-        }
+        if (typeof msg.enforceReversePath != 'undefined') { node.enforceReversePath = msg.enforceReversePath; } 
+                                                     else { node.enforceReversePath = config.enforceReversePath; }
         if (node.producerConsumer === 'msg.topic') {
             // Verify Service first if msg.topic, the service must exist, you cannot produce to a non existent service
             service = msg.topic || '';
@@ -454,7 +457,9 @@ module.exports.RedLinkProducer = function (config) {
                     sendMessage({failure: getFailureMessage('producerSend', errorMsg, msg.redlinkMsgId, msg)});
                     return;
                 }
-            } else {
+            } 
+          else 
+            {
                 const errorMsg = `Blank service specified in msg.topic`;
                 sendMessage({failure: getFailureMessage('producerSend', errorMsg, msg.redlinkMsgId, msg)});
                 return;
@@ -468,7 +473,9 @@ module.exports.RedLinkProducer = function (config) {
             if (largeMessage) {
                 insertNewMessage(msg.redlinkMsgId, service, encodedMessage, encodedPreserved, true, msg);
                 // redlinkMsgId STRING, storeName STRING, serviceName STRING, message STRING, read BOOLEAN, sendOnly BOOLEAN, redlinkProducerId STRING,preserved STRING, timestamp BIGINT, priority INT
-            } else {
+            } 
+          else 
+            {
                 insertNewMessage(msg.redlinkMsgId, service, encodedMessage, encodedPreserved, false, msg);
             }
         } else {

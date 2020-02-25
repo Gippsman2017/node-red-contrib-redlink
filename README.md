@@ -1,6 +1,10 @@
 [![npm version](https://badge.fury.io/js/node-red-contrib-redlink.svg)](https://badge.fury.io/js/node-red-contrib-redlink)
 
-## Redlink
+## Redlink V3
+
+### NOTE : Redlink is now version 3, it is incompatable with the version 2 code set . 
+### Please update all instances of redlink to V3 before using it, otherwise
+### it will not work.
 
 - [What is Redlink](#what-is-redlink)
 - [How does Redlink work](#how-does-redlink-work)
