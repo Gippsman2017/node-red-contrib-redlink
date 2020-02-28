@@ -353,8 +353,9 @@ module.exports.RedLinkConsumer = function (config) {
 
             const notifies = alasql(notifiesSql);
             if (notifies.length > 0) {
-                //console.log('readMessage -- Node = ',node.name, ' Read Consumer = ',node.id,' notifies = ',notifies[0].redlinkMsgId);
-
+                if (notifies[0].sendOnly) { //doing it here to pass an accurate enm
+                    deleteNotify(redlinkMsgId);
+                }
                 const updateNotifyStatus = 'UPDATE notify SET read=' + true + ' WHERE redlinkMsgId="' + redlinkMsgId + '"  AND consumerId = "' + node.id + '"';
                 alasql(updateNotifyStatus);
                 let notifyPathIn = base64Helper.decode(notifies[0].notifyPath);
@@ -373,12 +374,20 @@ module.exports.RedLinkConsumer = function (config) {
 
                 // Update My Consumers Read Stats
                 updateGlobalConsumerEcm(node.name, node.id, node.consumerStoreName, readDelayCalc);
-                updateGlobalConsumerErm(node.name, node.id, node.consumerStoreName, readDelayCalc); 
+                updateGlobalConsumerErm(node.name, node.id, node.consumerStoreName, readDelayCalc);
 
                 const options = {
                     method: 'POST',
                     url: 'https://' + address + '/read-message',
-                    body: {redlinkMsgId, notifyPath:notifyPathIn, redlinkProducerId: notifies[0].redlinkProducerId, consumerId:node.id, consumerService: node.name, consumerStoreName: node.consumerStoreName, readDelay : readDelayCalc},
+                    body: {redlinkMsgId,
+                        notifyPath:notifyPathIn,
+                        redlinkProducerId: notifies[0].redlinkProducerId,
+                        consumerId:node.id,
+                        consumerService: node.name,
+                        consumerStoreName: node.consumerStoreName,
+                        readDelay : readDelayCalc,
+                        enm: calculateEnm(node.name,node.id),
+                    },
                     json: true
                 };
                 sendMessage({debug: {"debugData": "storeName " + sendingStoreName + ' ' + node.name + "action:consumerRead" + options}});
@@ -413,9 +422,10 @@ module.exports.RedLinkConsumer = function (config) {
                                 notifyCount : updateStatusCounter() 
                             };
                             resolve({receive: receiveMsg});
-                            if (msg.sendOnly) { deleteNotify(redlinkMsgId); } 
-                          else { watermark++; }
-                        } 
+                            if (!msg.sendOnly) {
+                                watermark++;
+                            }
+                        }
                       else 
                         {
                             const errorDesc = 'Empty response got when reading message';
