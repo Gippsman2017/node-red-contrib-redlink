@@ -8,7 +8,8 @@
     "limiter": "^1.1.5",
     "needle": "^2.4.0",
     "request-promise-native": "^1.0.8",
-    "selfsigned": "^1.10.7"
+    "selfsigned": "^1.10.7",
+    "lodash.pick": "latest"
   },
   "deprecated": false,
   "description": "A Node-RED node to send and receive messages between and across instances.",

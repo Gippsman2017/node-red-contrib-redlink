@@ -93,7 +93,6 @@ module.exports.RedLinkProducer = function (config) {
         //Notify Only if a consumer has NOT picked up this message
         const msgsByThisProducerSql = 'SELECT * FROM inMessages WHERE redlinkMsgId = "'+msg.redlinkMsgId+'" AND redlinkProducerId="' + node.id + '" and storeName ="'+node.producerStoreName+'" and consumerId=""';
         if (alasql(msgsByThisProducerSql).length > 0) {
-//          console.log('QWERTY');
           deleteMessage(msg.redlinkMsgId);
           msg.timeSinceNotify = 0;
           const reinsertMessageSql = "INSERT INTO inMessages ("+getInsertSql(msg)+")";
@@ -201,7 +200,7 @@ module.exports.RedLinkProducer = function (config) {
     const createReplyMsgTriggerSql = 'CREATE TRIGGER ' + replyMsgTriggerName + ' AFTER INSERT ON replyMessages CALL ' + replyMsgTriggerName + '()';
     alasql(createReplyMsgTriggerSql);
 
-    function getReplyMessage(relevantReply) {
+    function getReplyMessage(relevantReply) {//todo see if we want to convert to streams here- may not be worthwhile
         if(relevantReply && relevantReply.isLargeMessage){
            // read from disk and return;
            const path = largeMessagesDirectory + relevantReply.redlinkMsgId +'/reply.txt';

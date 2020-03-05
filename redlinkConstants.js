@@ -14,3 +14,12 @@ module.exports.messageFields = { //we pass message metadata in headers- header k
     "timesincenotify": "timeSinceNotify",
     "enforcereversepath": "enforceReversePath"
 };
+
+module.exports.notifyDirections = {
+    NORTH: 'north',
+    SOUTH: 'south',
+    LOCAL: 'local',
+    STORE: 'store',
+    RESYN: 'reSync'
+};
+

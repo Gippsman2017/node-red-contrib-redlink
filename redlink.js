@@ -3,12 +3,12 @@ module.exports = function (RED) {
     "use strict";
     const alasql = require('alasql');
     const os = require('os');
-
     const redlinkConsumer = require('./redlinkConsumer.js');
     const redlinkProducer = require('./redlinkProducer.js');
     const redlinkStore    = require('./redlinkStore.js');
-    const log = require('./log.js')().log; //dont have node yet over here
 
+    alasql.options.cache = false;
+    alasql.MAXSQLCACHESIZE = 0;
     initTables();
     registerNodeRedTypes();
     initNodeRedRoutes();
@@ -73,12 +73,10 @@ module.exports = function (RED) {
         RED.httpAdmin.get("/north-peers", (req, res) => { res.json(RED.settings.northPeers || []); });
         RED.httpAdmin.get("/hostname",    (req, res) => { res.json(os.hostname()); });
         RED.httpAdmin.get("/mesh-names",  (req, res) => { res.json(getMeshNames()); });
-
         RED.httpAdmin.get("/all-store-names", (req, res) => {
             const storesSql = 'SELECT DISTINCT storeName FROM stores';
             res.json(alasql(storesSql).map(meshStore => meshStore.storeName));
         });
-
         RED.httpAdmin.get("/consumers", (req, res) => {
             const store = req.query.store;
             let responseJson = getLocalGlobalConsumers(store);
@@ -93,8 +91,7 @@ module.exports = function (RED) {
         if (!storeName) {
             return {};
         }
-        const globalConsumers = alasql('SELECT distinct serviceName from ( select * from globalStoreConsumers WHERE localStoreName = "' + storeName + '") order by serviceName ASC');
-
+        const globalConsumers = alasql(`SELECT distinct serviceName from ( select * from globalStoreConsumers WHERE localStoreName = "${storeName}") order by serviceName ASC`);
         const allConsumers = [...new Set([...globalConsumers])];
         let consumersArray = [];
         consumersArray.push('msg.topic'); //for dynamically specifying destination consumer- specify in msg.topic

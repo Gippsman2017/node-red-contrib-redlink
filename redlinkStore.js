@@ -1,8 +1,13 @@
-const httpsServer = require('./https-server.js');
 const alasql = require('alasql');
-const request = require('request-promise-native').defaults({strictSSL: false});
 const fs = require('fs-extra');
+const pick = require('lodash.pick');
+const Readable = require('stream').Readable;
+const request = require('request').defaults({strictSSL: false});
+const requestPromise = require('request-promise-native').defaults({strictSSL: false});
+
 const base64Helper = require('./base64-helper.js');
+const httpsServer = require('./https-server.js');
+const {messageFields, notifyDirections} = require('./redlinkConstants');
 
 let RED;
 module.exports.initRED = function (_RED) {
@@ -10,25 +15,13 @@ module.exports.initRED = function (_RED) {
 };
 
 module.exports.RedLinkStore = function (config) {
-    const notifyDirections = {
-        NORTH: 'north',
-        SOUTH: 'south',
-        LOCAL: 'local',
-        STORE: 'store',
-        RESYN: 'reSync'
-    };
-
     RED.nodes.createNode(this, config);
     const node = this;
-    const log = require('./log.js')(node).log;
-
     node.reSyncTime = 30000; // This timer defines the routing mesh sync for any messages.
     node.consumerlifeSpan = 120; // 2 Minutes
     node.reSyncTimerId = {};
-
     node.statusTime = 4000; // This timer defines the routing mesh sync for any messages.
     node.statusTimerId = {};
-
     node.listenAddress = config.listenAddress;
     node.listenPort = config.listenPort;
     node.southInsert = config.southInsert;
@@ -49,20 +42,23 @@ module.exports.RedLinkStore = function (config) {
     const largeMessagesDirectory = require('./redlinkSettings.js')(RED, node.name).largeMessagesDirectory;
     const largeMessageThreshold = require('./redlinkSettings.js')(RED, node.name).largeMessageThreshold;
 
-    //console.log(node.name ,'(',node.northPeers,') = ',node.northPeers[0].redistribute);
     // Insert myself into the mesh.
     const insertStoreSql = 'INSERT INTO stores("' + node.name + '","' + node.listenAddress + '",' + node.listenPort + ')';
     alasql(insertStoreSql);
 
-    function sendMessage(msg) { // command, registration, debug
+    function sendMessage(msg) { // command, registration, debug //todo add error port?
         const msgs = [];
-        if (node.command) { msgs.push(msg.command);  }
-        if (node.registration) { msgs.push(msg.registration); }
-        if (node.debug) { msgs.push(msg.debug); }
+        if (node.command) {
+            msgs.push(msg.command);
+        }
+        if (node.registration) {
+            msgs.push(msg.registration);
+        }
+        if (node.debug) {
+            msgs.push(msg.debug);
+        }
         node.send(msgs);
     }
-
-
 
     function notifyPeerStoreOfLocalConsumers(address, port, transitAddress, transitPort) {
         // first get distinct local consumers
@@ -81,36 +77,66 @@ module.exports.RedLinkStore = function (config) {
                 transitPort: transitPort,
                 direction: 'local',
                 hopCount: 0,
-                ttl: Math.floor(new Date().getTime()/1000)+node.consumerlifeSpan // Setup the overall lifetime for this service, its epoch secs + overall lifespan in secs
+                ttl: Math.floor(new Date().getTime() / 1000) + node.consumerlifeSpan // Setup the overall lifetime for this service, its epoch secs + overall lifespan in secs
             });
 
             let consumer = qualifiedLocalConsumers[0]; // todo filter this for unique consumers
-            let body = { consumer, notifyType: 'consumerRegistration' };
+            let body = {consumer, notifyType: 'consumerRegistration'};
 
             if (address && address !== '0.0.0.0') {
-                sendMessage({ registration: { storeName: node.name, action: 'notifyRegistration', function: 'notifyPeerStoreOfLocalConsumers', notifyData: body } });
-                sendMessage({ debug: { storeName: node.name, action: 'notifyRegistration', direction: 'outBound', notifyData: body } });
+                sendMessage({
+                    registration: {
+                        storeName: node.name,
+                        action: 'notifyRegistration',
+                        function: 'notifyPeerStoreOfLocalConsumers',
+                        notifyData: body
+                    }
+                });
+                sendMessage({
+                    debug: {
+                        storeName: node.name,
+                        action: 'notifyRegistration',
+                        direction: 'outBound',
+                        notifyData: body
+                    }
+                });
                 const options = {method: 'POST', url: 'https://' + address + ':' + port + '/notify', body, json: true};
                 request(options, function (error, response) {
-                    if (error) { sendMessage({ debug: { storeName: node.name, action: 'notifyRegistrationResult', direction: 'outBound', notifyData: body, error: error } });
-                    } else {     sendMessage({ debug: { storeName: node.name, action: 'notifyRegistrationResult', direction: 'outBound', notifyData: response.body      } });
+                    if (error) {
+                        sendMessage({
+                            debug: {
+                                storeName: node.name,
+                                action: 'notifyRegistrationResult',
+                                direction: 'outBound',
+                                notifyData: body,
+                                error: error
+                            }
+                        });
+                    } else {
+                        sendMessage({
+                            debug: {
+                                storeName: node.name,
+                                action: 'notifyRegistrationResult',
+                                direction: 'outBound',
+                                notifyData: response.body
+                            }
+                        });
                     }
                 });
             }
         });
     }
 
-    function deleteSouthPeer (address,port,peer) {
-      return peer.filter(function(addressPort) {
-        return addressPort != address+':'+port;
+    function deleteSouthPeer(address, port, peer) {
+        return peer.filter(function (addressPort) {
+            return addressPort !== address + ':' + port;
         });
     }
 
-
     function deleteGlobalStoreConsumers(store, direction, address, port) {
-      const deleteSql = 'delete from globalStoreConsumers where localStoreName="'+store+'" and direction="'+direction+'" and transitAddress="'+address+'" and transitPort='+port;
-      const deleteResult = alasql(deleteSql);
-      return (deleteResult > 0);
+        const deleteSql = 'delete from globalStoreConsumers where localStoreName="' + store + '" and direction="' + direction + '" and transitAddress="' + address + '" and transitPort=' + port;
+        const deleteResult = alasql(deleteSql);
+        return (deleteResult > 0);
     }
 
     function notifyPeerStoreOfConsumers(consumer, direction, hopCount, address, port, transitAddress, transitPort) {
@@ -118,279 +144,291 @@ module.exports.RedLinkStore = function (config) {
         consumer.transitAddress = transitAddress;
         consumer.transitPort = transitPort;
         consumer.hopCount = hopCount;
-        let body = { consumer, notifyType: 'consumerRegistration' };
-
+        let body = {consumer, notifyType: 'consumerRegistration'};
         if (address && address !== '0.0.0.0') {
-            sendMessage({ debug: { storeName: node.name, action: 'notifyRegistration', direction: 'outBound', notifyData: body } });
-            const options = {method: 'POST', url: 'https://' + address + ':' + port + '/notify', body, json: true};
-
-            request(options, function (error, response) {
-               if (error) {
-                    if (direction === 'south') {
-                      node.southPeers = deleteSouthPeer(address,port, node.southPeers); // Ok, looks like the peer has gone, so, lets delete the peer entry.
-                      deleteGlobalStoreConsumers(node.name, direction, address, port);
-                      sendMessage({ registration: { storeName: node.name, action: 'notifyDeletePeerConnection', direction: direction, notifyData: address+':'+port, serviceName : consumer.serviceName}});
-                    }
-             else
-               if (direction === 'north') { // Ok, North Peers are hard wired, if the connection is a problem, then just delete the globalStoreConsumers.
-                 if (deleteGlobalStoreConsumers(node.name, direction, address, port)){
-                    sendMessage({ registration: { storeName: node.name, action: 'notifyDeletePeerConsumer',   direction: direction, notifyData: address+':'+port, serviceName : consumer.serviceName}});
-                   }
-                 }
-                 sendMessage({ debug: { storeName: node.name, action: 'notifyRegistrationResult', direction: 'outBound', notifyData: body, error: error }});
-               }
-             else
-               if (direction === 'south' && response.statusCode === 404) {
-                 node.southPeers = deleteSouthPeer(address,port, node.southPeers); // Ok, looks like the peer has rejected the update, so, lets delete the peer entry.
-                 deleteGlobalStoreConsumers(node.name, direction, address, port);
-                 sendMessage({ registration: { storeName: node.name, action: 'notifyDeletePeerConnection', direction: direction, notifyData: address+':'+port, serviceName : consumer.serviceName}});
-                    }
-             else
-               {
-                 sendMessage({ debug: { storeName: node.name, action: 'notifyRegistrationResult', direction: 'outBound', notifyData: response.body } });
-               }
+            sendMessage({
+                debug: {
+                    storeName: node.name,
+                    action: 'notifyRegistration',
+                    direction: 'outBound',
+                    notifyData: body
+                }
             });
- 
+            const options = {method: 'POST', url: 'https://' + address + ':' + port + '/notify', body, json: true};
+            request(options, function (error, response) {
+                if (error) {
+                    if (direction === 'south') {
+                        node.southPeers = deleteSouthPeer(address, port, node.southPeers); // Ok, looks like the peer has gone, so, lets delete the peer entry.
+                        deleteGlobalStoreConsumers(node.name, direction, address, port);
+                        sendMessage({
+                            registration: {
+                                storeName: node.name,
+                                action: 'notifyDeletePeerConnection',
+                                direction: direction,
+                                notifyData: address + ':' + port,
+                                serviceName: consumer.serviceName
+                            }
+                        });
+                    } else if (direction === 'north') { // Ok, North Peers are hard wired, if the connection is a problem, then just delete the globalStoreConsumers.
+                        if (deleteGlobalStoreConsumers(node.name, direction, address, port)) {
+                            sendMessage({
+                                registration: {
+                                    storeName: node.name,
+                                    action: 'notifyDeletePeerConsumer',
+                                    direction: direction,
+                                    notifyData: address + ':' + port,
+                                    serviceName: consumer.serviceName
+                                }
+                            });
+                        }
+                    }
+                    sendMessage({
+                        debug: {
+                            storeName: node.name,
+                            action: 'notifyRegistrationResult',
+                            direction: 'outBound',
+                            notifyData: body,
+                            error: error
+                        }
+                    });
+                } else if (direction === 'south' && response.statusCode === 404) {
+                    node.southPeers = deleteSouthPeer(address, port, node.southPeers); // Ok, looks like the peer has rejected the update, so, lets delete the peer entry.
+                    deleteGlobalStoreConsumers(node.name, direction, address, port);
+                    sendMessage({
+                        registration: {
+                            storeName: node.name,
+                            action: 'notifyDeletePeerConnection',
+                            direction: direction,
+                            notifyData: address + ':' + port,
+                            serviceName: consumer.serviceName
+                        }
+                    });
+                } else {
+                    sendMessage({
+                        debug: {
+                            storeName: node.name,
+                            action: 'notifyRegistrationResult',
+                            direction: 'outBound',
+                            notifyData: response.body
+                        }
+                    });
+                }
+            });
         }
     }
 
-
     function notifyAllNorthPeerStoresOnly() {
-        let consumer = {};
-        consumer.direction = 'store';
-        consumer.transitAddress = node.listenAddress;
-        consumer.transitPort = node.listenPort;
-        let body = { consumer, notifyType: 'consumerRegistration' };
-        node.northPeers.forEach(peer => { notifyPeerStoreOfConsumers(consumer, consumer.direction, 0, peer.ip, peer.port, consumer.transitAddress, consumer.transitPort); });
-    }
-
-
-    function notifyNorthStoreOfConsumers(consumer, transitAddress, transitPort) {    
-        const newHopCount = consumer.hopCount+1;
-        node.northPeers.forEach(peer => { 
-           if (consumer.transitAddress+':'+consumer.transitPort != peer.ip+':'+peer.port) { notifyPeerStoreOfConsumers(consumer, notifyDirections.NORTH, newHopCount, peer.ip, peer.port, transitAddress, transitPort); }
+        const consumer = {
+            direction: 'store',
+            transitAddress: node.listenAddress,
+            transitPort: node.listenPort
+        };
+        node.northPeers.forEach(peer => {
+            notifyPeerStoreOfConsumers(consumer, consumer.direction, 0, peer.ip, peer.port, consumer.transitAddress, consumer.transitPort);
         });
     }
 
 
+    function notifyNorthStoreOfConsumers(consumer, transitAddress, transitPort) {
+        const newHopCount = consumer.hopCount + 1;
+        node.northPeers.forEach(peer => {
+            if (consumer.transitAddress + ':' + consumer.transitPort !== peer.ip + ':' + peer.port) {
+                notifyPeerStoreOfConsumers(consumer, notifyDirections.NORTH, newHopCount, peer.ip, peer.port, transitAddress, transitPort);
+            }
+        });
+    }
+
     function notifySouthStoreOfConsumers(consumer, direction, storeAddress, storePort, transitAddress, transitPort) {
-        const newHopCount = consumer.hopCount+1;
+        const newHopCount = consumer.hopCount + 1;
         node.southPeers.forEach(peer => {
             var [ip, port] = peer.split(':');
-            if (consumer.storeAddress+':'+consumer.storePort !== ip+':'+port) { notifyPeerStoreOfConsumers(consumer, direction, newHopCount, ip, port, transitAddress, transitPort); }
+            if (consumer.storeAddress + ':' + consumer.storePort !== ip + ':' + port) {
+                notifyPeerStoreOfConsumers(consumer, direction, newHopCount, ip, port, transitAddress, transitPort);
+            }
         });
     }
 
     function notifyAllSouthStoreConsumers(direction) {
         const storeName = node.name;
         const meshName = storeName.substring(0, storeName.indexOf(':')); // Producers can only send to Consumers on the same mesh
-        const storeAddressData = alasql('SELECT * FROM stores  WHERE storeName = "' + storeName + '"');
-        const globalConsumersSql = 'SELECT  DISTINCT serviceName,consumerId from ( select * from globalStoreConsumers WHERE localStoreName = "' + storeName + '")';// +
+        const storeAddressData = alasql(`SELECT * FROM stores  WHERE storeName = "${storeName}"`);
+        const globalConsumersSql = `SELECT  DISTINCT serviceName,consumerId from ( select * from globalStoreConsumers WHERE localStoreName = "${storeName}")`;// +
         const globalConsumers = alasql(globalConsumersSql);
-
         const allConsumers = [...new Set([...globalConsumers])];
-
         const storeAddress = storeAddressData[0].storeAddress;
         const storePort = storeAddressData[0].storePort;
         allConsumers.forEach(consumer => {
-            const dataSql = 'select * from globalStoreConsumers where localStoreName = "' + storeName + '" and serviceName ="' + consumer.serviceName + '" and consumerId = "' + consumer.consumerId + '"';
+            const dataSql = `select * from globalStoreConsumers where localStoreName = "${storeName}" and serviceName ="${consumer.serviceName}" and consumerId = "${consumer.consumerId}"`;
             const data = alasql(dataSql);
             notifySouthStoreOfConsumers(data[0], direction, storeAddress, storePort, node.listenAddress, node.listenPort);
         });
     }
-
-
     const nodeId = config.id.replace('.', '');
-    const newMsgTriggerName = 'onNewMessage' + nodeId;
-    const registerConsumerTriggerName = 'registerConsumer' + nodeId;
+    const newMsgTriggerName = `onNewMessage${nodeId}`;
+    const registerConsumerTriggerName = `registerConsumer${nodeId}`;
 
-    
     function getRemoteMatchingStores(serviceName, meshName, loadBalancer, useEnm) {
-        let globalStoresSql = "";
         let matchingGlobalStoresAddresses = [];
-        if (useEnm) {globalStoresSql = 'SELECT * FROM globalStoreConsumers WHERE serviceName="' + serviceName + '" AND localStoreName = "' + node.name + '"  order by enm  limit 1';}
-              else  {globalStoresSql = 'SELECT * FROM globalStoreConsumers WHERE serviceName="' + serviceName + '" AND localStoreName = "' + node.name + '"  order by enm  limit 1';}  
-//        if (useEnm) {globalStoresSql = 'SELECT * from (select * FROM globalStoreConsumers WHERE serviceName="' + serviceName + '" AND localStoreName = "' + node.name + '" order by enm ) group by transitAddress,transitPort';}
-//              else  {globalStoresSql = 'SELECT * from (select * FROM globalStoreConsumers WHERE serviceName="' + serviceName + '" AND localStoreName = "' + node.name + '" order by enm ) group by transitAddress,transitPort';}  
-console.log('SELECTION=',alasql(globalStoresSql));
-
-        if (loadBalancer) {    
-           const matchingGlobalStores = alasql(globalStoresSql);
-
-           if (matchingGlobalStores.length > 0) {
-              matchingGlobalStoresAddresses.push({
-                transitStoreAddress: matchingGlobalStores[0].transitAddress + ':' + matchingGlobalStores[0].transitPort,
-                transitHopCount: matchingGlobalStores[0].hopCount,
-                transitEcm : matchingGlobalStores[0].ecm,
-                transitErm : matchingGlobalStores[0].erm,
-                transitEnm : matchingGlobalStores[0].enm
-              });
-           }
-         else
-          matchingGlobalStoresAddresses = [];
+        let globalStoresSql = `SELECT * FROM globalStoreConsumers WHERE serviceName="${serviceName}" AND localStoreName = "${node.name}"  order by enm  limit 1`;
+        if (loadBalancer) {
+            const matchingGlobalStores = alasql(globalStoresSql);
+            if (matchingGlobalStores.length > 0) {
+                matchingGlobalStoresAddresses.push({
+                    transitStoreAddress: matchingGlobalStores[0].transitAddress + ':' + matchingGlobalStores[0].transitPort,
+                    transitHopCount: matchingGlobalStores[0].hopCount,
+                    transitEcm: matchingGlobalStores[0].ecm,
+                    transitErm: matchingGlobalStores[0].erm,
+                    transitEnm: matchingGlobalStores[0].enm
+                });
+            } else
+                matchingGlobalStoresAddresses = [];
+        } else { // No Load Balancer on this store
+            const matchingGlobalStores = alasql(globalStoresSql);
+            matchingGlobalStores.forEach(store => {
+                matchingGlobalStoresAddresses.push({
+                    transitStoreAddress: store.transitAddress + ':' + store.transitPort,
+                    transitHopCount: store.hopCount,
+                    transitEcm: store.ecm,
+                    transitErm: store.erm,
+                    transitEnm: store.enm
+                });
+            });
         }
-      else
-        { // No Load Balancer on this store
-           const matchingGlobalStores = alasql(globalStoresSql);
-           matchingGlobalStores.forEach(store => {
-              matchingGlobalStoresAddresses.push({
-                transitStoreAddress: store.transitAddress + ':' + store.transitPort,
-                transitHopCount: store.hopCount,
-                transitEcm : store.ecm,
-                transitErm : store.erm,
-                transitEnm : store.enm
-              });
-          });
-        }        
+        if(matchingGlobalStoresAddresses.length === 0){
+            // console.log(' in store ', node.name, ' returning blank remote matching store the sql used is:', globalStoresSql, 'all consumers are:', alasql('select * from globalStoreConsumers'));
+        }
         return matchingGlobalStoresAddresses;
     }
 
 
-    function NotifyEveryMsgNotRead() {
-
-            // check if the input message is for this store
-            // inMessages (msgId STRING, storeName STRING, serviceName STRING, message STRING)'
-            const newMessagesSql = 'SELECT * from inMessages WHERE storeName="' + node.name + '" AND read= false AND consumerId = ""  ORDER BY priority DESC limit 1';
-            var newMessages = alasql(newMessagesSql);
+    function notifyUnreadMessages() {
+        // check if the input message is for this store
+        // inMessages (msgId STRING, storeName STRING, serviceName STRING, message STRING)'
+        const newMessages = alasql(`SELECT * from inMessages WHERE storeName="${node.name}" AND read= false AND consumerId = ""  ORDER BY priority DESC limit 1`);
+        if(newMessages.length> 0){
             const newMessage = newMessages[0];
-
-            if (newMessage) { 
-
-               sendMessage({
-                  registration: { // todo rename to notify
-                    service: newMessage.serviceName,
-                    srcStoreAddress: node.listenAddress,
-                    srcStorePort: node.listenPort,
-                    redlinkMsgId: newMessage.redlinkMsgId,
-                    action: 'producerNotification',
-                    redlinkProducerId: newMessage.redlinkProducerId
-                   }
-               });
-               const updateMsgStatus = 'UPDATE inMessages SET consumerId ="pending"  WHERE consumerId = "" AND redlinkMsgId="' +  newMessage.redlinkMsgId + '" AND storeName = "'+node.name+'"';
-               alasql(updateMsgStatus);
-                
-               let remoteMatchingStores = [];
-            
-               if (newMessage.sendOnly) {remoteMatchingStores = [...new Set([...getRemoteMatchingStores(newMessage.serviceName, node.meshName, node.interStoreLoadBalancer, true)])];}
-                                  else  {remoteMatchingStores = [...new Set([...getRemoteMatchingStores(newMessage.serviceName, node.meshName, node.interStoreLoadBalancer, false)])];}
-            
-//console.log('NEW MESSAGE=',remoteMatchingStores);
-               let producerStores = remoteMatchingStores;
-
-               let thisPath = []; // Effectively sets the start path to this store, as the notify adds it in the /notify code
-              
-               producerStores.forEach(remoteStore => {
-                  let body = {
-                      service: newMessage.serviceName,
-                      srcStoreAddress: node.listenAddress,
-                      srcStorePort: node.listenPort,
-                      transitAddress: node.listenAddress,
-                      transitPort: node.listenPort,
-                      notifyPath: thisPath,
-                      sendersHopCount: remoteStore.transitHopCount,
-                      redlinkMsgId: newMessage.redlinkMsgId,
-                      notifyType: 'producerNotification',
-                      redlinkProducerId: newMessage.redlinkProducerId,
-                      enforceReversePath: newMessage.enforceReversePath,
-                      consumerId: newMessage.consumerId
-                      };
-
-
-                  const options = { method: 'POST', url: 'https://' + node.listenAddress+':'+node.listenPort + '/notify', body, json: true };
-
-                  // Ok Ask the Consumer if they have the capacity to consume this message
-                  async function doStuff() {
-                     const awaitOut = await request(options).then (response => {
-                                        // Ok, if a consumerId is not empty, then set the message with the consumerId and use the returned path to go directly to the consumer store.
-                                        if (response.consumerId != '') {
-                                           const updateMsgStatus = 'UPDATE inMessages SET consumerId ="' + response.consumerId + '"  WHERE consumerId = "pending" AND redlinkMsgId="' + 
-                                                                   body.redlinkMsgId + '" AND storeName = "'+node.name+'"';
-                                           const updated = alasql(updateMsgStatus);    
-                                        }  
-                                      else
-                                        if (response.consumerId === '') {  
-                                        // Not OK, no capacity at this time
-                                        const updateMsgStatus = 'UPDATE inMessages SET consumerId =""  WHERE consumerId = "pending" AND redlinkMsgId="' + 
-                                                                 body.redlinkMsgId + '" AND storeName = "'+node.name+'"';
-                                        const updated = alasql(updateMsgStatus);                                                     
-                                        }                      
-
-                                        // Ok, if a consumerId is not empty, then use the returned path to go directly to the consumer store and confirm the message, this will cause the consumer store to notify the consumerId 
-                                        if (response.consumerId != '') {
-                                           let confirmBody = body;
-                                           confirmBody.notifyPath = response.notifyPath;
-                                           confirmBody.consumerId = response.consumerId;
-                                           confirmBody.notifyType = 'confirmNotification';
-                                           confirmBody.tempPath   = response.notifyPath; // This is used to traverse to the consumer store again, and it is removed once it gets there.
-                                           body = confirmBody;
-                                           const options = { method: 'POST', url: 'https://' + node.listenAddress+':'+node.listenPort + '/notify', body, json: true }
-                                           //  Recurse to this remoteStore
-                                           async function doStuff2() {
-                                             const awaitOut2 = await request(options).then (response => {
-                                                 //console.log('Final Response = ',response);
-                                                 if (response.consumerId != '') { 
-                                                    // OK, I have a winner
-                                                    console.log('ENM=',response.enm);
-                                                    console.log(response);
-                                                    updateGlobalConsumerEnm(response.service, response.consumerId, response.storeName, response.enm);
-                                                  }  
-                                                 return response;
-                                                 }).catch(myError02 => {
-                                                   console.log('myError02=',myError02);
-                                             });
-                                             return awaitOut2;
-                                           }
-                                           doStuff2();
-                                        }
-                                        return response;
-                                      }).catch(myError0 => {
-                                         console.log('myError0=',myError0);
-                                      });
-                     return awaitOut;
-                  }      
-
-                  let myResult=  doStuff(); // This is the actual call to get the notify going, it causes recursive /producerNotifies lookups through the stores.
-                  //console.log('----------------------- Sending ',body.redlinkMsgId,' --------------------------------');   
-               });
-           }
+            if (newMessage) {
+                sendMessage({
+                    registration: { // todo rename to notify
+                        service: newMessage.serviceName,
+                        srcStoreAddress: node.listenAddress,
+                        srcStorePort: node.listenPort,
+                        redlinkMsgId: newMessage.redlinkMsgId,
+                        action: 'producerNotification',
+                        redlinkProducerId: newMessage.redlinkProducerId
+                    }
+                });
+                const updateMsgStatus = `UPDATE inMessages SET consumerId ="pending"  WHERE consumerId = "" AND redlinkMsgId="${newMessage.redlinkMsgId}" AND storeName = "${node.name}"`;
+                alasql(updateMsgStatus);
+                let producerStores = [...new Set([...getRemoteMatchingStores(newMessage.serviceName, node.meshName, node.interStoreLoadBalancer, newMessage.enforceReversePath)])];
+                let thisPath = []; // Effectively sets the start path to this store, as the notify adds it in the /notify code
+                producerStores.forEach(remoteStore => {
+                    let body = {
+                        service: newMessage.serviceName,
+                        srcStoreAddress: node.listenAddress,
+                        srcStorePort: node.listenPort,
+                        transitAddress: node.listenAddress,
+                        transitPort: node.listenPort,
+                        notifyPath: thisPath,
+                        sendersHopCount: remoteStore.transitHopCount,
+                        redlinkMsgId: newMessage.redlinkMsgId,
+                        notifyType: 'producerNotification',
+                        redlinkProducerId: newMessage.redlinkProducerId,
+                        enforceReversePath: newMessage.enforceReversePath,
+                        consumerId: newMessage.consumerId
+                    };
+                    const options = {
+                        method: 'POST',
+                        url: 'https://' + node.listenAddress + ':' + node.listenPort + '/notify',
+                        body,
+                        json: true
+                    };
+                    //console.log('in store ', node.name, ' posting to adjacent store- ask if they are up for it:', JSON.stringify(options, null, 2));
+                    // Ok Ask the Consumer if they have the capacity to consume this message
+                    (async function () {
+                        const response = await requestPromise(options);
+                        if(!response.notifyPath){
+                            // console.log('in store got no notifyPath in response ', node.name, 'posted with: ', options, ' got response as:', response);
+                        }
+                        //console.log('in store ', node.name, ' got consumer id back as:', response.consumerId);
+                        // Ok, if a consumerId is not empty, then set the message with the consumerId and use the returned path to go directly to the consumer store.
+                        if (response.consumerId !== '') {
+                            const updateMsgStatus = `UPDATE inMessages SET consumerId ="${response.consumerId}"  WHERE consumerId = "pending" AND redlinkMsgId="${body.redlinkMsgId}" AND storeName = "${node.name}"`;
+                            const updated = alasql(updateMsgStatus);
+                        } else if (response.consumerId === '') {
+                            // Not OK, no capacity at this time
+                            const updateMsgStatus = `UPDATE inMessages SET consumerId =""  WHERE consumerId = "pending" AND redlinkMsgId="${body.redlinkMsgId}" AND storeName = "${node.name}"`;
+                            const updated = alasql(updateMsgStatus);
+                        }
+                        // Ok, if a consumerId is not empty, then use the returned path to go directly to the consumer store and confirm the message, this will cause the consumer store to notify the consumerId
+                        if (response.consumerId !== '') {
+                            let confirmBody = body;
+                            confirmBody.notifyPath = response.notifyPath;
+                            confirmBody.consumerId = response.consumerId;
+                            confirmBody.notifyType = 'confirmNotification';
+                            confirmBody.tempPath = response.notifyPath; // This is used to traverse to the consumer store again, and it is removed once it gets there.
+                            body = confirmBody;
+                            const options = {
+                                method: 'POST',
+                                url: 'https://' + node.listenAddress + ':' + node.listenPort + '/notify',
+                                body,
+                                json: true
+                            };
+                            //console.log('in store ', node.name, ' in inner... posting with:', JSON.stringify(options, null, 2));
+                            //  Recurse to this remoteStore
+                            (async function() {
+                                const response2 = await requestPromise(options);
+                                if (response2.consumerId !== '') {
+                                    // OK, I have a winner
+                                    //console.log('in store ', node.name, ' ENM=', response2.enm);
+                                    //console.log(response2);
+                                    updateGlobalConsumerEnm(response2.service, response2.consumerId, response2.storeName, response2.enm);
+                                }
+                                return response2;
+                            })();
+                        }
+                        return response;
+                    })(); // This is the actual call to get the notify going, it causes recursive /producerNotifies lookups through the stores.
+                });
+            }
+        }
     }
 
     //---------------------------------------------------  Notify Triggers  ---------------------------------------------------------
     try {
-        log('newMsgTriggerName:', newMsgTriggerName);
         alasql.fn[newMsgTriggerName] = () => {
-           // console.log(node.name,'   NotifyEveryMsgNotRead');        
-           NotifyEveryMsgNotRead();
-           };
-
+            notifyUnreadMessages();
+        };
 
         // On local consumer registration, let them all know
         alasql.fn[registerConsumerTriggerName] = () => {
             // Notify my local globalConsumerStore with a default hop count of zero and a transit address of myself...all the localConsumers.
             notifyPeerStoreOfLocalConsumers(node.listenAddress, node.listenPort, node.listenAddress, node.listenPort);
-           };
+        };
 
-        const createNewMsgTriggerSql =    'CREATE TRIGGER ' + newMsgTriggerName +           ' AFTER INSERT ON inMessages CALL ' +          newMsgTriggerName + '()';
-        const createRegisterConsumerSql = 'CREATE TRIGGER ' + registerConsumerTriggerName + ' AFTER INSERT ON localStoreConsumers CALL ' + registerConsumerTriggerName + '()';
+        const createNewMsgTriggerSql = `CREATE TRIGGER ${newMsgTriggerName} AFTER INSERT ON inMessages CALL ${newMsgTriggerName}()`;
+        const createRegisterConsumerSql = `CREATE TRIGGER ${registerConsumerTriggerName} AFTER INSERT ON localStoreConsumers CALL ${registerConsumerTriggerName}()`;
         try {
             alasql(createNewMsgTriggerSql);
             alasql(createRegisterConsumerSql);
-            } 
-        catch (e1) {
-           }
-
+        } catch (e1) {
+            sendMessage({
+                debug: e1
+            });
+        }
         notifyAllNorthPeerStoresOnly(); // Register myself with my North Store
         node.reSyncTimerId = reSyncStores(node.reSyncTime); // This is the main call to sync all of the interconnected stores on startup and it also starts the interval timer.
         node.statusTimerId = statusStores(node.statusTime); // This is the main call to display storeStatus info it starts the interval timer.
-
-    } 
-    catch (e) {
-        log(e);
+    } catch (e) {
+        sendMessage({
+            debug: e
+        });
     }
 
     function handleStoreStartError(e) {
-        const errorMsg = 'redlinkStore ' + node.name + ' Error starting listen server on ' + node.listenPort + ' Exception is ' + e;
-        sendMessage({ debug: { storeName: node.name, action: 'startServer', error: errorMsg } });
+        const errorMsg = `redlinkStore ${node.name} Error starting listen server on ${node.listenPort} Exception is ${e}`;
+        // console.log('!@#$ store start error:', errorMsg);
+        sendMessage({debug: {storeName: node.name, action: 'startServer', error: errorMsg}});
         clearInterval(node.statusTimerId); // Stop the status data being updated.
         clearInterval(node.reSyncTimerId); // Stop the store joining the mesh
         node.status({fill: "red", shape: "dot", text: 'Error: Listener please check Debug'});
@@ -398,26 +436,25 @@ console.log('SELECTION=',alasql(globalStoresSql));
 
     if (node.listenPort) {
         try {
-              const args = [+node.listenPort];
-              if( node.isUserCertificate ) {
-                 args.push(node.userKey);
-                 args.push(node.userCertificate);
-              }
-              node.listenServer = httpsServer.startServer(...args);
+            const args = [+node.listenPort];
+            if (node.isUserCertificate) {
+                args.push(node.userKey);
+                args.push(node.userCertificate);
             }
-         catch (e) {
-              handleStoreStartError(e);
-            }
+            node.listenServer = httpsServer.startServer(...args);
+        } catch (e) {
+            handleStoreStartError(e);
+        }
 
-          if (node.listenServer) {
-              node.listenServer.listen(node.listenPort).on('error', e => {
-                  if (e.code === 'EADDRINUSE') { handleStoreStartError(e); }
-              });
-          node.status({fill: "grey", shape: "dot", text:'Initialising'});
-        } 
-      else
-        {
-          handleStoreStartError('Unable to start server');
+        if (node.listenServer) {
+            node.listenServer.listen(node.listenPort).on('error', e => {
+                if (e.code === 'EADDRINUSE') {
+                    handleStoreStartError(e);
+                }
+            });
+            node.status({fill: "grey", shape: "dot", text: 'Initialising'});
+        } else {
+            handleStoreStartError('Unable to start server');
         }
         node.status({fill: "green", shape: "dot", text: 'Listen Port in OK'});
         // log('started server at port:', node.listenPort);
@@ -425,83 +462,63 @@ console.log('SELECTION=',alasql(globalStoresSql));
 
 
     function insertGlobalConsumer(serviceName, consumerId, storeName, direction, storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm, enm) {
-        const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND consumerId="' + consumerId +
-            '" AND storeName="' + storeName + '" AND storeAddress = "' + storeAddress + '" AND storePort = ' + storePort;
-
+        const existingGlobalConsumerSql = `SELECT * FROM globalStoreConsumers WHERE localStoreName="${node.name}" AND serviceName="${serviceName}" AND consumerId="${consumerId}" AND storeName="${storeName}" AND storeAddress = "${storeAddress}" AND storePort = ${storePort}`;
         const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
-
-        const insertGlobalConsumersSql = 'INSERT INTO globalStoreConsumers("' + node.name + '","' + serviceName + '","' + consumerId + '","' + storeName + '","' + direction + '","' +
-            storeAddress + '",' + storePort + ',"' + transitAddress + '",' + transitPort + ',' + hopCount + ',' + ttl + ','+ ecm + ',' + erm + ',' +enm +')';
+        const insertGlobalConsumersSql = `INSERT INTO globalStoreConsumers("${node.name}","${serviceName}","${consumerId}","${storeName}","${direction}","${storeAddress}",${storePort},"${transitAddress}",${transitPort},${hopCount},${ttl},${ecm},${erm},${enm})`;
         if (!existingGlobalConsumer || existingGlobalConsumer.length === 0) {
-            const inserted = alasql(insertGlobalConsumersSql);
+            alasql(insertGlobalConsumersSql);
         } else {
-            const updateConsumerTtl = 'UPDATE globalStoreConsumers SET ttl=' + ttl + '  WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND consumerId="' + consumerId +
-                                      '" AND storeName="' + storeName + '" AND storeAddress = "' + storeAddress + '" AND storePort = ' + storePort;
-            alasql(updateConsumerTtl);
-               // console.log('ServiceName ',serviceName,'  Exists and TTl updated=',alasql(updateConsumerTtl));
-               // Possibly Need to add a delete and an insert here for lower hopCount routes, it will reduce the number of notifies on high complexity redlink store layouts.
-               // console.log('Insert Failed, globalStore ',node.name, 'service ',serviceName,' has an entry with a hopCount of ',existingGlobalConsumer[0].hopCount,' compared with ',hopCount);
+            alasql(`UPDATE globalStoreConsumers SET ttl=${ttl}  WHERE localStoreName="${node.name}" AND serviceName="${serviceName}" AND consumerId="${consumerId}" AND storeName="${storeName}" AND storeAddress = "${storeAddress}" AND storePort = ${storePort}`);
+            // Possibly Need to add a delete and an insert here for lower hopCount routes, it will reduce the number of notifies on high complexity redlink store layouts.
         }
     }
 
-    
+
     function updateGlobalConsumerEnm(serviceName, consumerId, storeName, enm) {
-        const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND storeName="' + storeName + '"' ;
-//console.log(existingGlobalConsumerSql);
-        const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
-        if (existingGlobalConsumer) {
-            const updateConsumerEnm = 'UPDATE globalStoreConsumers SET enm=' + enm + ' WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND storeName="' + storeName + '" AND consumerId="' + consumerId +'"';
-            alasql(updateConsumerEnm);
-        }
+        alasql(`UPDATE globalStoreConsumers SET enm=${enm} WHERE localStoreName="${node.name}" AND serviceName="${serviceName}" AND storeName="${storeName}" AND consumerId="${consumerId}"`);
     }
 
     function updateGlobalConsumerEcm(serviceName, consumerId, storeName, ecm) {
-        const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND storeName="' + storeName + '"' ;
-        const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
-        if (existingGlobalConsumer) {
-            const updateConsumerEcm = 'UPDATE globalStoreConsumers SET ecm=' + ecm + ' WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND storeName="' + storeName + '" AND consumerId="' + consumerId +'"' ;
-            alasql(updateConsumerEcm);
-        }
+        alasql(`UPDATE globalStoreConsumers SET ecm=${ecm} WHERE localStoreName="${node.name}" AND serviceName="${serviceName}" AND storeName="${storeName}" AND consumerId="${consumerId}"`);
     }
 
-
     function updateGlobalConsumerErm(serviceName, consumerId, storeName, erm) {
-        const existingGlobalConsumerSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND storeName="' + storeName + '"' ;
+        const existingGlobalConsumerSql = `SELECT * FROM globalStoreConsumers WHERE localStoreName="${node.name}" AND serviceName="${serviceName}" AND storeName="${storeName}"`;
         const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
         if (existingGlobalConsumer) {
-            const updateConsumerErm = 'UPDATE globalStoreConsumers SET erm=' + erm + ' WHERE localStoreName="' + node.name + '" AND serviceName="' + serviceName + '" AND storeName="' + storeName + '"AND consumerId="' + consumerId +'"' ;
+            const updateConsumerErm = `UPDATE globalStoreConsumers SET erm=${erm} WHERE localStoreName="${node.name}" AND serviceName="${serviceName}" AND storeName="${storeName}"AND consumerId="${consumerId}"`;
             alasql(updateConsumerErm);
         }
     }
 
-
-    function deleteNotify(redlinkMsgId) {
-        const deleteNotifyMsg = 'DELETE from notify WHERE redlinkMsgId = "' + redlinkMsgId + '" and storeName = "' + node.nam+'"';
-//        console.log('Delete Notify Store = ',node.name,'  msgId = ',redlinkMsgId);
-        return alasql(deleteNotifyMsg);
+    function calculateEnm(serviceName, consumerId) {
+        //console.log('in store ', node.name, 'serviceNAme:', serviceName, 'consumerId:', consumerId);
+        //console.log('all localStoreConsumers:', alasql('select * from localStoreConsumers'));
+        const existingLocalConsumerSql = `SELECT * FROM localStoreConsumers   WHERE storeName="${node.name}" AND serviceName="${serviceName}" AND consumerId="${consumerId}"`;
+        //console.log('existingLocalConsumersSql:', existingLocalConsumerSql, 'existingLocalConsumers:', alasql(existingLocalConsumerSql));
+        const notifyCountSql = `select count(*) nc from (SELECT * FROM notify WHERE storeName="${node.name}" AND serviceName="${serviceName}" AND consumerId="${consumerId}")`;
+        const nc = alasql(notifyCountSql)[0].nc;
+        const itlSql = `select inTransitLimit from (${existingLocalConsumerSql})`;
+        //console.log('itlSql:', itlSql);
+        const itl = alasql(itlSql)[0].inTransitLimit;
+        ////console.log(consumerId,'=',((nc)/itl*100).toFixed(0));
+        return ((nc) / itl * 100).toFixed(0);
     }
-
-   function calculateEnm(serviceName,consumerId) {
-       const existingLocalConsumerSql = 'SELECT * FROM localStoreConsumers   WHERE storeName="' + node.name + '" AND serviceName="' + serviceName + '" AND consumerId="'+consumerId+'"';
-       const notifyCountSql = 'select count(*) nc from (SELECT * FROM notify WHERE storeName="' + node.name + '" AND serviceName="' + serviceName + '" AND consumerId="'+consumerId+'")';
-       const nc = alasql(notifyCountSql)[0].nc;
-       const itlSql = 'select inTransitLimit itl from ('+existingLocalConsumerSql+')';
-       const itl = alasql(itlSql)[0].itl;
-       //console.log(consumerId,'=',((nc)/itl*100).toFixed(0));
-       return ((nc)/itl*100).toFixed(0);
-   }
 
     const app = httpsServer.getExpressApp();
 
     app.post('/notify', (req, res) => { // todo validation on params
         const notifyType = req.body.notifyType;
-//        console.log(req.body);
-//        console.log('NOTIFICATION TYPE = ',notifyType);
         switch (notifyType) {
-
             case 'consumerRegistration' :
-
-                sendMessage({ debug: { storeName: node.name, action: 'notifyConsumerRegistration', direction: 'inBound', data: req.body } });
+                sendMessage({
+                    debug: {
+                        storeName: node.name,
+                        action: 'notifyConsumerRegistration',
+                        direction: 'inBound',
+                        data: req.body
+                    }
+                });
 
                 const consumer = req.body.consumer;
                 const serviceName = consumer.serviceName;
@@ -522,8 +539,8 @@ console.log('SELECTION=',alasql(globalStoresSql));
 
                     case 'store' : // Store only rego, this causes the southPeers list to update;
                         if (!node.southPeers.includes(transitAddress + ':' + transitPort)) {
-                           node.southPeers.push(transitAddress + ':' + transitPort);
-                           notifyAllSouthStoreConsumers(notifyDirections.SOUTH);                       // Pass the resistration to any other south store
+                            node.southPeers.push(transitAddress + ':' + transitPort);
+                            notifyAllSouthStoreConsumers(notifyDirections.SOUTH);                       // Pass the resistration to any other south store
                         } // Add this call as it is actually a store south calling this north store
                         res.status(200).send({action: 'consumerRegistration', status: 200});
                         break;
@@ -543,197 +560,307 @@ console.log('SELECTION=',alasql(globalStoresSql));
 
                     case 'north' : // Connection is connecting from the South and this is why the routing is indicating that the serviceName is south of this store
                         if (node.southInsert) {
-                           insertGlobalConsumer(serviceName, consumerId, storeName, 'south', storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm, enm);
-                           notifyNorthStoreOfConsumers(consumer, node.listenAddress, node.listenPort); // Pass the registration forward to the next store
-                           notifyAllSouthStoreConsumers(notifyDirections.SOUTH);                       // Pass the resistration to any other south store
+                            insertGlobalConsumer(serviceName, consumerId, storeName, 'south', storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm, enm);
+                            notifyNorthStoreOfConsumers(consumer, node.listenAddress, node.listenPort); // Pass the registration forward to the next store
+                            notifyAllSouthStoreConsumers(notifyDirections.SOUTH);                       // Pass the resistration to any other south store
                         }
                         res.status(200).send({action: 'consumerRegistration', status: 200});
                         break;
 
                     case 'south' : // Connection is connecting from the North and this is why the routing is indicating that the serviceName is north of this store
                         insertGlobalConsumer(serviceName, consumerId, storeName, 'north', storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm, enm);
-                        if (node.northPeers.filter( x=> x.ip == transitAddress && x.port == transitPort.toString() ).length > 0) {
-                          if (node.northPeers.filter( x=> x.ip == transitAddress && x.port == transitPort.toString() &&  x.redistribute=='true').length > 0) {
-                             notifySouthStoreOfConsumers(consumer, notifyDirections.SOUTH, storeAddress, storePort, node.listenAddress, node.listenPort);
-                             }
-                          res.status(200).send({action: 'consumerRegistration', status: 200});
+                        if (node.northPeers.filter(x => x.ip == transitAddress && x.port == transitPort.toString()).length > 0) {
+                            if (node.northPeers.filter(x => x.ip == transitAddress && x.port == transitPort.toString() && x.redistribute == 'true').length > 0) {
+                                notifySouthStoreOfConsumers(consumer, notifyDirections.SOUTH, storeAddress, storePort, node.listenAddress, node.listenPort);
+                            }
+                            res.status(200).send({action: 'consumerRegistration', status: 200});
+                        } else {
+                            res.status(404).send({action: 'consumerRegistration', status: 404});
                         }
-                        else {
-                          res.status(404).send({action: 'consumerRegistration', status: 404});
-                        }  
                         break;
                 }
 
                 break;
 
             case 'confirmNotification' :
-                // Once consumer selection has been done by the consumers store, then it is notified by poping the first element of the notifyPath and following the trail to the consumer
-                let   myNotifyPath = req.body.tempPath; // Pop the first address:port off the front of the path as it's how it got here
-                myNotifyPath = myNotifyPath.slice(1);
-                if (myNotifyPath.length == 0) {
-                  const notifyInsertSql = 'INSERT INTO notify VALUES ("' + node.name + '","' + req.body.service + '","' + req.body.srcStoreAddress + '",' + req.body.srcStorePort + ',"' +
-                                          req.body.redlinkMsgId + '","",false,"' + req.body.redlinkProducerId + '","'+ base64Helper.encode(req.body.notifyPath)+'",'+Date.now()+',"'+req.body.consumerId+'",true)';
-                  if (req.body.consumerId != "") {
-                    alasql(notifyInsertSql);
-                    updateGlobalConsumerEnm(req.body.service, req.body.consumerId, node.name, calculateEnm(req.body.service,req.body.consumerId));
-                    res.status(200).send({action: 'confirmNotification :Inserted Notify ', consumerId: req.body.consumerId, enm: calculateEnm(req.body.service,req.body.consumerId), 
-                    service: req.body.service, storeName : node.name, status: 200});
-                  }
-                else
-                  {
-                    res.status(200).send({action: 'confirmNotification :Inserted Notify No Consumer Specified', consumerId: req.body.consumerId, status: 404});
-                  }   
+                //console.log('\n\n\n\nin confirmNotification req.body is:', req.body);
+                // Once consumer selection has been done by the consumers store, then it is notified by popping the first element of the notifyPath and following the trail to the consumer
+                let myNotifyPath = req.body.tempPath; // Pop the first address:port off the front of the path as it's how it got here
+                if(!myNotifyPath){
+                    // console.log('\n\n\n\n  in store ', node.name, ' confirmNotification... req.body.tempPath is undefined... the req.body is:', req.body);
                 }
-              else
-                { //Time to follow the trail
-                  const path = myNotifyPath[0];
-                  try {
+                myNotifyPath = myNotifyPath.slice(1);
+                if (myNotifyPath.length === 0) {
+                    const matchingMessage = alasql(`SELECT sendOnly from inMessages WHERE redlinkMsgId="${req.body.redlinkMsgId}"`);
+                    let sendOnly = false;
+                    if(matchingMessage.length > 0){
+                        sendOnly = matchingMessage[0].sendOnly;
+                    }
+                    //console.log('\n\n\n\nsendOnly:', sendOnly);
+                    const notifyInsertSql = `INSERT INTO notify VALUES ("${node.name}","${req.body.service}","${req.body.srcStoreAddress}",${req.body.srcStorePort},"${req.body.redlinkMsgId}","",false,"${req.body.redlinkProducerId}","${base64Helper.encode(req.body.notifyPath)}",${Date.now()},"${req.body.consumerId}",true, ${sendOnly})`;
+                    if (req.body.consumerId !== "") {
+                        alasql(notifyInsertSql);
+                        updateGlobalConsumerEnm(req.body.service, req.body.consumerId, node.name, calculateEnm(req.body.service, req.body.consumerId));
+                        res.status(200).send({
+                            action: 'confirmNotification :Inserted Notify ',
+                            consumerId: req.body.consumerId,
+                            enm: calculateEnm(req.body.service, req.body.consumerId),
+                            service: req.body.service,
+                            storeName: node.name,
+                            status: 200
+                        });
+                    } else {
+                        res.status(200).send({
+                            action: 'confirmNotification :Inserted Notify No Consumer Specified',
+                            consumerId: req.body.consumerId,
+                            status: 404
+                        });
+                    }
+                } else { //Time to follow the trail
+                    const path = myNotifyPath[0];
+                    try {
                         req.body.tempPath = myNotifyPath;
-                        const destinationStoreAddress = path.address+":"+path.port;
-                        const options = { method: 'POST', url: 'https://' + destinationStoreAddress + '/notify', body:req.body, json: true };
+                        const destinationStoreAddress = path.address + ":" + path.port;
+                        const options = {
+                            method: 'POST',
+                            url: 'https://' + destinationStoreAddress + '/notify',
+                            body: req.body,
+                            json: true
+                        };
 
-                        async function doStuff() {
-                           const awaitOut = await request(options).then (response => {
-                           console.log('confirmation = ',response);
-
-                           updateGlobalConsumerEnm(response.service, response.consumerId, response.storeName, response.enm);
-                           res.status(200).send({action: 'REPLY confirmNotification forward to stores '+node.name+ ' remoteMatchingStores Result =', 
-                                                   consumerId: response.consumerId, redlinkMsgId : response.redlinkMsgId, redlinkProducerId : response.redlinkProducerId, notifyPath : response.notifyPath, 
-                                                   enm: response.enm, service : response.service, storeName: response.storeName, status: 200});
-                              return response;
-                           });
-                           return awaitOut;
-                        }
-                        doStuff(); // This is the actual call to forward the notify , it causes recursive /producerNotifies lookups through the stores.
-                      }      
-                   catch(e)
-                      {
-                       console.log('This should not happen NOTIFY TRANSIT PATH Error ',e);
-                       res.status(200).send({action: 'REPLY NOTIFY TRANSIT PATH Error producerNotification forward to stores '+node.name+ ' remoteMatchingStores Result =', consumerId: notifyConsumerId, notifyPath, status: 404});
-                      }
-                  
-               }  
+                        (async function () {
+                            const response = await requestPromise(options);
+                                updateGlobalConsumerEnm(response.service, response.consumerId, response.storeName, response.enm);
+                                res.status(200).send({
+                                    action: 'REPLY confirmNotification forward to stores ' + node.name + ' remoteMatchingStores Result =',
+                                    consumerId: response.consumerId,
+                                    redlinkMsgId: response.redlinkMsgId,
+                                    redlinkProducerId: response.redlinkProducerId,
+                                    notifyPath: response.notifyPath,
+                                    enm: response.enm,
+                                    service: response.service,
+                                    storeName: response.storeName,
+                                    status: 200
+                                });
+                            return response;
+                        })(); // This is the actual call to forward the notify , it causes recursive /producerNotifies lookups through the stores.
+                    } catch (e) {
+                        // console.log('\n\n\n\n!@#$% 1 in store', node.name, 'This should not happen NOTIFY TRANSIT PATH Error ', e);
+                        res.status(200).send({
+                            action: `REPLY NOTIFY TRANSIT PATH Error producerNotification forward to stores ${node.name} remoteMatchingStores Result =`,
+                            consumerId: req.body.consumerId,
+                            notifyPath : [], //todo confirm with John
+                            status: 404
+                        });
+                    }
+                }
                 break;
 
-
             case 'producerNotification' :
-                let   notifyPath =[];
-                req.body.notifyPath.forEach(function (path) {  notifyPath.push(path); });
-                
-                sendMessage({ debug: { storeName: node.name, action: 'producerNotification', direction: 'Received', data: req.body } });
-                let notifyConsumerId = '' // Default Notify return, this store doesnt have the capacity to process this notification
-                const existingLocalConsumerSql = 'SELECT * FROM localStoreConsumers WHERE storeName="' + node.name + '" AND serviceName="' + req.body.service + '"';
+                //console.log('in store ', node.name, ' got producer notification');
+                let notifyPath = [];
+                req.body.notifyPath.forEach(function (path) {
+                    notifyPath.push(path);
+                });
+
+                sendMessage({
+                    debug: {
+                        storeName: node.name,
+                        action: 'producerNotification',
+                        direction: 'Received',
+                        data: req.body
+                    }
+                });
+                let notifyConsumerId = ''; // Default Notify return, this store doesnt have the capacity to process this notification
+                const existingLocalConsumerSql = `SELECT * FROM localStoreConsumers WHERE storeName="${node.name}" AND serviceName="${req.body.service}"`;
                 const localCons = alasql(existingLocalConsumerSql);
 
                 // Local Consumer Code Starts Here
 
                 if (localCons.length > 0) {
-
-                   let thisPath = {}; // Add my own store to the path, the producers need to to confirm the notification later
-                   if (notifyPath.length > 0)  thisPath = {store:node.name,enforceReversePath:notifyPath[0].enforceReversePath, address:node.listenAddress,port:node.listenPort};
-                                          else thisPath = {store:node.name,enforceReversePath:req.body.enforceReversePath|req.body.enforceReversePath, address:node.listenAddress,port:node.listenPort};
-                   notifyPath.push(thisPath);
- 
-                   // If this store has a local consumer on it then on confirmation send out a local notify, note that this store will terminate local service names here and will not forward them
-                    
-                   const existingNotifySql = 'SELECT * FROM notify WHERE storeName="' + node.name + '" AND serviceName="' + req.body.service + '" AND srcStoreAddress="' +
-                                              req.body.srcStoreAddress + '" AND srcStorePort=' + req.body.srcStorePort + ' AND redlinkMsgId="' + req.body.redlinkMsgId +'"';
-                   const existingNotify = alasql(existingNotifySql);
-
-                   // If existing notify, then tell the producer 
-                   if (existingNotify && existingNotify.length > 0) {
-                       notifyConsumerId = ''; // let this one go, already done.   
-                       sendMessage({ debug : { storeName: node.name, action: 'producerNotification', direction: 'LocalConsumerNotifyDeniedAlreadyAccepted', data: req.body } });
-                       const enm = calculateEnm(req.body.service,consumer.notifyConsumerId);
-                       res.status(200).send({action: 'Return back to producerNotification LocalConsumerNotifyDeniedAlreadyAccepted '+node.name, 
-                                            consumerId: notifyConsumerId, redlinkMsgId : req.body.redlinkMsgId, redlinkProducerId : req.body.redlinkProducerId, enm, notifyPath, consumerStore : req.body.storeName, status: 404});
-                   }
-                 else
-                   {
-                      // Lets see what the consumers capacity is for service
-                      try {
-                            sendMessage({ debug: { storeName: node.name, action: 'producerNotification', direction: 'LocalConsumerNotifyAccepted', data: req.body } });
-                         
-                            // OK, now check for my consumer's capacity to actually queue this notify by seeing if the total consumers "inTransitLimit" is in limits. 
-                      
-                            const consumerIdsSql = 'select consumerId,serviceName from globalStoreConsumers WHERE storeName="' + node.name + '" AND serviceName="' + req.body.service + '" AND enm < 100 order by enm limit 1';
+                    let thisPath = {
+                        store: node.name,
+                        address: node.listenAddress,
+                        port: node.listenPort
+                    }; // Add my own store to the path, the producers need to to confirm the notification later
+                    if (notifyPath.length > 0) {
+                        thisPath.enforceReversePath = notifyPath[0].enforceReversePath;
+                    } else {
+                        thisPath.enforceReversePath = req.body.enforceReversePath
+                    }
+                    notifyPath.push(thisPath);
+                    // If this store has a local consumer on it then on confirmation send out a local notify, note that this store will terminate local service names here and will not forward them
+                    const existingNotifySql = `SELECT * FROM notify WHERE storeName="${node.name}" AND serviceName="${req.body.service}" AND srcStoreAddress="${req.body.srcStoreAddress}" AND srcStorePort=${req.body.srcStorePort} AND redlinkMsgId="${req.body.redlinkMsgId}"`;
+                    const existingNotify = alasql(existingNotifySql);
+                    // If existing notify, then tell the producer
+                    if (existingNotify && existingNotify.length > 0) {
+                        notifyConsumerId = ''; // let this one go, already done.
+                        sendMessage({
+                            debug: {
+                                storeName: node.name,
+                                action: 'producerNotification',
+                                direction: 'LocalConsumerNotifyDeniedAlreadyAccepted',
+                                data: req.body
+                            }
+                        });
+                        const enm = calculateEnm(req.body.service, consumer.notifyConsumerId);
+/*
+                        console.log('in store ', node.name, ' already have a notify for thsi message- going to reply back saying :', {
+                            action: 'Return back to producerNotification LocalConsumerNotifyDeniedAlreadyAccepted ' + node.name,
+                            consumerId: notifyConsumerId,
+                            redlinkMsgId: req.body.redlinkMsgId,
+                            redlinkProducerId: req.body.redlinkProducerId,
+                            enm,
+                            notifyPath,
+                            consumerStore: req.body.storeName,
+                            status: 404
+                        });
+*/
+                        res.status(200).send({
+                            action: 'Return back to producerNotification LocalConsumerNotifyDeniedAlreadyAccepted ' + node.name,
+                            consumerId: notifyConsumerId,
+                            redlinkMsgId: req.body.redlinkMsgId,
+                            redlinkProducerId: req.body.redlinkProducerId,
+                            enm,
+                            notifyPath,
+                            consumerStore: req.body.storeName,
+                            status: 404
+                        });
+                    } else {
+                        // Lets see what the consumers capacity is for service
+                        try {
+                            sendMessage({
+                                debug: {
+                                    storeName: node.name,
+                                    action: 'producerNotification',
+                                    direction: 'LocalConsumerNotifyAccepted',
+                                    data: req.body
+                                }
+                            });
+                            // OK, now check for my consumer's capacity to actually queue this notify by seeing if the total consumers "inTransitLimit" is in limits.
+                            //tODO this one is really wonky- need to fix this now!!!
+                            // const enmClause =
+                            const consumerIdsSql = `select consumerId,serviceName,enm from globalStoreConsumers WHERE localStoreName="${node.name}" AND storeName="${node.name}" AND serviceName="${req.body.service}" AND enm<100 order by enm limit 1`;
                             const consumerIds = alasql(consumerIdsSql);
-                            console.log('TARGET CONSUMERS=',consumerIds);
-                            // console.log('FINALLY FOUND A LOCAL STORE to INSERT NOTIFY redlinkMsgId=',req.body.redlinkMsgId,' consumerId=',consumer.consumerId, enm);  
-                            if (consumerIds.length > 0) { 
-                              res.status(200).send({action: 'Return back to producerNotification to consumer '+node.name, 
-                                                    consumerId: consumerIds[0].consumerId, redlinkMsgId : req.body.redlinkMsgId, 
-                                                    redlinkProducerId : req.body.redlinkProducerId, 
-                                                    enm : consumerIds[0].enm,
-                                                    notifyPath, 
-                                                    consumerStore : thisPath.store, 
-                                                    status: 200});
+                            //SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '"
+                            //console.log('in store ', node.name, ' all the current globalStoreConsumers are:', alasql('select * from globalStoreConsumers'));
+                            //console.log('TARGET CONSUMERS=', consumerIds, ' in store:', node.name);
+                            // //console.log('FINALLY FOUND A LOCAL STORE to INSERT NOTIFY redlinkMsgId=',req.body.redlinkMsgId,' consumerId=',consumer.consumerId, enm);
+                            if (consumerIds.length > 0) {
+                                res.status(200).send({
+                                    action: 'Return back to producerNotification to consumer ' + node.name,
+                                    consumerId: consumerIds[0].consumerId, redlinkMsgId: req.body.redlinkMsgId,
+                                    redlinkProducerId: req.body.redlinkProducerId,
+                                    enm: consumerIds[0].enm,
+                                    notifyPath,
+                                    consumerStore: thisPath.store,
+                                    status: 200
+                                });
+                            } else {
+                                res.status(200).send({
+                                    action: 'Return back to producerNotification to consumer ' + node.name,
+                                    consumerId: "",
+                                    redlinkMsgId: req.body.redlinkMsgId,
+                                    redlinkProducerId: req.body.redlinkProducerId,
+                                    enm: 100,
+                                    notifyPath,
+                                    consumerStore: thisPath.store,
+                                    status: 404
+                                });
                             }
-                          else
-                            {  
-                              res.status(200).send({action: 'Return back to producerNotification to consumer '+node.name, 
-                                                    consumerId: "", 
-                                                    redlinkMsgId : req.body.redlinkMsgId, 
-                                                    redlinkProducerId : req.body.redlinkProducerId, 
-                                                    enm : 100,
-                                                    notifyPath, 
-                                                    consumerStore : thisPath.store, 
-                                                    status: 404});
+                        } catch (e) {
+                            // console.log('\n\n\n\n\n !@#$% 2 error in store', node.name, 'notify.producerNotification', e);
+                            //console.log('in store ', node.name, ' some major ERROR ', e);
+                            res.status(200).send({
+                                action: 'Return back to producerNotification to consumer ' + node.name,
+                                consumerId: notifyConsumerId,
+                                redlinkMsgId: req.body.redlinkMsgId,
+                                redlinkProducerId: req.body.redlinkProducerId,
+                                enm: 100,
+                                notifyPath,
+                                consumerStore: req.body.storeName,
+                                status: 404
+                            });
+                        }
+                    }
+                    break;
+                } else {
+                    //console.log('no local consumer found- transit notify...');
+                    // Transit Notify Code starts here
+                    // Note that the reverse path state is set in the first notify, so, we can use it to set subsequent notifies
+                    let thisPath = {
+                        store: node.name,
+                        address: node.listenAddress,
+                        port: node.listenPort
+                    };
+                    if (notifyPath.length > 0) {
+                        thisPath.enforceReversePath = notifyPath[0].enforceReversePath;
+                    } else {
+                        thisPath.enforceReversePath = req.body.enforceReversePath;
+                    }
+                    notifyPath.push(thisPath);
+                    const remoteMatchingStores = [...new Set([...getRemoteMatchingStores(req.body.service, node.meshName, node.interStoreLoadBalancer, req.body.enforceReversePath)])];
+                    if (remoteMatchingStores.length === 0) { // this can be empty- there may not be a matching store as registrations may still be in progress- in case of redeploy for example
+                        res.status(200).send({
+                            action: 'REPLY NOTIFY TRANSIT PATH Error producerNotification forward to stores ' + node.name + ' remoteMatchingStores Result ='+ remoteMatchingStores,
+                            consumerId: notifyConsumerId,
+                            enm: 100,
+                            notifyPath,
+                            status: 404
+                        });
+                        return;
+                    }
+                    //todo
+                    try {
+                        // This is the interstore notifier
+                        req.body.notifyPath = notifyPath;
+                        //console.log('in prodeucerNotification of store', node.name, ' set req.body.notifyPath to', req.body.notifyPath);
+                        let remoteStore = remoteMatchingStores[0];
+                        let destinationStoreAddress = remoteStore.transitStoreAddress;
+                        const options = {
+                            method: 'POST',
+                            url: 'https://' + destinationStoreAddress + '/notify',
+                            body: req.body,
+                            json: true
+                        };
+                        //console.log('in producerNotification posting to:', JSON.stringify(options, null, 2));
+                        ////console.log(destinationStoreAddress );
+                        (async function () {
+                            try {
+                                const response = await requestPromise(options);
+                                if (response.consumerId !== "") {
+                                    //Set the ecm value here on response for this store
+                                    //                                       updateGlobalConsumerEnm(req.body.service, response.consumerId, response.consumerStore, response.enm);
+                                }
+                                res.status(200).send({
+                                    action: 'REPLY producerNotification forward to stores ' + node.name + ' remoteMatchingStores Result ='+ remoteMatchingStores,
+                                    consumerId: response.consumerId,
+                                    redlinkMsgId: response.redlinkMsgId,
+                                    redlinkProducerId: response.redlinkProducerId,
+                                    enm: response.enm,
+                                    notifyPath: response.notifyPath,
+                                    consumerStore: response.consumerStore,
+                                    status: response.status
+                                });
+                            } catch (e) {
+                                // console.log('\n\n\n\n !@#$ 3 in store', node.name,  'got an error here...', e);
+                                res.status(200).send({
+                                    action: 'Error producerNotification forward to stores ' + node.name + ' Connection Reset',
+                                    status: 404
+                                });
                             }
-                                                    
-                          }
-                      catch(e) {
-                            console.log('ERROR READ ',e);
-                            res.status(200).send({action: 'Return back to producerNotification to consumer '+node.name, 
-                                                  consumerId: notifyConsumerId, redlinkMsgId : req.body.redlinkMsgId, redlinkProducerId : req.body.redlinkProducerId, 
-                                                  enm:100, notifyPath, consumerStore : req.body.storeName, status: 404});
-                            }                                
-                   }
-                   break;
-                }
-
-              else
-                {
-                  // Transit Notify Code starts here
-                  // Note that the reverse path state is set in the first notify, so, we can use it to set subsequent notifies
-                   let thisPath = {};
-                   if (notifyPath.length > 0)  thisPath = {store:node.name,enforceReversePath:notifyPath[0].enforceReversePath, address:node.listenAddress,port:node.listenPort};
-                                          else thisPath = {store:node.name,enforceReversePath:req.body.enforceReversePath|req.body.enforceReversePath, address:node.listenAddress,port:node.listenPort};
-                   notifyPath.push(thisPath);
-                   const remoteMatchingStores = [...new Set([...getRemoteMatchingStores(req.body.service, node.meshName, node.interStoreLoadBalancer, req.body.sendOnly)])];
-  console.log('NEW MESSAGE=',remoteMatchingStores);                 
-                   try {
-                         // This is the interstore notifier
-                               req.body.notifyPath = notifyPath;
-                               let remoteStore = remoteMatchingStores[0];
-                               let destinationStoreAddress = remoteStore.transitStoreAddress;
-                               const options = { method: 'POST', url: 'https://' + destinationStoreAddress + '/notify', body: req.body, json: true };
-                               //console.log(destinationStoreAddress );
-                               async function doStuff() {
-                                  const awaitOut = await request(options).then (response => {
-                                     if (response.consumerId != "") { 
-                                       //Set the ecm value here on response for this store
-//                                       updateGlobalConsumerEnm(req.body.service, response.consumerId, response.consumerStore, response.enm);
-                                     }
-                                     res.status(200).send({action: 'REPLY producerNotification forward to stores '+node.name+ ' remoteMatchingStores Result =', 
-                                                           consumerId: response.consumerId, redlinkMsgId : response.redlinkMsgId, redlinkProducerId : response.redlinkProducerId, 
-                                                           enm:response.enm, notifyPath : response.notifyPath, consumerStore: response.consumerStore, status: response.status});
-                                     return response;
-                                  }).catch(myError => {
-                                  //  console.log(myError);
-                                     res.status(200).send({action: 'Error producerNotification forward to stores '+node.name+ ' Connection Reset', status: 404});
-                                     return {};
-                               });
-                               return awaitOut;     
-                               }      
-                               
-                               doStuff(); // This is the actual call to forward the notify , it causes recursive /producerNotifies lookups through the stores.
-                         }    
-                   catch(e)
-                         {
-                           res.status(404).send({action: 'REPLY NOTIFY TRANSIT PATH Error producerNotification forward to stores '+node.name+ ' remoteMatchingStores Result =', consumerId: notifyConsumerId, enm:100, notifyPath, status: 404});
-                          }
-                   break;
+                        })(); // This is the actual call to forward the notify , it causes recursive /producerNotifies lookups through the stores.
+                    } catch (e) {
+                        // console.log('\n\n\n\n !@#$ 4 in store', node.name,  'got an error here @@@ ...', e);
+                        res.status(200).send({
+                            action: 'REPLY NOTIFY TRANSIT PATH Error producerNotification forward to stores ' + node.name + ' remoteMatchingStores Result ='+ remoteMatchingStores,
+                            consumerId: notifyConsumerId,
+                            enm: 100,
+                            notifyPath,
+                            status: 404
+                        });
+                    }
+                    break;
                 }
         } // case
     }); // notify
@@ -741,210 +868,253 @@ console.log('SELECTION=',alasql(globalStoresSql));
 
     app.post('/read-message', (req, res) => {
         try { // This function allows path recusion backwards to producer
-             let notifyPathIn = base64Helper.decode(req.body.notifyPath);
-             const notifyPath=notifyPathIn.pop();
-             if (notifyPath.address === node.listenAddress && notifyPath.port === node.listenPort)
-                {
-                }
-              else
-                {
-                  updateGlobalConsumerEnm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.enm);
-                  updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay);
-                  updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay); // Dont know if the consumer actually read the job, so, set to the same read score.
-                  const body = req.body;
-                  body.notifyPath = base64Helper.encode(notifyPathIn);
-                  const options = { method: 'POST', url: 'https://' + notifyPath.address + ':' + notifyPath.port+ '/read-message', body, json: true  };
-                  sendMessage({ debug: { storeName: node.name, action: 'message-read-forwarding', direction: 'relayingBackToProducer', data: options } });
-                  request(options, function (error, response) {
-                    if (response) {
-//                       response.body.status = 200;
-                       res.status(200).send(response.body);
+            let notifyPathIn = base64Helper.decode(req.body.notifyPath);
+            const notifyPath = notifyPathIn.pop();
+            if (notifyPath.address === node.listenAddress && notifyPath.port === node.listenPort) {
+            } else {
+                updateGlobalConsumerEnm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.enm);
+                updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay);
+                updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay); // Dont know if the consumer actually read the job, so, set to the same read score.
+                const body = req.body;
+                body.notifyPath = base64Helper.encode(notifyPathIn);
+                const options = {
+                    method: 'POST',
+                    url: 'https://' + notifyPath.address + ':' + notifyPath.port + '/read-message',
+                    body,
+                    json: true
+                };
+                sendMessage({
+                    debug: {
+                        storeName: node.name,
+                        action: 'message-read-forwarding',
+                        direction: 'relayingBackToProducer',
+                        data: options
                     }
-                    else
-                    {
-//                       response.body.status = 404;                    
-                       res.status(200).send(response.body);
-                    }   
-
                 });
-              }
-           }
-        catch(e) //todo- fix this- relies on exception to control program flow
-           {
-             const redlinkMsgId = req.body.redlinkMsgId;
-             const redlinkProducerId = req.body.redlinkProducerId;
-             const redlinkReadDelay = req.body.readDelay;
-             const redlinkConsumerId = req.body.consumerId;
-             sendMessage({debug: {storeName: node.name, action: 'read-message', direction: 'inBound', Data: req.body}});
-             if (!redlinkMsgId) {
-                sendMessage({ debug: { storeName: node.name, action: 'read-message', direction: 'outBound', error: 'redlinkMsgId not specified-400' } });
-                res.status(200).send({err: 'redlinkMsgId not specified', redlinkProducerId, status : 400});
+                // console.log('in try block of read-message of store', node.name, 'going to request:', options.url);
+                request(options, function (error, response) {
+/*
+                    console.log('in try block of read-message of store', node.name, 'got response for request:', options.url, 'response headers are:', (response? response.headers: "no response"),
+                        'the res headers are: ', (res? res.headers: "no res(???)"));
+*/
+                    if (response) {
+                        const redlinkMsgMetadata = pick(response.headers, Object.keys(messageFields));
+                        res.set(redlinkMsgMetadata);
+                        res.status(200).send(response.body);
+                    } else {
+                        res.status(200).send({error:`no response from ${options.url} when message-read-forwarding`});
+                    }
+                });
+            }
+        } catch (e) //todo- fix this- relies on exception to control program flow
+        {
+                const redlinkMsgId = req.body.redlinkMsgId;
+            const redlinkProducerId = req.body.redlinkProducerId;
+            const redlinkReadDelay = req.body.readDelay;
+            const redlinkConsumerId = req.body.consumerId;
+            sendMessage({debug: {storeName: node.name, action: 'read-message', direction: 'inBound', Data: req.body}});
+            if (!redlinkMsgId) {
+                sendMessage({
+                    debug: {
+                        storeName: node.name,
+                        action: 'read-message',
+                        direction: 'outBound',
+                        error: 'redlinkMsgId not specified-400'
+                    }
+                });
+                res.status(200).send({err: 'redlinkMsgId not specified', redlinkProducerId, status: 400});
                 return;
-             }
-             const msgSql = 'SELECT * FROM inMessages WHERE redlinkMsgId="' + redlinkMsgId + '" AND read=false AND consumerId ="'+redlinkConsumerId+'"';
-             const msgs = alasql(msgSql);// should get one or none
-             if (msgs.length > 0) { // will be zero if the message has already been read
-                  sendMessage({ debug: { storeName: node.name, action: 'read-message', direction: 'outBound', data: msgs[msgs.length - 1], error: 'none' } });
-                  const message = msgs[0];
-                  const isLargeMessage = message.isLargeMessage;
-                  if (isLargeMessage) {
-                     const path = largeMessagesDirectory + redlinkMsgId +'/message.txt';
-                     // read msg from path
-                     msgs[0].message = fs.readFileSync(path, 'utf-8');
-                     fs.removeSync(path);
-                  }
+            }
+            const msgSql = `SELECT * FROM inMessages WHERE redlinkMsgId="${redlinkMsgId}" AND read=false AND consumerId ="${redlinkConsumerId}"`;
+            const msgs = alasql(msgSql);// should get one or none
+            if (msgs.length > 0) { // will be zero if the message has already been read
+                sendMessage({
+                    debug: {
+                        storeName: node.name,
+                        action: 'read-message',
+                        direction: 'outBound',
+                        data: msgs[msgs.length - 1],
+                        error: 'none'
+                    }
+                });
+                const message = msgs[0];
+                const headersObj = {};
+                Object.assign(headersObj, message);
+                delete headersObj.message;
+                res.set(headersObj);
+//                 console.log(`headers are:${JSON.stringify(req)}`);
+                const isLargeMessage = message.isLargeMessage;
+                if (isLargeMessage) {
+                    // console.log('i am just a streamer...');
+                    const path = largeMessagesDirectory + redlinkMsgId + '/message.txt';
+                    const src = fs.createReadStream(path);
+                    src.pipe(res);
+                    src.on('end', () => {
+                        fs.removeSync(path);
+                    });
+                } else {
+                    // console.log('i am not a streamer... just a dreamer...');
+                    const src = new Readable();
+                    src.push(message.message);
+                    src.push(null);
+                    src.pipe(res);
+                }
+                //This ecm is calculated in and by the consumer, it is the delay between receiving the notify and then performing this read, manual reads drastically increase this time in mS.
+                updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay);
+                updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, 0); //Hasnt replied yet, so, no scrore
 
-                 //This ecm is calculated in and by the consumer, it is the delay between receiving the notify and then performing this read, manual reads drastically increase this time in mS.
-                 updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay);
-                 updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, 0); //Hasnt replied yet, so, no scrore
- 
-                 const updateMsgStatus = 'UPDATE inMessages SET read=' + true + ' WHERE redlinkMsgId="' + msgs[0].redlinkMsgId + '"';
-                 alasql(updateMsgStatus);
+                const updateMsgStatus = `UPDATE inMessages SET read=true WHERE redlinkMsgId="${msgs[0].redlinkMsgId}"`;
+                alasql(updateMsgStatus);
 
-                 msgs[0].status = 200;
-                 res.send(msgs[0]); // send the oldest message first <<<<<<<<<<<<<<<<<<<<<<<
-               
-                 if (msgs[0].sendOnly) {            // delete if send only
-                    const deleteMsgSql = 'DELETE FROM inMessages WHERE redlinkMsgId="' + redlinkMsgId +'"';
+                msgs[0].status = 200;
+
+                if (msgs[0].sendOnly) {            // delete if send only
+                    const deleteMsgSql = `DELETE FROM inMessages WHERE redlinkMsgId="${redlinkMsgId}"`;
                     const deleteMsg = alasql(deleteMsgSql);
+                    //console.log('in read-message of store', node.name, ' going to update enm... the req.body is:', req.body);
                     updateGlobalConsumerEnm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.enm);
-                    NotifyEveryMsgNotRead(); // <------------------------------------------------------------
-                 } 
-             else 
-                 { 
-                   // update message to read=true , as this consumer won the message
-                  const updateMsgStatus = 'UPDATE inMessages SET read=' + true + ' WHERE redlinkMsgId="' + msgs[0].redlinkMsgId + '"';
-                  alasql(updateMsgStatus);
-                 }
-             } 
-           else 
-             { // Message has already been read.
-               updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay);
-               updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay); // Didnt get to do the job, so, give the reply the same read score.
-               const msg = redlinkMsgId ? 'Message with id ' + redlinkMsgId + ' not found- it may have already been read' : 'No unread messages';
-               sendMessage({ debug: { storeName: node.name, action: 'read-message', direction: 'outBound', error: msg } });
-               res.status(200).send({err:msg, redlinkProducerId, redlinkConsumerId, status : 404});
-             }
-           }  // catch
+                    //console.log('calling notify message 1');
+                    notifyUnreadMessages(); // <------------------------------------------------------------
+                } else {
+                    // update message to read=true , as this consumer won the message
+                    const updateMsgStatus = 'UPDATE inMessages SET read=' + true + ' WHERE redlinkMsgId="' + msgs[0].redlinkMsgId + '"';
+                    alasql(updateMsgStatus);
+                }
+            } else { // Message has already been read.
+                updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay);
+                updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay); // Didnt get to do the job, so, give the reply the same read score.
+                const msg = redlinkMsgId ? `Message with id ${redlinkMsgId} not found- it may have already been read` : 'No unread messages';
+                sendMessage({debug: {storeName: node.name, action: 'read-message', direction: 'outBound', error: msg}});
+                res.status(200).send({err: msg, redlinkProducerId, redlinkConsumerId, status: 404});
+            }
+        }  // catch
     });
 
     app.post('/reply-message', (req, res) => {
-       try { // This function allows path recusion backwards to producer
-             let notifyPathIn = base64Helper.decode(req.body.notifyPath);
-             const notifyPath=notifyPathIn.pop();
-             if (notifyPath.address === node.listenAddress && notifyPath.port === node.listenPort)
-               {
-               }
-             else
-               {
-               console.log('REPLYING - TRANSIT=',req.body);
-                 updateGlobalConsumerEnm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.enm);
-                 updateGlobalConsumerErm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.replyDelay); // Update the is score.
-                 const body = req.body;
-                 body.notifyPath = base64Helper.encode(notifyPathIn);
-                 const options = {
+        try { // This function allows path recusion backwards to producer
+            let notifyPathIn = base64Helper.decode(req.body.notifyPath);
+            const notifyPath = notifyPathIn.pop();
+            if (notifyPath.address === node.listenAddress && notifyPath.port === node.listenPort) {
+            } else {
+                //console.log('REPLYING - TRANSIT=', req.body);
+                updateGlobalConsumerEnm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.enm);
+                updateGlobalConsumerErm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.replyDelay); // Update the is score.
+                const body = req.body;
+                body.notifyPath = base64Helper.encode(notifyPathIn);
+                const options = {
                     method: 'POST',
-                    url: 'https://' + notifyPath.address + ':' + notifyPath.port+ '/reply-message',
+                    url: 'https://' + notifyPath.address + ':' + notifyPath.port + '/reply-message',
                     body,
                     json: true
-                 };
-                 sendMessage({ debug: { storeName: node.name, action: 'message-reply-forwarding', direction: 'relayingBackToProducer', data: options } });
-                 request(options, function (error, response) {
-                   try {
-                     res.status(response.statusCode).send(response.body);
-                     }
-                   catch(e){ //todo error handling and message
-                   }
-                 });
-              }
-           }
-       catch(e)
-           {
-             NotifyEveryMsgNotRead(); // <------------------------------------------------------------
-             console.log('REPLYING - TARGET=',req.body);
-             updateGlobalConsumerEnm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.enm);
-             updateGlobalConsumerErm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.replyDelay); // Update the reply score.
+                };
+                sendMessage({
+                    debug: {
+                        storeName: node.name,
+                        action: 'message-reply-forwarding',
+                        direction: 'relayingBackToProducer',
+                        data: options
+                    }
+                });
+                request(options, function (error, response) {
+                    try {
+                        res.status(response.statusCode).send(response.body);
+                    } catch (e) { //todo error handling and message
+                    }
+                });
+            }
+        } catch (e) {
+            //console.log('calling notify message 2 ');
+            notifyUnreadMessages(); // <------------------------------------------------------------
+            //console.log('REPLYING - TARGET=', req.body);
+            updateGlobalConsumerEnm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.enm);
+            updateGlobalConsumerErm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.replyDelay); // Update the reply score.
 
-             const redlinkMsgId = req.body.redlinkMsgId;
-             const redlinkProducerId = req.body.redlinkProducerId;
-             // const replyingService = req.body.replyingService;
-             const message = req.body.payload;
-             var cerror = '';
-             if (req.body.cerror) {cerror = req.body.cerror}
-             sendMessage({ debug: { storeName: node.name, action: 'reply-message', direction: 'inBound', Data: req.body } });
-             const replyMsgSql = 'SELECT DISTINCT * FROM replyMessages WHERE redlinkMsgId="' + redlinkMsgId + '"';
-             const replyMsg = alasql(replyMsgSql);
-             if (replyMsg.length === 0) {
+            const redlinkMsgId = req.body.redlinkMsgId;
+            const redlinkProducerId = req.body.redlinkProducerId;
+            // const replyingService = req.body.replyingService;
+            const message = req.body.payload;
+            var cerror = '';
+            if (req.body.cerror) {
+                cerror = req.body.cerror
+            }
+            sendMessage({debug: {storeName: node.name, action: 'reply-message', direction: 'inBound', Data: req.body}});
+            const replyMsgSql = `SELECT DISTINCT * FROM replyMessages WHERE redlinkMsgId="${redlinkMsgId}"`;
+            const replyMsg = alasql(replyMsgSql);
+            if (replyMsg.length === 0) {
                 let insertReplySql;
-               if (isLargeMessage(message)){
-                 //store reply to disk
-                 const path = largeMessagesDirectory + redlinkMsgId + '/';
-                 fs.outputFileSync(path + 'reply.txt', message);
-                 insertReplySql = 'INSERT INTO replyMessages ("' + node.name + '","' + redlinkMsgId + '","' + redlinkProducerId + '","' + '' + '", false, true,"'+cerror+'")';
-                 }else{
-                 insertReplySql = 'INSERT INTO replyMessages ("' + node.name + '","' + redlinkMsgId + '","' + redlinkProducerId + '","' + message + '", false, false,"'+cerror+'")';
-               }
-               alasql(insertReplySql);
-               res.status(200).send({msg: 'Reply received for ', redlinkMsgId: redlinkMsgId}); //todo fix error message
-             } else {
-               res.status(404).send({msg: 'Reply Rejected for ', redlinkMsgId: redlinkMsgId});
-             }
-           } //catch
+                if (isLargeMessage(message)) {
+                    //store reply to disk
+                    const path = largeMessagesDirectory + redlinkMsgId + '/';
+                    fs.outputFileSync(path + 'reply.txt', message);
+                    insertReplySql = `INSERT INTO replyMessages ("${node.name}","${redlinkMsgId}","${redlinkProducerId}","", false, true,"${cerror}")`;
+                } else {
+                    insertReplySql = `INSERT INTO replyMessages ("${node.name}","${redlinkMsgId}","${redlinkProducerId}","${message}", false, false,"${cerror}")`;
+                }
+                alasql(insertReplySql);
+                res.status(200).send({msg: `Reply received for ${redlinkMsgId}`, redlinkMsgId}); //todo fix error message
+            } else {
+                res.status(404).send({msg: `Reply Rejected for ${redlinkMsgId}`, redlinkMsgId});
+            }
+        } //catch
     });
 
 
     function deleteOldConsumers() {
-      const selectSql = 'select * from globalStoreConsumers where localStoreName = "'+node.name+'" and ttl <= '+ Math.floor(new Date().getTime() / 1000);
-      const deleteSql = 'delete   from globalStoreConsumers where localStoreName = "'+node.name+'" and ttl <= '+ Math.floor(new Date().getTime() / 1000);
-      const selectData = alasql(selectSql);
-      if (selectData && selectData.length > 0) {
-        sendMessage({ registration: { storeName: node.name, action: 'deleteConsumer', direction: 'outBound', data: {record:selectData,time:Math.floor(new Date().getTime() / 1000)}, error: 'none' } });
-       alasql(deleteSql);
-      }
+        const selectSql = `select * from globalStoreConsumers where localStoreName = "${node.name}" and ttl <= ${Math.floor(new Date().getTime() / 1000)}`;
+        const deleteSql = `delete   from globalStoreConsumers where localStoreName = "${node.name}" and ttl <= ${Math.floor(new Date().getTime() / 1000)}`;
+        const selectData = alasql(selectSql);
+        if (selectData && selectData.length > 0) {
+            sendMessage({
+                registration: {
+                    storeName: node.name,
+                    action: 'deleteConsumer',
+                    direction: 'outBound',
+                    data: {record: selectData, time: Math.floor(new Date().getTime() / 1000)},
+                    error: 'none'
+                }
+            });
+            alasql(deleteSql);
+        }
     }
 
     function reSyncStores(timeOut) {
         return setInterval(function () {
-           // First get any local consumers that I own and update my own global entries in my own store, this updates ttl.
-           notifyPeerStoreOfLocalConsumers(node.listenAddress, node.listenPort, node.listenAddress, node.listenPort);
-           deleteOldConsumers();              // Next  clean up my store first to remove old entries that have not renewed themselves
-           notifyAllNorthPeerStoresOnly();    // Make sure the north store knows about me.
-        },timeOut);
+            // First get any local consumers that I own and update my own global entries in my own store, this updates ttl.
+            notifyPeerStoreOfLocalConsumers(node.listenAddress, node.listenPort, node.listenAddress, node.listenPort);
+            deleteOldConsumers();              // Next  clean up my store first to remove old entries that have not renewed themselves
+            notifyAllNorthPeerStoresOnly();    // Make sure the north store knows about me.
+        }, timeOut);
     }
 
     function statusStores(timeOut) {
         return setInterval(function () {
-           const consumers = getAllVisibleConsumers();
-           if (consumers.localConsumers.length > 0) {
-             node.status({fill: "green",  shape: "dot", text: 'Local('+consumers.localConsumers.length+') Global('+consumers.globalConsumers.length+')'});
-        } else{
-             node.status({fill: "yellow", shape: "dot", text: 'Local('+consumers.localConsumers.length+') Global('+consumers.globalConsumers.length+')'});
-           }
-        },timeOut);
+            const consumers = getAllVisibleConsumers();
+            node.status({
+                shape: "dot",
+                text: `Local(${consumers.localConsumers.length}) Global(${consumers.globalConsumers.length})`,
+                fill: consumers.localConsumers.length > 0 ? "green" : "yellow"
+            });
+        }, timeOut);
     }
 
     function isLargeMessage(encodedReplyMessage) {
         return encodedReplyMessage.length > largeMessageThreshold;
     }
 
-
     function getAllVisibleServices() {
-        const globalConsumersSql = 'SELECT serviceName FROM globalStoreConsumers WHERE localStoreName="' + node.name + '"';
+        const globalConsumersSql = `SELECT serviceName FROM globalStoreConsumers WHERE localStoreName="${node.name}"`;
         const globalConsumers = alasql(globalConsumersSql);
-        let   myServices = [];
-          globalConsumers.forEach(consumer => {
-             myServices.push(consumer.serviceName);
+        let myServices = [];
+        globalConsumers.forEach(consumer => {
+            myServices.push(consumer.serviceName);
         });
         return myServices;
     }
 
     function getAllVisibleConsumers() {
-        const localConsumersSql = 'SELECT DISTINCT * FROM localStoreConsumers WHERE storeName="' + node.name + '"';
-        const globalConsumersSql = 'SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '"';
-        const storesSql = 'SELECT * FROM stores where storeName ="' + node.name + '"';
-        const localConsumers = alasql(localConsumersSql);
-        const globalConsumers = alasql(globalConsumersSql);
-        const store = alasql(storesSql);
+        const localConsumers = alasql(`SELECT DISTINCT * FROM localStoreConsumers WHERE storeName="${node.name}"`);
+        const globalConsumers = alasql(`SELECT * FROM globalStoreConsumers WHERE localStoreName="${node.name}"`);
+        const store = alasql(`SELECT * FROM stores where storeName ="${node.name}"`);
         const peers = {"northPeers": node.northPeers, "southPeers": node.southPeers};
         return {
             localConsumers,
@@ -955,22 +1125,22 @@ console.log('SELECTION=',alasql(globalStoresSql));
     }
 
     function getCurrentStoreData() {
-        const messagesSql = 'SELECT * FROM inMessages    where storeName ="' + node.name + '"';
-        const notifiesSql = 'SELECT * FROM notify        where storeName ="' + node.name + '"';
-        const repliesSql = 'SELECT * FROM replyMessages where storeName ="' + node.name + '"';
-        const storeSql = 'SELECT * FROM stores        where storeName ="' + node.name + '"';
-        const messages = alasql(messagesSql);
-        const notifies = alasql(notifiesSql);
-        const replies = alasql(repliesSql);
-        const store = alasql(storeSql);
-        return { store, messages, notifies, replies };
+        const store = alasql(`SELECT * FROM stores where storeName ="${node.name}"`);
+        const messages = alasql(`SELECT * FROM inMessages where storeName ="${node.name}"`);
+        const notifies = alasql(`SELECT * FROM notify where storeName ="${node.name}"`);
+        const replies = alasql(`SELECT * FROM replyMessages where storeName ="${node.name}"`);
+        return {
+            store,
+            messages,
+            notifies,
+            replies
+        };
     }
 
     node.on("input", msg => {
-        log(msg);
         switch (msg.topic) {
             case 'listServices' : {
-                sendMessage({command: {services : getAllVisibleServices()}});
+                sendMessage({command: {services: getAllVisibleServices()}});
                 break;
             }
             case 'listRegistrations' : {
@@ -982,12 +1152,9 @@ console.log('SELECTION=',alasql(globalStoresSql));
                 break;
             }
             case 'flushStore'        : {
-                const removeReplySql = 'DELETE FROM replyMessages WHERE storeName="' + node.name + '"';
-                const removeNotifySql = 'DELETE FROM notify        WHERE storeName="' + node.name + '"';
-                const removeInMessagesSql = 'DELETE FROM inMessages    WHERE storeName="' + node.name + '"';
-                alasql(removeReplySql);
-                alasql(removeNotifySql);
-                alasql(removeInMessagesSql);
+                alasql(`DELETE FROM replyMessages WHERE storeName="${node.name}"`);
+                alasql(`DELETE FROM notify WHERE storeName="${node.name}"`);
+                alasql(`DELETE FROM inMessages WHERE storeName="${node.name}"`);
                 sendMessage({command: getCurrentStoreData()});
                 break;
             }
@@ -999,7 +1166,7 @@ console.log('SELECTION=',alasql(globalStoresSql));
     });
 
     node.on('close', (removed, done) => {
-        if(node.listenServer){
+        if (node.listenServer) {
             node.listenServer.close(() => { //this is asynchronous- callback will be called only when all active connections end https://nodejs.org/api/net.html#net_server_close_callback
                 //waiting for all active connection to end may cause node-red to error with 'Error stopping node: Close timed out'
             });
@@ -1017,24 +1184,23 @@ console.log('SELECTION=',alasql(globalStoresSql));
         // alasql(dropTriggerRegisterConsumer);
         dropTrigger(registerConsumerTriggerName);
 
-        const remainingMessages = alasql('SELECT * FROM inMessages WHERE storeName="' + node.name + '"');
+        const remainingMessages = alasql(`SELECT * FROM inMessages WHERE storeName="${node.name}"`);
         remainingMessages.forEach(msg => {
-            if(msg.isLargeMessage) {
+            if (msg.isLargeMessage) {
                 const path = largeMessagesDirectory + msg.redlinkMsgId + '/';
                 fs.removeSync(path);
             }
         });
 
-        const removeReplySql = 'DELETE FROM replyMessages WHERE storeName="' + node.name + '"';
-        const removeNotifySql = 'DELETE FROM notify        WHERE storeName="' + node.name + '"';
-        const removeInMessagesSql = 'DELETE FROM inMessages    WHERE storeName="' + node.name + '"';
+        const removeReplySql = `DELETE FROM replyMessages WHERE storeName="${node.name}"`;
+        const removeNotifySql = `DELETE FROM notify WHERE storeName="${node.name}"`;
+        const removeInMessagesSql = `DELETE FROM inMessages WHERE storeName="${node.name}"`;
         alasql(removeReplySql);
         alasql(removeNotifySql);
         alasql(removeInMessagesSql);
-
-        const removeStoreSql = 'DELETE FROM stores WHERE storeName="' + node.name + '"';
-        const removeLocalConsumersSql = 'DELETE FROM localStoreConsumers  WHERE storeName="' + node.name + '"';
-        const removeGlobalConsumersSql = 'DELETE FROM globalStoreConsumers WHERE localStoreName="' + node.name + '"';
+        const removeStoreSql = `DELETE FROM stores WHERE storeName="${node.name}"`;
+        const removeLocalConsumersSql = `DELETE FROM localStoreConsumers WHERE storeName="${node.name}"`;
+        const removeGlobalConsumersSql = `DELETE FROM globalStoreConsumers WHERE localStoreName="${node.name}"`;
         alasql(removeStoreSql);
         alasql(removeLocalConsumersSql);
         alasql(removeGlobalConsumersSql);
@@ -1043,7 +1209,7 @@ console.log('SELECTION=',alasql(globalStoresSql));
 
     function dropTrigger(triggerName) { //workaround for https://github.com/agershun/alasql/issues/1113
         alasql.fn[triggerName] = () => {
-        // console.log('\n\n\n\nEmpty trigger called for consumer registration', triggerName);
+            // //console.log('\n\n\n\nEmpty trigger called for consumer registration', triggerName);
         }
     }
 }; // function
