@@ -973,17 +973,13 @@ module.exports.RedLinkStore = function (config) {
                 });
             }
         } else {
-            //console.log('calling notify message 2 ');
-            notifyUnreadMessages(); // <------------------------------------------------------------
-            //console.log('REPLYING - TARGET=', req.body);
+            notifyUnreadMessages();
             updateGlobalConsumerEnm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.enm);
             updateGlobalConsumerErm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.replyDelay); // Update the reply score.
-
             const redlinkMsgId = req.body.redlinkMsgId;
             const redlinkProducerId = req.body.redlinkProducerId;
-            // const replyingService = req.body.replyingService;
             const message = req.body.payload;
-            var cerror = '';
+            let cerror = '';
             if (req.body.cerror) {
                 cerror = req.body.cerror
             }
