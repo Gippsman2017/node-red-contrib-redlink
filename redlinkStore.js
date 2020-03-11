@@ -567,69 +567,78 @@ module.exports.RedLinkStore = function (config) {
                 }
                 break;
             case 'confirmNotification' :
-                // Once consumer selection has been done by the consumers store, then it is notified by popping the first element of the notifyPath and following the trail to the consumer
-                let myNotifyPath = req.body.tempPath; // Pop the first address:port off the front of the path as it's how it got here
-                myNotifyPath = myNotifyPath.slice(1);
-                if (myNotifyPath.length === 0) {
-                    const matchingMessage = alasql(`SELECT sendOnly from inMessages WHERE redlinkMsgId="${req.body.redlinkMsgId}"`);
-                    let sendOnly = false;
-                    if (matchingMessage.length > 0) {
-                        sendOnly = matchingMessage[0].sendOnly;
-                    }
-                    const notifyInsertSql = `INSERT INTO notify VALUES ("${node.name}","${req.body.service}","${req.body.srcStoreAddress}",${req.body.srcStorePort},"${req.body.redlinkMsgId}","",false,"${req.body.redlinkProducerId}","${base64Helper.encode(req.body.notifyPath)}",${Date.now()},"${req.body.consumerId}",true, ${sendOnly})`;
-                    if (req.body.consumerId !== "") {
-                        alasql(notifyInsertSql);
-                        updateGlobalConsumerEnm(req.body.service, req.body.consumerId, node.name, calculateEnm(req.body.service, req.body.consumerId));
-                        res.status(200).send({
-                            action: 'confirmNotification :Inserted Notify ',
-                            consumerId: req.body.consumerId,
-                            enm: calculateEnm(req.body.service, req.body.consumerId),
-                            service: req.body.service,
-                            storeName: node.name,
-                            status: 200
-                        });
-                    } else {
-                        res.status(200).send({
-                            action: 'confirmNotification :Inserted Notify No Consumer Specified',
-                            consumerId: req.body.consumerId,
-                            status: 404
-                        });
-                    }
-                } else { //Time to follow the trail
-                    const path = myNotifyPath[0];
-                    try {
-                        req.body.tempPath = myNotifyPath;
-                        const destinationStoreAddress = path.address + ":" + path.port;
-                        const options = {
-                            method: 'POST',
-                            url: 'https://' + destinationStoreAddress + '/notify',
-                            body: req.body,
-                            json: true
-                        };
-                        (async function () {
-                            const response = await requestPromise(options);
-                            updateGlobalConsumerEnm(response.service, response.consumerId, response.storeName, response.enm);
+                try {
+                    // Once consumer selection has been done by the consumers store, then it is notified by popping the first element of the notifyPath and following the trail to the consumer
+                    let myNotifyPath = req.body.tempPath; // Pop the first address:port off the front of the path as it's how it got here
+                    myNotifyPath = myNotifyPath.slice(1);
+                    if (myNotifyPath.length === 0) {
+                        const matchingMessage = alasql(`SELECT sendOnly from inMessages WHERE redlinkMsgId="${req.body.redlinkMsgId}"`);
+                        let sendOnly = false;
+                        if (matchingMessage.length > 0) {
+                            sendOnly = matchingMessage[0].sendOnly;
+                        }
+                        const notifyInsertSql = `INSERT INTO notify VALUES ("${node.name}","${req.body.service}","${req.body.srcStoreAddress}",${req.body.srcStorePort},"${req.body.redlinkMsgId}","",false,"${req.body.redlinkProducerId}","${base64Helper.encode(req.body.notifyPath)}",${Date.now()},"${req.body.consumerId}",true, ${sendOnly})`;
+                        if (req.body.consumerId !== "") {
+                            alasql(notifyInsertSql);
+                            updateGlobalConsumerEnm(req.body.service, req.body.consumerId, node.name, calculateEnm(req.body.service, req.body.consumerId));
                             res.status(200).send({
-                                action: 'REPLY confirmNotification forward to stores ' + node.name + ' remoteMatchingStores Result =',
-                                consumerId: response.consumerId,
-                                redlinkMsgId: response.redlinkMsgId,
-                                redlinkProducerId: response.redlinkProducerId,
-                                notifyPath: response.notifyPath,
-                                enm: response.enm,
-                                service: response.service,
-                                storeName: response.storeName,
+                                action: 'confirmNotification :Inserted Notify ',
+                                consumerId: req.body.consumerId,
+                                enm: calculateEnm(req.body.service, req.body.consumerId),
+                                service: req.body.service,
+                                storeName: node.name,
                                 status: 200
                             });
-                            return response;
-                        })(); // This is the actual call to forward the notify , it causes recursive /producerNotifies lookups through the stores.
-                    } catch (e) {
-                        res.status(200).send({
-                            action: `REPLY NOTIFY TRANSIT PATH Error producerNotification forward to stores ${node.name} remoteMatchingStores Result =`,
-                            consumerId: req.body.consumerId,
-                            notifyPath: [],
-                            status: 404
-                        });
+                        } else {
+                            res.status(200).send({
+                                action: 'confirmNotification :Inserted Notify No Consumer Specified',
+                                consumerId: req.body.consumerId,
+                                status: 404
+                            });
+                        }
+                    } else { //Time to follow the trail
+                        const path = myNotifyPath[0];
+                        try {
+                            req.body.tempPath = myNotifyPath;
+                            const destinationStoreAddress = path.address + ":" + path.port;
+                            const options = {
+                                method: 'POST',
+                                url: 'https://' + destinationStoreAddress + '/notify',
+                                body: req.body,
+                                json: true
+                            };
+                            (async function () {
+                                const response = await requestPromise(options);
+                                updateGlobalConsumerEnm(response.service, response.consumerId, response.storeName, response.enm);
+                                res.status(200).send({
+                                    action: 'REPLY confirmNotification forward to stores ' + node.name + ' remoteMatchingStores Result =',
+                                    consumerId: response.consumerId,
+                                    redlinkMsgId: response.redlinkMsgId,
+                                    redlinkProducerId: response.redlinkProducerId,
+                                    notifyPath: response.notifyPath,
+                                    enm: response.enm,
+                                    service: response.service,
+                                    storeName: response.storeName,
+                                    status: 200
+                                });
+                                return response;
+                            })(); // This is the actual call to forward the notify , it causes recursive /producerNotifies lookups through the stores.
+                        } catch (e) {
+                            res.status(200).send({
+                                action: `REPLY NOTIFY TRANSIT PATH Error producerNotification forward to stores ${node.name} remoteMatchingStores Result =`,
+                                consumerId: req.body.consumerId,
+                                notifyPath: [],
+                                status: 404
+                            });
+                        }
                     }
+                } catch (e) {
+                    res.status(200).send({
+                        action: `REPLY NOTIFY TRANSIT PATH Error producerNotification forward to stores ${node.name} remoteMatchingStores Result =`,
+                        consumerId: req.body.consumerId,
+                        notifyPath: [],
+                        status: 404
+                    });
                 }
                 break;
             case 'producerNotification' :
