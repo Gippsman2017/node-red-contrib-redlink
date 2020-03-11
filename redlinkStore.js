@@ -250,7 +250,6 @@ module.exports.RedLinkStore = function (config) {
 
     function notifyAllSouthStoreConsumers(direction) {
         const storeName = node.name;
-        const meshName = storeName.substring(0, storeName.indexOf(':')); // Producers can only send to Consumers on the same mesh
         const storeAddressData = alasql(`SELECT * FROM stores  WHERE storeName = "${storeName}"`);
         const globalConsumersSql = `SELECT  DISTINCT serviceName,consumerId from ( select * from globalStoreConsumers WHERE localStoreName = "${storeName}")`;// +
         const globalConsumers = alasql(globalConsumersSql);
@@ -263,6 +262,7 @@ module.exports.RedLinkStore = function (config) {
             notifySouthStoreOfConsumers(data[0], direction, storeAddress, storePort, node.listenAddress, node.listenPort);
         });
     }
+
     const nodeId = config.id.replace('.', '');
     const newMsgTriggerName = `onNewMessage${nodeId}`;
     const registerConsumerTriggerName = `registerConsumer${nodeId}`;
@@ -294,9 +294,6 @@ module.exports.RedLinkStore = function (config) {
                 });
             });
         }
-        if(matchingGlobalStoresAddresses.length === 0){
-            // console.log(' in store ', node.name, ' returning blank remote matching store the sql used is:', globalStoresSql, 'all consumers are:', alasql('select * from globalStoreConsumers'));
-        }
         return matchingGlobalStoresAddresses;
     }
 
@@ -305,7 +302,7 @@ module.exports.RedLinkStore = function (config) {
         // check if the input message is for this store
         // inMessages (msgId STRING, storeName STRING, serviceName STRING, message STRING)'
         const newMessages = alasql(`SELECT * from inMessages WHERE storeName="${node.name}" AND read= false AND consumerId = ""  ORDER BY priority DESC limit 1`);
-        if(newMessages.length> 0){
+        if (newMessages.length > 0) {
             const newMessage = newMessages[0];
             if (newMessage) {
                 sendMessage({
@@ -347,18 +344,18 @@ module.exports.RedLinkStore = function (config) {
                     // Ok Ask the Consumer if they have the capacity to consume this message
                     (async function () {
                         const response = await requestPromise(options);
-                        if(!response.notifyPath){
+                        if (!response.notifyPath) {
                             // console.log('in store got no notifyPath in response ', node.name, 'posted with: ', options, ' got response as:', response);
                         }
                         //console.log('in store ', node.name, ' got consumer id back as:', response.consumerId);
                         // Ok, if a consumerId is not empty, then set the message with the consumerId and use the returned path to go directly to the consumer store.
                         if (response.consumerId !== '') {
                             const updateMsgStatus = `UPDATE inMessages SET consumerId ="${response.consumerId}"  WHERE consumerId = "pending" AND redlinkMsgId="${body.redlinkMsgId}" AND storeName = "${node.name}"`;
-                            const updated = alasql(updateMsgStatus);
+                            alasql(updateMsgStatus);
                         } else if (response.consumerId === '') {
                             // Not OK, no capacity at this time
                             const updateMsgStatus = `UPDATE inMessages SET consumerId =""  WHERE consumerId = "pending" AND redlinkMsgId="${body.redlinkMsgId}" AND storeName = "${node.name}"`;
-                            const updated = alasql(updateMsgStatus);
+                            alasql(updateMsgStatus);
                         }
                         // Ok, if a consumerId is not empty, then use the returned path to go directly to the consumer store and confirm the message, this will cause the consumer store to notify the consumerId
                         if (response.consumerId !== '') {
@@ -376,7 +373,7 @@ module.exports.RedLinkStore = function (config) {
                             };
                             //console.log('in store ', node.name, ' in inner... posting with:', JSON.stringify(options, null, 2));
                             //  Recurse to this remoteStore
-                            (async function() {
+                            (async function () {
                                 const response2 = await requestPromise(options);
                                 if (response2.consumerId !== '') {
                                     // OK, I have a winner
@@ -492,16 +489,11 @@ module.exports.RedLinkStore = function (config) {
     }
 
     function calculateEnm(serviceName, consumerId) {
-        //console.log('in store ', node.name, 'serviceNAme:', serviceName, 'consumerId:', consumerId);
-        //console.log('all localStoreConsumers:', alasql('select * from localStoreConsumers'));
         const existingLocalConsumerSql = `SELECT * FROM localStoreConsumers   WHERE storeName="${node.name}" AND serviceName="${serviceName}" AND consumerId="${consumerId}"`;
-        //console.log('existingLocalConsumersSql:', existingLocalConsumerSql, 'existingLocalConsumers:', alasql(existingLocalConsumerSql));
         const notifyCountSql = `select count(*) nc from (SELECT * FROM notify WHERE storeName="${node.name}" AND serviceName="${serviceName}" AND consumerId="${consumerId}")`;
         const nc = alasql(notifyCountSql)[0].nc;
         const itlSql = `select inTransitLimit from (${existingLocalConsumerSql})`;
-        //console.log('itlSql:', itlSql);
         const itl = alasql(itlSql)[0].inTransitLimit;
-        ////console.log(consumerId,'=',((nc)/itl*100).toFixed(0));
         return ((nc) / itl * 100).toFixed(0);
     }
 
@@ -509,6 +501,7 @@ module.exports.RedLinkStore = function (config) {
 
     app.post('/notify', (req, res) => { // todo validation on params
         const notifyType = req.body.notifyType;
+        const consumer = req.body.consumer;
         switch (notifyType) {
             case 'consumerRegistration' :
                 sendMessage({
@@ -519,8 +512,6 @@ module.exports.RedLinkStore = function (config) {
                         data: req.body
                     }
                 });
-
-                const consumer = req.body.consumer;
                 const serviceName = consumer.serviceName;
                 const consumerId = consumer.consumerId;
                 const storeName = consumer.storeName;
@@ -534,9 +525,7 @@ module.exports.RedLinkStore = function (config) {
                 const ecm = 0;
                 const erm = 0;
                 const enm = 0;
-
                 switch (direction) {
-
                     case 'store' : // Store only rego, this causes the southPeers list to update;
                         if (!node.southPeers.includes(transitAddress + ':' + transitPort)) {
                             node.southPeers.push(transitAddress + ':' + transitPort);
@@ -549,7 +538,6 @@ module.exports.RedLinkStore = function (config) {
                         insertGlobalConsumer(serviceName, consumerId, storeName, direction, storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm, enm);
                         res.status(200).send({action: 'consumerRegistration', status: 200});
                         break;
-
                     case 'local' :  // Connection is connecting from the local consumer
                         insertGlobalConsumer(serviceName, consumerId, storeName, direction, storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm, enm);
                         notifyNorthStoreOfConsumers(consumer, storeAddress, storePort);  //  Pass the registration forward to the next store
@@ -557,7 +545,6 @@ module.exports.RedLinkStore = function (config) {
                         notifySouthStoreOfConsumers(consumer, notifyDirections.SOUTH, storeAddress, storePort, node.listenAddress, node.listenPort);
                         res.status(200).send({action: 'consumerRegistration', status: 200});
                         break;
-
                     case 'north' : // Connection is connecting from the South and this is why the routing is indicating that the serviceName is south of this store
                         if (node.southInsert) {
                             insertGlobalConsumer(serviceName, consumerId, storeName, 'south', storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm, enm);
@@ -566,11 +553,10 @@ module.exports.RedLinkStore = function (config) {
                         }
                         res.status(200).send({action: 'consumerRegistration', status: 200});
                         break;
-
                     case 'south' : // Connection is connecting from the North and this is why the routing is indicating that the serviceName is north of this store
                         insertGlobalConsumer(serviceName, consumerId, storeName, 'north', storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm, enm);
-                        if (node.northPeers.filter(x => x.ip == transitAddress && x.port == transitPort.toString()).length > 0) {
-                            if (node.northPeers.filter(x => x.ip == transitAddress && x.port == transitPort.toString() && x.redistribute == 'true').length > 0) {
+                        if (node.northPeers.filter(x => x.ip === transitAddress && x.port === transitPort.toString()).length > 0) { //todo fix this
+                            if (node.northPeers.filter(x => x.ip === transitAddress && x.port === transitPort.toString() && x.redistribute === 'true').length > 0) {
                                 notifySouthStoreOfConsumers(consumer, notifyDirections.SOUTH, storeAddress, storePort, node.listenAddress, node.listenPort);
                             }
                             res.status(200).send({action: 'consumerRegistration', status: 200});
@@ -579,24 +565,17 @@ module.exports.RedLinkStore = function (config) {
                         }
                         break;
                 }
-
                 break;
-
             case 'confirmNotification' :
-                //console.log('\n\n\n\nin confirmNotification req.body is:', req.body);
                 // Once consumer selection has been done by the consumers store, then it is notified by popping the first element of the notifyPath and following the trail to the consumer
                 let myNotifyPath = req.body.tempPath; // Pop the first address:port off the front of the path as it's how it got here
-                if(!myNotifyPath){
-                    // console.log('\n\n\n\n  in store ', node.name, ' confirmNotification... req.body.tempPath is undefined... the req.body is:', req.body);
-                }
                 myNotifyPath = myNotifyPath.slice(1);
                 if (myNotifyPath.length === 0) {
                     const matchingMessage = alasql(`SELECT sendOnly from inMessages WHERE redlinkMsgId="${req.body.redlinkMsgId}"`);
                     let sendOnly = false;
-                    if(matchingMessage.length > 0){
+                    if (matchingMessage.length > 0) {
                         sendOnly = matchingMessage[0].sendOnly;
                     }
-                    //console.log('\n\n\n\nsendOnly:', sendOnly);
                     const notifyInsertSql = `INSERT INTO notify VALUES ("${node.name}","${req.body.service}","${req.body.srcStoreAddress}",${req.body.srcStorePort},"${req.body.redlinkMsgId}","",false,"${req.body.redlinkProducerId}","${base64Helper.encode(req.body.notifyPath)}",${Date.now()},"${req.body.consumerId}",true, ${sendOnly})`;
                     if (req.body.consumerId !== "") {
                         alasql(notifyInsertSql);
@@ -627,42 +606,38 @@ module.exports.RedLinkStore = function (config) {
                             body: req.body,
                             json: true
                         };
-
                         (async function () {
                             const response = await requestPromise(options);
-                                updateGlobalConsumerEnm(response.service, response.consumerId, response.storeName, response.enm);
-                                res.status(200).send({
-                                    action: 'REPLY confirmNotification forward to stores ' + node.name + ' remoteMatchingStores Result =',
-                                    consumerId: response.consumerId,
-                                    redlinkMsgId: response.redlinkMsgId,
-                                    redlinkProducerId: response.redlinkProducerId,
-                                    notifyPath: response.notifyPath,
-                                    enm: response.enm,
-                                    service: response.service,
-                                    storeName: response.storeName,
-                                    status: 200
-                                });
+                            updateGlobalConsumerEnm(response.service, response.consumerId, response.storeName, response.enm);
+                            res.status(200).send({
+                                action: 'REPLY confirmNotification forward to stores ' + node.name + ' remoteMatchingStores Result =',
+                                consumerId: response.consumerId,
+                                redlinkMsgId: response.redlinkMsgId,
+                                redlinkProducerId: response.redlinkProducerId,
+                                notifyPath: response.notifyPath,
+                                enm: response.enm,
+                                service: response.service,
+                                storeName: response.storeName,
+                                status: 200
+                            });
                             return response;
                         })(); // This is the actual call to forward the notify , it causes recursive /producerNotifies lookups through the stores.
                     } catch (e) {
-                        // console.log('\n\n\n\n!@#$% 1 in store', node.name, 'This should not happen NOTIFY TRANSIT PATH Error ', e);
                         res.status(200).send({
                             action: `REPLY NOTIFY TRANSIT PATH Error producerNotification forward to stores ${node.name} remoteMatchingStores Result =`,
                             consumerId: req.body.consumerId,
-                            notifyPath : [], //todo confirm with John
+                            notifyPath: [],
                             status: 404
                         });
                     }
                 }
                 break;
-
             case 'producerNotification' :
                 //console.log('in store ', node.name, ' got producer notification');
                 let notifyPath = [];
                 req.body.notifyPath.forEach(function (path) {
                     notifyPath.push(path);
                 });
-
                 sendMessage({
                     debug: {
                         storeName: node.name,
@@ -674,9 +649,7 @@ module.exports.RedLinkStore = function (config) {
                 let notifyConsumerId = ''; // Default Notify return, this store doesnt have the capacity to process this notification
                 const existingLocalConsumerSql = `SELECT * FROM localStoreConsumers WHERE storeName="${node.name}" AND serviceName="${req.body.service}"`;
                 const localCons = alasql(existingLocalConsumerSql);
-
                 // Local Consumer Code Starts Here
-
                 if (localCons.length > 0) {
                     let thisPath = {
                         store: node.name,
@@ -704,20 +677,8 @@ module.exports.RedLinkStore = function (config) {
                             }
                         });
                         const enm = calculateEnm(req.body.service, consumer.notifyConsumerId);
-/*
-                        console.log('in store ', node.name, ' already have a notify for thsi message- going to reply back saying :', {
-                            action: 'Return back to producerNotification LocalConsumerNotifyDeniedAlreadyAccepted ' + node.name,
-                            consumerId: notifyConsumerId,
-                            redlinkMsgId: req.body.redlinkMsgId,
-                            redlinkProducerId: req.body.redlinkProducerId,
-                            enm,
-                            notifyPath,
-                            consumerStore: req.body.storeName,
-                            status: 404
-                        });
-*/
                         res.status(200).send({
-                            action: 'Return back to producerNotification LocalConsumerNotifyDeniedAlreadyAccepted ' + node.name,
+                            action: `Return back to producerNotification LocalConsumerNotifyDeniedAlreadyAccepted ${node.name}`,
                             consumerId: notifyConsumerId,
                             redlinkMsgId: req.body.redlinkMsgId,
                             redlinkProducerId: req.body.redlinkProducerId,
@@ -742,13 +703,9 @@ module.exports.RedLinkStore = function (config) {
                             // const enmClause =
                             const consumerIdsSql = `select consumerId,serviceName,enm from globalStoreConsumers WHERE localStoreName="${node.name}" AND storeName="${node.name}" AND serviceName="${req.body.service}" AND enm<100 order by enm limit 1`;
                             const consumerIds = alasql(consumerIdsSql);
-                            //SELECT * FROM globalStoreConsumers WHERE localStoreName="' + node.name + '"
-                            //console.log('in store ', node.name, ' all the current globalStoreConsumers are:', alasql('select * from globalStoreConsumers'));
-                            //console.log('TARGET CONSUMERS=', consumerIds, ' in store:', node.name);
-                            // //console.log('FINALLY FOUND A LOCAL STORE to INSERT NOTIFY redlinkMsgId=',req.body.redlinkMsgId,' consumerId=',consumer.consumerId, enm);
                             if (consumerIds.length > 0) {
                                 res.status(200).send({
-                                    action: 'Return back to producerNotification to consumer ' + node.name,
+                                    action: `Return back to producerNotification to consumer ${node.name}`,
                                     consumerId: consumerIds[0].consumerId, redlinkMsgId: req.body.redlinkMsgId,
                                     redlinkProducerId: req.body.redlinkProducerId,
                                     enm: consumerIds[0].enm,
@@ -758,7 +715,7 @@ module.exports.RedLinkStore = function (config) {
                                 });
                             } else {
                                 res.status(200).send({
-                                    action: 'Return back to producerNotification to consumer ' + node.name,
+                                    action: `Return back to producerNotification to consumer ${node.name}`,
                                     consumerId: "",
                                     redlinkMsgId: req.body.redlinkMsgId,
                                     redlinkProducerId: req.body.redlinkProducerId,
@@ -769,10 +726,8 @@ module.exports.RedLinkStore = function (config) {
                                 });
                             }
                         } catch (e) {
-                            // console.log('\n\n\n\n\n !@#$% 2 error in store', node.name, 'notify.producerNotification', e);
-                            //console.log('in store ', node.name, ' some major ERROR ', e);
                             res.status(200).send({
-                                action: 'Return back to producerNotification to consumer ' + node.name,
+                                action: `Return back to producerNotification to consumer ${node.name}`,
                                 consumerId: notifyConsumerId,
                                 redlinkMsgId: req.body.redlinkMsgId,
                                 redlinkProducerId: req.body.redlinkProducerId,
@@ -785,7 +740,6 @@ module.exports.RedLinkStore = function (config) {
                     }
                     break;
                 } else {
-                    //console.log('no local consumer found- transit notify...');
                     // Transit Notify Code starts here
                     // Note that the reverse path state is set in the first notify, so, we can use it to set subsequent notifies
                     let thisPath = {
@@ -802,7 +756,7 @@ module.exports.RedLinkStore = function (config) {
                     const remoteMatchingStores = [...new Set([...getRemoteMatchingStores(req.body.service, node.meshName, node.interStoreLoadBalancer, req.body.enforceReversePath)])];
                     if (remoteMatchingStores.length === 0) { // this can be empty- there may not be a matching store as registrations may still be in progress- in case of redeploy for example
                         res.status(200).send({
-                            action: 'REPLY NOTIFY TRANSIT PATH Error producerNotification forward to stores ' + node.name + ' remoteMatchingStores Result ='+ remoteMatchingStores,
+                            action: `REPLY NOTIFY TRANSIT PATH Error producerNotification forward to stores ${node.name} remoteMatchingStores Result =${remoteMatchingStores}`,
                             consumerId: notifyConsumerId,
                             enm: 100,
                             notifyPath,
@@ -810,7 +764,6 @@ module.exports.RedLinkStore = function (config) {
                         });
                         return;
                     }
-                    //todo
                     try {
                         // This is the interstore notifier
                         req.body.notifyPath = notifyPath;
@@ -823,8 +776,6 @@ module.exports.RedLinkStore = function (config) {
                             body: req.body,
                             json: true
                         };
-                        //console.log('in producerNotification posting to:', JSON.stringify(options, null, 2));
-                        ////console.log(destinationStoreAddress );
                         (async function () {
                             try {
                                 const response = await requestPromise(options);
@@ -833,7 +784,7 @@ module.exports.RedLinkStore = function (config) {
                                     //                                       updateGlobalConsumerEnm(req.body.service, response.consumerId, response.consumerStore, response.enm);
                                 }
                                 res.status(200).send({
-                                    action: 'REPLY producerNotification forward to stores ' + node.name + ' remoteMatchingStores Result ='+ remoteMatchingStores,
+                                    action: 'REPLY producerNotification forward to stores ' + node.name + ' remoteMatchingStores Result =' + remoteMatchingStores,
                                     consumerId: response.consumerId,
                                     redlinkMsgId: response.redlinkMsgId,
                                     redlinkProducerId: response.redlinkProducerId,
@@ -851,9 +802,8 @@ module.exports.RedLinkStore = function (config) {
                             }
                         })(); // This is the actual call to forward the notify , it causes recursive /producerNotifies lookups through the stores.
                     } catch (e) {
-                        // console.log('\n\n\n\n !@#$ 4 in store', node.name,  'got an error here @@@ ...', e);
                         res.status(200).send({
-                            action: 'REPLY NOTIFY TRANSIT PATH Error producerNotification forward to stores ' + node.name + ' remoteMatchingStores Result ='+ remoteMatchingStores,
+                            action: 'REPLY NOTIFY TRANSIT PATH Error producerNotification forward to stores ' + node.name + ' remoteMatchingStores Result =' + remoteMatchingStores,
                             consumerId: notifyConsumerId,
                             enm: 100,
                             notifyPath,
@@ -867,11 +817,11 @@ module.exports.RedLinkStore = function (config) {
 
 
     app.post('/read-message', (req, res) => {
-        try { // This function allows path recusion backwards to producer
-            let notifyPathIn = base64Helper.decode(req.body.notifyPath);
-            const notifyPath = notifyPathIn.pop();
-            if (notifyPath.address === node.listenAddress && notifyPath.port === node.listenPort) {
-            } else {
+        // This function allows path recursion backwards to producer
+        let notifyPathIn = req.body && req.body.notifyPath ? base64Helper.decode(req.body.notifyPath) : [];
+        const notifyPath = notifyPathIn.pop();
+        if (notifyPath) {
+            if (notifyPath.address !== node.listenAddress || notifyPath.port !== node.listenPort) {
                 updateGlobalConsumerEnm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.enm);
                 updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay);
                 updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay); // Dont know if the consumer actually read the job, so, set to the same read score.
@@ -891,28 +841,29 @@ module.exports.RedLinkStore = function (config) {
                         data: options
                     }
                 });
-                // console.log('in try block of read-message of store', node.name, 'going to request:', options.url);
                 request(options, function (error, response) {
-/*
-                    console.log('in try block of read-message of store', node.name, 'got response for request:', options.url, 'response headers are:', (response? response.headers: "no response"),
-                        'the res headers are: ', (res? res.headers: "no res(???)"));
-*/
                     if (response) {
                         const redlinkMsgMetadata = pick(response.headers, Object.keys(messageFields));
                         res.set(redlinkMsgMetadata);
                         res.status(200).send(response.body);
                     } else {
-                        res.status(200).send({error:`no response from ${options.url} when message-read-forwarding`});
+                        res.status(200).send({error: `no response from ${options.url} when message-read-forwarding`});
                     }
                 });
             }
-        } catch (e) //todo- fix this- relies on exception to control program flow
-        {
-                const redlinkMsgId = req.body.redlinkMsgId;
+        } else {
+            const redlinkMsgId = req.body.redlinkMsgId;
             const redlinkProducerId = req.body.redlinkProducerId;
             const redlinkReadDelay = req.body.readDelay;
             const redlinkConsumerId = req.body.consumerId;
-            sendMessage({debug: {storeName: node.name, action: 'read-message', direction: 'inBound', Data: req.body}});
+            sendMessage({
+                debug: {
+                    storeName: node.name,
+                    action: 'read-message',
+                    direction: 'inBound',
+                    Data: req.body
+                }
+            });
             if (!redlinkMsgId) {
                 sendMessage({
                     debug: {
@@ -942,10 +893,8 @@ module.exports.RedLinkStore = function (config) {
                 Object.assign(headersObj, message);
                 delete headersObj.message;
                 res.set(headersObj);
-//                 console.log(`headers are:${JSON.stringify(req)}`);
                 const isLargeMessage = message.isLargeMessage;
                 if (isLargeMessage) {
-                    // console.log('i am just a streamer...');
                     const path = largeMessagesDirectory + redlinkMsgId + '/message.txt';
                     const src = fs.createReadStream(path);
                     src.pipe(res);
@@ -953,7 +902,6 @@ module.exports.RedLinkStore = function (config) {
                         fs.removeSync(path);
                     });
                 } else {
-                    // console.log('i am not a streamer... just a dreamer...');
                     const src = new Readable();
                     src.push(message.message);
                     src.push(null);
@@ -962,18 +910,13 @@ module.exports.RedLinkStore = function (config) {
                 //This ecm is calculated in and by the consumer, it is the delay between receiving the notify and then performing this read, manual reads drastically increase this time in mS.
                 updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay);
                 updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, 0); //Hasnt replied yet, so, no scrore
-
                 const updateMsgStatus = `UPDATE inMessages SET read=true WHERE redlinkMsgId="${msgs[0].redlinkMsgId}"`;
                 alasql(updateMsgStatus);
-
                 msgs[0].status = 200;
-
                 if (msgs[0].sendOnly) {            // delete if send only
                     const deleteMsgSql = `DELETE FROM inMessages WHERE redlinkMsgId="${redlinkMsgId}"`;
-                    const deleteMsg = alasql(deleteMsgSql);
-                    //console.log('in read-message of store', node.name, ' going to update enm... the req.body is:', req.body);
+                    alasql(deleteMsgSql);
                     updateGlobalConsumerEnm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.enm);
-                    //console.log('calling notify message 1');
                     notifyUnreadMessages(); // <------------------------------------------------------------
                 } else {
                     // update message to read=true , as this consumer won the message
@@ -984,18 +927,25 @@ module.exports.RedLinkStore = function (config) {
                 updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay);
                 updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay); // Didnt get to do the job, so, give the reply the same read score.
                 const msg = redlinkMsgId ? `Message with id ${redlinkMsgId} not found- it may have already been read` : 'No unread messages';
-                sendMessage({debug: {storeName: node.name, action: 'read-message', direction: 'outBound', error: msg}});
+                sendMessage({
+                    debug: {
+                        storeName: node.name,
+                        action: 'read-message',
+                        direction: 'outBound',
+                        error: msg
+                    }
+                });
                 res.status(200).send({err: msg, redlinkProducerId, redlinkConsumerId, status: 404});
             }
-        }  // catch
+        }
     });
 
     app.post('/reply-message', (req, res) => {
-        try { // This function allows path recusion backwards to producer
-            let notifyPathIn = base64Helper.decode(req.body.notifyPath);
-            const notifyPath = notifyPathIn.pop();
-            if (notifyPath.address === node.listenAddress && notifyPath.port === node.listenPort) {
-            } else {
+        let notifyPathIn = req.body && req.body.notifyPath ? base64Helper.decode(req.body.notifyPath) : [];
+        const notifyPath = notifyPathIn.pop();
+        // This function allows path recusion backwards to producer
+        if (notifyPath) {
+            if (notifyPath.address !== node.listenAddress || notifyPath.port !== node.listenPort) {
                 //console.log('REPLYING - TRANSIT=', req.body);
                 updateGlobalConsumerEnm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.enm);
                 updateGlobalConsumerErm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.replyDelay); // Update the is score.
@@ -1022,7 +972,7 @@ module.exports.RedLinkStore = function (config) {
                     }
                 });
             }
-        } catch (e) {
+        } else {
             //console.log('calling notify message 2 ');
             notifyUnreadMessages(); // <------------------------------------------------------------
             //console.log('REPLYING - TARGET=', req.body);
@@ -1037,7 +987,14 @@ module.exports.RedLinkStore = function (config) {
             if (req.body.cerror) {
                 cerror = req.body.cerror
             }
-            sendMessage({debug: {storeName: node.name, action: 'reply-message', direction: 'inBound', Data: req.body}});
+            sendMessage({
+                debug: {
+                    storeName: node.name,
+                    action: 'reply-message',
+                    direction: 'inBound',
+                    Data: req.body
+                }
+            });
             const replyMsgSql = `SELECT DISTINCT * FROM replyMessages WHERE redlinkMsgId="${redlinkMsgId}"`;
             const replyMsg = alasql(replyMsgSql);
             if (replyMsg.length === 0) {
@@ -1055,9 +1012,8 @@ module.exports.RedLinkStore = function (config) {
             } else {
                 res.status(404).send({msg: `Reply Rejected for ${redlinkMsgId}`, redlinkMsgId});
             }
-        } //catch
+        }
     });
-
 
     function deleteOldConsumers() {
         const selectSql = `select * from globalStoreConsumers where localStoreName = "${node.name}" and ttl <= ${Math.floor(new Date().getTime() / 1000)}`;
@@ -1188,10 +1144,9 @@ module.exports.RedLinkStore = function (config) {
         remainingMessages.forEach(msg => {
             if (msg.isLargeMessage) {
                 const path = largeMessagesDirectory + msg.redlinkMsgId + '/';
-                fs.removeSync(path);
+                fs.remove(path);
             }
         });
-
         const removeReplySql = `DELETE FROM replyMessages WHERE storeName="${node.name}"`;
         const removeNotifySql = `DELETE FROM notify WHERE storeName="${node.name}"`;
         const removeInMessagesSql = `DELETE FROM inMessages WHERE storeName="${node.name}"`;
@@ -1207,10 +1162,8 @@ module.exports.RedLinkStore = function (config) {
         done();
     });
 
-    function dropTrigger(triggerName) { //workaround for https://github.com/agershun/alasql/issues/1113
-        alasql.fn[triggerName] = () => {
-            // //console.log('\n\n\n\nEmpty trigger called for consumer registration', triggerName);
-        }
+    function dropTrigger(triggerName) {
+        alasql(`DROP TRIGGER ${triggerName}`);
     }
 }; // function
 
