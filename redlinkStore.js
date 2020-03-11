@@ -80,9 +80,8 @@ module.exports.RedLinkStore = function (config) {
                 ttl: Math.floor(new Date().getTime() / 1000) + node.consumerlifeSpan // Setup the overall lifetime for this service, its epoch secs + overall lifespan in secs
             });
 
-            let consumer = qualifiedLocalConsumers[0]; // todo filter this for unique consumers
+            let consumer = qualifiedLocalConsumers[0];
             let body = {consumer, notifyType: 'consumerRegistration'};
-
             if (address && address !== '0.0.0.0') {
                 sendMessage({
                     registration: {
@@ -379,7 +378,7 @@ module.exports.RedLinkStore = function (config) {
                                     // OK, I have a winner
                                     //console.log('in store ', node.name, ' ENM=', response2.enm);
                                     //console.log(response2);
-                                    updateGlobalConsumerEnm(response2.service, response2.consumerId, response2.storeName, response2.enm);
+                                    updateGlobalConsumerEnm(response2.service, response2.consumerId, response2.storeName, response2.enm, node.name);
                                 }
                                 return response2;
                             })();
@@ -424,7 +423,6 @@ module.exports.RedLinkStore = function (config) {
 
     function handleStoreStartError(e) {
         const errorMsg = `redlinkStore ${node.name} Error starting listen server on ${node.listenPort} Exception is ${e}`;
-        // console.log('!@#$ store start error:', errorMsg);
         sendMessage({debug: {storeName: node.name, action: 'startServer', error: errorMsg}});
         clearInterval(node.statusTimerId); // Stop the status data being updated.
         clearInterval(node.reSyncTimerId); // Stop the store joining the mesh
@@ -454,43 +452,40 @@ module.exports.RedLinkStore = function (config) {
             handleStoreStartError('Unable to start server');
         }
         node.status({fill: "green", shape: "dot", text: 'Listen Port in OK'});
-        // log('started server at port:', node.listenPort);
     }
 
-
-    function insertGlobalConsumer(serviceName, consumerId, storeName, direction, storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm, enm) {
-        const existingGlobalConsumerSql = `SELECT * FROM globalStoreConsumers WHERE localStoreName="${node.name}" AND serviceName="${serviceName}" AND consumerId="${consumerId}" AND storeName="${storeName}" AND storeAddress = "${storeAddress}" AND storePort = ${storePort}`;
+    function insertGlobalConsumer(serviceName, consumerId, storeName, direction, storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm, enm, localStoreName) {
+        const existingGlobalConsumerSql = `SELECT * FROM globalStoreConsumers WHERE localStoreName="${localStoreName}" AND serviceName="${serviceName}" AND consumerId="${consumerId}" AND storeName="${storeName}" AND storeAddress = "${storeAddress}" AND storePort = ${storePort}`;
         const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
-        const insertGlobalConsumersSql = `INSERT INTO globalStoreConsumers("${node.name}","${serviceName}","${consumerId}","${storeName}","${direction}","${storeAddress}",${storePort},"${transitAddress}",${transitPort},${hopCount},${ttl},${ecm},${erm},${enm})`;
+        const insertGlobalConsumersSql = `INSERT INTO globalStoreConsumers("${localStoreName}","${serviceName}","${consumerId}","${storeName}","${direction}","${storeAddress}",${storePort},"${transitAddress}",${transitPort},${hopCount},${ttl},${ecm},${erm},${enm})`;
         if (!existingGlobalConsumer || existingGlobalConsumer.length === 0) {
             alasql(insertGlobalConsumersSql);
         } else {
-            alasql(`UPDATE globalStoreConsumers SET ttl=${ttl}  WHERE localStoreName="${node.name}" AND serviceName="${serviceName}" AND consumerId="${consumerId}" AND storeName="${storeName}" AND storeAddress = "${storeAddress}" AND storePort = ${storePort}`);
+            alasql(`UPDATE globalStoreConsumers SET ttl=${ttl}  WHERE localStoreName="${localStoreName}" AND serviceName="${serviceName}" AND consumerId="${consumerId}" AND storeName="${storeName}" AND storeAddress = "${storeAddress}" AND storePort = ${storePort}`);
             // Possibly Need to add a delete and an insert here for lower hopCount routes, it will reduce the number of notifies on high complexity redlink store layouts.
         }
     }
 
-
-    function updateGlobalConsumerEnm(serviceName, consumerId, storeName, enm) {
-        alasql(`UPDATE globalStoreConsumers SET enm=${enm} WHERE localStoreName="${node.name}" AND serviceName="${serviceName}" AND storeName="${storeName}" AND consumerId="${consumerId}"`);
+    function updateGlobalConsumerEnm(serviceName, consumerId, storeName, enm, localStoreName) {
+        alasql(`UPDATE globalStoreConsumers SET enm=${enm} WHERE localStoreName="${localStoreName}" AND serviceName="${serviceName}" AND storeName="${storeName}" AND consumerId="${consumerId}"`);
     }
 
-    function updateGlobalConsumerEcm(serviceName, consumerId, storeName, ecm) {
-        alasql(`UPDATE globalStoreConsumers SET ecm=${ecm} WHERE localStoreName="${node.name}" AND serviceName="${serviceName}" AND storeName="${storeName}" AND consumerId="${consumerId}"`);
+    function updateGlobalConsumerEcm(serviceName, consumerId, storeName, ecm, localStoreName) {
+        alasql(`UPDATE globalStoreConsumers SET ecm=${ecm} WHERE localStoreName="${localStoreName}" AND serviceName="${serviceName}" AND storeName="${storeName}" AND consumerId="${consumerId}"`);
     }
 
-    function updateGlobalConsumerErm(serviceName, consumerId, storeName, erm) {
-        const existingGlobalConsumerSql = `SELECT * FROM globalStoreConsumers WHERE localStoreName="${node.name}" AND serviceName="${serviceName}" AND storeName="${storeName}"`;
+    function updateGlobalConsumerErm(serviceName, consumerId, storeName, erm, localStoreName) {
+        const existingGlobalConsumerSql = `SELECT * FROM globalStoreConsumers WHERE localStoreName="${localStoreName}" AND serviceName="${serviceName}" AND storeName="${storeName}"`;
         const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
         if (existingGlobalConsumer) {
-            const updateConsumerErm = `UPDATE globalStoreConsumers SET erm=${erm} WHERE localStoreName="${node.name}" AND serviceName="${serviceName}" AND storeName="${storeName}"AND consumerId="${consumerId}"`;
+            const updateConsumerErm = `UPDATE globalStoreConsumers SET erm=${erm} WHERE localStoreName="${localStoreName}" AND serviceName="${serviceName}" AND storeName="${storeName}"AND consumerId="${consumerId}"`;
             alasql(updateConsumerErm);
         }
     }
 
-    function calculateEnm(serviceName, consumerId) {
-        const existingLocalConsumerSql = `SELECT * FROM localStoreConsumers   WHERE storeName="${node.name}" AND serviceName="${serviceName}" AND consumerId="${consumerId}"`;
-        const notifyCountSql = `select count(*) nc from (SELECT * FROM notify WHERE storeName="${node.name}" AND serviceName="${serviceName}" AND consumerId="${consumerId}")`;
+    function calculateEnm(serviceName, consumerId, storeName) {
+        const existingLocalConsumerSql = `SELECT * FROM localStoreConsumers   WHERE storeName="${storeName}" AND serviceName="${serviceName}" AND consumerId="${consumerId}"`;
+        const notifyCountSql = `select count(*) nc from (SELECT * FROM notify WHERE storeName="${storeName}" AND serviceName="${serviceName}" AND consumerId="${consumerId}")`;
         const nc = alasql(notifyCountSql)[0].nc;
         const itlSql = `select inTransitLimit from (${existingLocalConsumerSql})`;
         const itl = alasql(itlSql)[0].inTransitLimit;
@@ -535,11 +530,11 @@ module.exports.RedLinkStore = function (config) {
                         break;
 
                     case 'reSync' : // Just insert or refresh the globalConsumers entries, no other action.
-                        insertGlobalConsumer(serviceName, consumerId, storeName, direction, storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm, enm);
+                        insertGlobalConsumer(serviceName, consumerId, storeName, direction, storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm, enm, node.name);
                         res.status(200).send({action: 'consumerRegistration', status: 200});
                         break;
                     case 'local' :  // Connection is connecting from the local consumer
-                        insertGlobalConsumer(serviceName, consumerId, storeName, direction, storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm, enm);
+                        insertGlobalConsumer(serviceName, consumerId, storeName, direction, storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm, enm, node.name);
                         notifyNorthStoreOfConsumers(consumer, storeAddress, storePort);  //  Pass the registration forward to the next store
                         consumer.hopCount = hopCount;
                         notifySouthStoreOfConsumers(consumer, notifyDirections.SOUTH, storeAddress, storePort, node.listenAddress, node.listenPort);
@@ -547,14 +542,14 @@ module.exports.RedLinkStore = function (config) {
                         break;
                     case 'north' : // Connection is connecting from the South and this is why the routing is indicating that the serviceName is south of this store
                         if (node.southInsert) {
-                            insertGlobalConsumer(serviceName, consumerId, storeName, 'south', storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm, enm);
+                            insertGlobalConsumer(serviceName, consumerId, storeName, 'south', storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm, enm, node.name);
                             notifyNorthStoreOfConsumers(consumer, node.listenAddress, node.listenPort); // Pass the registration forward to the next store
                             notifyAllSouthStoreConsumers(notifyDirections.SOUTH);                       // Pass the resistration to any other south store
                         }
                         res.status(200).send({action: 'consumerRegistration', status: 200});
                         break;
                     case 'south' : // Connection is connecting from the North and this is why the routing is indicating that the serviceName is north of this store
-                        insertGlobalConsumer(serviceName, consumerId, storeName, 'north', storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm, enm);
+                        insertGlobalConsumer(serviceName, consumerId, storeName, 'north', storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm, enm, node.name);
                         if (node.northPeers.filter(x => x.ip === transitAddress && x.port === transitPort.toString()).length > 0) { //todo fix this
                             if (node.northPeers.filter(x => x.ip === transitAddress && x.port === transitPort.toString() && x.redistribute === 'true').length > 0) {
                                 notifySouthStoreOfConsumers(consumer, notifyDirections.SOUTH, storeAddress, storePort, node.listenAddress, node.listenPort);
@@ -580,11 +575,11 @@ module.exports.RedLinkStore = function (config) {
                         const notifyInsertSql = `INSERT INTO notify VALUES ("${node.name}","${req.body.service}","${req.body.srcStoreAddress}",${req.body.srcStorePort},"${req.body.redlinkMsgId}","",false,"${req.body.redlinkProducerId}","${base64Helper.encode(req.body.notifyPath)}",${Date.now()},"${req.body.consumerId}",true, ${sendOnly})`;
                         if (req.body.consumerId !== "") {
                             alasql(notifyInsertSql);
-                            updateGlobalConsumerEnm(req.body.service, req.body.consumerId, node.name, calculateEnm(req.body.service, req.body.consumerId));
+                            updateGlobalConsumerEnm(req.body.service, req.body.consumerId, node.name, calculateEnm(req.body.service, req.body.consumerId, node.name), node.name);
                             res.status(200).send({
                                 action: 'confirmNotification :Inserted Notify ',
                                 consumerId: req.body.consumerId,
-                                enm: calculateEnm(req.body.service, req.body.consumerId),
+                                enm: calculateEnm(req.body.service, req.body.consumerId, node.name),
                                 service: req.body.service,
                                 storeName: node.name,
                                 status: 200
@@ -609,7 +604,7 @@ module.exports.RedLinkStore = function (config) {
                             };
                             (async function () {
                                 const response = await requestPromise(options);
-                                updateGlobalConsumerEnm(response.service, response.consumerId, response.storeName, response.enm);
+                                updateGlobalConsumerEnm(response.service, response.consumerId, response.storeName, response.enm, node.name);
                                 res.status(200).send({
                                     action: 'REPLY confirmNotification forward to stores ' + node.name + ' remoteMatchingStores Result =',
                                     consumerId: response.consumerId,
@@ -642,7 +637,6 @@ module.exports.RedLinkStore = function (config) {
                 }
                 break;
             case 'producerNotification' :
-                //console.log('in store ', node.name, ' got producer notification');
                 let notifyPath = [];
                 req.body.notifyPath.forEach(function (path) {
                     notifyPath.push(path);
@@ -685,7 +679,7 @@ module.exports.RedLinkStore = function (config) {
                                 data: req.body
                             }
                         });
-                        const enm = calculateEnm(req.body.service, consumer.notifyConsumerId);
+                        const enm = calculateEnm(req.body.service, consumer.notifyConsumerId, node.name);
                         res.status(200).send({
                             action: `Return back to producerNotification LocalConsumerNotifyDeniedAlreadyAccepted ${node.name}`,
                             consumerId: notifyConsumerId,
@@ -831,9 +825,9 @@ module.exports.RedLinkStore = function (config) {
         const notifyPath = notifyPathIn.pop();
         if (notifyPath) {
             if (notifyPath.address !== node.listenAddress || notifyPath.port !== node.listenPort) {
-                updateGlobalConsumerEnm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.enm);
-                updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay);
-                updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay); // Dont know if the consumer actually read the job, so, set to the same read score.
+                updateGlobalConsumerEnm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.enm, node.name);
+                updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay, node.name);
+                updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay, node.name); // Dont know if the consumer actually read the job, so, set to the same read score.
                 const body = req.body;
                 body.notifyPath = base64Helper.encode(notifyPathIn);
                 const options = {
@@ -917,15 +911,15 @@ module.exports.RedLinkStore = function (config) {
                     src.pipe(res);
                 }
                 //This ecm is calculated in and by the consumer, it is the delay between receiving the notify and then performing this read, manual reads drastically increase this time in mS.
-                updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay);
-                updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, 0); //Hasnt replied yet, so, no scrore
+                updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay, node.name);
+                updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, 0, node.name); //Hasnt replied yet, so, no scrore
                 const updateMsgStatus = `UPDATE inMessages SET read=true WHERE redlinkMsgId="${msgs[0].redlinkMsgId}"`;
                 alasql(updateMsgStatus);
                 msgs[0].status = 200;
                 if (msgs[0].sendOnly) {            // delete if send only
                     const deleteMsgSql = `DELETE FROM inMessages WHERE redlinkMsgId="${redlinkMsgId}"`;
                     alasql(deleteMsgSql);
-                    updateGlobalConsumerEnm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.enm);
+                    updateGlobalConsumerEnm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.enm, node.name);
                     notifyUnreadMessages(); // <------------------------------------------------------------
                 } else {
                     // update message to read=true , as this consumer won the message
@@ -933,8 +927,8 @@ module.exports.RedLinkStore = function (config) {
                     alasql(updateMsgStatus);
                 }
             } else { // Message has already been read.
-                updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay);
-                updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay); // Didnt get to do the job, so, give the reply the same read score.
+                updateGlobalConsumerEcm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay, node.name);
+                updateGlobalConsumerErm(req.body.consumerService, req.body.consumerId, req.body.consumerStoreName, req.body.readDelay, node.name); // Didnt get to do the job, so, give the reply the same read score.
                 const msg = redlinkMsgId ? `Message with id ${redlinkMsgId} not found- it may have already been read` : 'No unread messages';
                 sendMessage({
                     debug: {
@@ -956,8 +950,8 @@ module.exports.RedLinkStore = function (config) {
         if (notifyPath) {
             if (notifyPath.address !== node.listenAddress || notifyPath.port !== node.listenPort) {
                 //console.log('REPLYING - TRANSIT=', req.body);
-                updateGlobalConsumerEnm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.enm);
-                updateGlobalConsumerErm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.replyDelay); // Update the is score.
+                updateGlobalConsumerEnm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.enm, node.name);
+                updateGlobalConsumerErm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.replyDelay, node.name); // Update the is score.
                 const body = req.body;
                 body.notifyPath = base64Helper.encode(notifyPathIn);
                 const options = {
@@ -983,8 +977,8 @@ module.exports.RedLinkStore = function (config) {
             }
         } else {
             notifyUnreadMessages();
-            updateGlobalConsumerEnm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.enm);
-            updateGlobalConsumerErm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.replyDelay); // Update the reply score.
+            updateGlobalConsumerEnm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.enm, node.name);
+            updateGlobalConsumerErm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.replyDelay, node.name); // Update the reply score.
             const redlinkMsgId = req.body.redlinkMsgId;
             const redlinkProducerId = req.body.redlinkProducerId;
             const message = req.body.payload;
