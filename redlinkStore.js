@@ -8,7 +8,7 @@ const requestPromise = require('request-promise-native').defaults({strictSSL: fa
 const base64Helper = require('./base64-helper.js');
 const httpsServer = require('./https-server.js');
 const {messageFields, notifyDirections} = require('./redlinkConstants');
-
+const {calculateEnm, closeStore, insertGlobalConsumer, sendMessage, updateGlobalConsumerEcm, updateGlobalConsumerEnm, updateGlobalConsumerErm} = require('./store-common');
 let RED;
 module.exports.initRED = function (_RED) {
     RED = _RED;
@@ -39,26 +39,12 @@ module.exports.RedLinkStore = function (config) {
     node.userCertificate = config.userCertificate;
     node.interStoreLoadBalancer = config.interStoreLB;
     require('./redlinkSettings.js')(RED, node.name).cleanLargeMessagesDirectory();
-    const largeMessagesDirectory = require('./redlinkSettings.js')(RED, node.name).largeMessagesDirectory;
+    node.largeMessagesDirectory = require('./redlinkSettings.js')(RED, node.name).largeMessagesDirectory;
     const largeMessageThreshold = require('./redlinkSettings.js')(RED, node.name).largeMessageThreshold;
 
     // Insert myself into the mesh.
     const insertStoreSql = 'INSERT INTO stores("' + node.name + '","' + node.listenAddress + '",' + node.listenPort + ')';
     alasql(insertStoreSql);
-
-    function sendMessage(msg) { // command, registration, debug //todo add error port?
-        const msgs = [];
-        if (node.command) {
-            msgs.push(msg.command);
-        }
-        if (node.registration) {
-            msgs.push(msg.registration);
-        }
-        if (node.debug) {
-            msgs.push(msg.debug);
-        }
-        node.send(msgs);
-    }
 
     function notifyPeerStoreOfLocalConsumers(address, port, transitAddress, transitPort) {
         // first get distinct local consumers
@@ -90,7 +76,7 @@ module.exports.RedLinkStore = function (config) {
                         function: 'notifyPeerStoreOfLocalConsumers',
                         notifyData: body
                     }
-                });
+                }, node);
                 sendMessage({
                     debug: {
                         storeName: node.name,
@@ -98,7 +84,7 @@ module.exports.RedLinkStore = function (config) {
                         direction: 'outBound',
                         notifyData: body
                     }
-                });
+                }, node);
                 const options = {method: 'POST', url: 'https://' + address + ':' + port + '/notify', body, json: true};
                 request(options, function (error, response) {
                     if (error) {
@@ -110,7 +96,7 @@ module.exports.RedLinkStore = function (config) {
                                 notifyData: body,
                                 error: error
                             }
-                        });
+                        }, node);
                     } else {
                         sendMessage({
                             debug: {
@@ -119,7 +105,7 @@ module.exports.RedLinkStore = function (config) {
                                 direction: 'outBound',
                                 notifyData: response.body
                             }
-                        });
+                        }, node);
                     }
                 });
             }
@@ -152,7 +138,7 @@ module.exports.RedLinkStore = function (config) {
                     direction: 'outBound',
                     notifyData: body
                 }
-            });
+            }, node);
             const options = {method: 'POST', url: 'https://' + address + ':' + port + '/notify', body, json: true};
             request(options, function (error, response) {
                 if (error) {
@@ -167,7 +153,7 @@ module.exports.RedLinkStore = function (config) {
                                 notifyData: address + ':' + port,
                                 serviceName: consumer.serviceName
                             }
-                        });
+                        }, node);
                     } else if (direction === 'north') { // Ok, North Peers are hard wired, if the connection is a problem, then just delete the globalStoreConsumers.
                         if (deleteGlobalStoreConsumers(node.name, direction, address, port)) {
                             sendMessage({
@@ -178,7 +164,7 @@ module.exports.RedLinkStore = function (config) {
                                     notifyData: address + ':' + port,
                                     serviceName: consumer.serviceName
                                 }
-                            });
+                            }, node);
                         }
                     }
                     sendMessage({
@@ -189,7 +175,7 @@ module.exports.RedLinkStore = function (config) {
                             notifyData: body,
                             error: error
                         }
-                    });
+                    }, node);
                 } else if (direction === 'south' && response.statusCode === 404) {
                     node.southPeers = deleteSouthPeer(address, port, node.southPeers); // Ok, looks like the peer has rejected the update, so, lets delete the peer entry.
                     deleteGlobalStoreConsumers(node.name, direction, address, port);
@@ -201,7 +187,7 @@ module.exports.RedLinkStore = function (config) {
                             notifyData: address + ':' + port,
                             serviceName: consumer.serviceName
                         }
-                    });
+                    }, node);
                 } else {
                     sendMessage({
                         debug: {
@@ -210,7 +196,7 @@ module.exports.RedLinkStore = function (config) {
                             direction: 'outBound',
                             notifyData: response.body
                         }
-                    });
+                    }, node);
                 }
             });
         }
@@ -263,8 +249,8 @@ module.exports.RedLinkStore = function (config) {
     }
 
     const nodeId = config.id.replace('.', '');
-    const newMsgTriggerName = `onNewMessage${nodeId}`;
-    const registerConsumerTriggerName = `registerConsumer${nodeId}`;
+    node.newMsgTriggerName = `onNewMessage${nodeId}`;
+    node.registerConsumerTriggerName = `registerConsumer${nodeId}`;
 
     function getRemoteMatchingStores(serviceName, meshName, loadBalancer, useEnm) {
         let matchingGlobalStoresAddresses = [];
@@ -313,7 +299,7 @@ module.exports.RedLinkStore = function (config) {
                         action: 'producerNotification',
                         redlinkProducerId: newMessage.redlinkProducerId
                     }
-                });
+                }, node);
                 const updateMsgStatus = `UPDATE inMessages SET consumerId ="pending"  WHERE consumerId = "" AND redlinkMsgId="${newMessage.redlinkMsgId}" AND storeName = "${node.name}"`;
                 alasql(updateMsgStatus);
                 let producerStores = [...new Set([...getRemoteMatchingStores(newMessage.serviceName, node.meshName, node.interStoreLoadBalancer, newMessage.enforceReversePath)])];
@@ -339,14 +325,24 @@ module.exports.RedLinkStore = function (config) {
                         body,
                         json: true
                     };
-                    //console.log('in store ', node.name, ' posting to adjacent store- ask if they are up for it:', JSON.stringify(options, null, 2));
                     // Ok Ask the Consumer if they have the capacity to consume this message
                     (async function () {
-                        const response = await requestPromise(options);
-                        if (!response.notifyPath) {
-                            // console.log('in store got no notifyPath in response ', node.name, 'posted with: ', options, ' got response as:', response);
+                        let response;
+                        try {
+                            response = await requestPromise(options);
+                        } catch (e) {
+                            sendMessage({
+                                debug: {
+                                    storeName: node.name,
+                                    action: `POST to ${options.url} `,
+                                    direction: 'outBound',
+                                    error: e
+                                }
+                            }, node);
                         }
-                        //console.log('in store ', node.name, ' got consumer id back as:', response.consumerId);
+                        if(!response){
+                            return;
+                        }
                         // Ok, if a consumerId is not empty, then set the message with the consumerId and use the returned path to go directly to the consumer store.
                         if (response.consumerId !== '') {
                             const updateMsgStatus = `UPDATE inMessages SET consumerId ="${response.consumerId}"  WHERE consumerId = "pending" AND redlinkMsgId="${body.redlinkMsgId}" AND storeName = "${node.name}"`;
@@ -370,14 +366,23 @@ module.exports.RedLinkStore = function (config) {
                                 body,
                                 json: true
                             };
-                            //console.log('in store ', node.name, ' in inner... posting with:', JSON.stringify(options, null, 2));
                             //  Recurse to this remoteStore
                             (async function () {
-                                const response2 = await requestPromise(options);
-                                if (response2.consumerId !== '') {
+                                let response2;
+                                try {
+                                    response2 = await requestPromise(options);
+                                } catch (e) {
+                                    sendMessage({
+                                        debug: {
+                                            storeName: node.name,
+                                            action: `POST to ${options.url}`,
+                                            direction: 'outBound',
+                                            error: e
+                                        }
+                                    }, node);
+                                }
+                                if (response2 && response2.consumerId !== '') {
                                     // OK, I have a winner
-                                    //console.log('in store ', node.name, ' ENM=', response2.enm);
-                                    //console.log(response2);
                                     updateGlobalConsumerEnm(response2.service, response2.consumerId, response2.storeName, response2.enm, node.name);
                                 }
                                 return response2;
@@ -392,25 +397,25 @@ module.exports.RedLinkStore = function (config) {
 
     //---------------------------------------------------  Notify Triggers  ---------------------------------------------------------
     try {
-        alasql.fn[newMsgTriggerName] = () => {
+        alasql.fn[node.newMsgTriggerName] = () => {
             notifyUnreadMessages();
         };
 
         // On local consumer registration, let them all know
-        alasql.fn[registerConsumerTriggerName] = () => {
+        alasql.fn[node.registerConsumerTriggerName] = () => {
             // Notify my local globalConsumerStore with a default hop count of zero and a transit address of myself...all the localConsumers.
             notifyPeerStoreOfLocalConsumers(node.listenAddress, node.listenPort, node.listenAddress, node.listenPort);
         };
 
-        const createNewMsgTriggerSql = `CREATE TRIGGER ${newMsgTriggerName} AFTER INSERT ON inMessages CALL ${newMsgTriggerName}()`;
-        const createRegisterConsumerSql = `CREATE TRIGGER ${registerConsumerTriggerName} AFTER INSERT ON localStoreConsumers CALL ${registerConsumerTriggerName}()`;
+        const createNewMsgTriggerSql = `CREATE TRIGGER ${node.newMsgTriggerName} AFTER INSERT ON inMessages CALL ${node.newMsgTriggerName}()`;
+        const createRegisterConsumerSql = `CREATE TRIGGER ${node.registerConsumerTriggerName} AFTER INSERT ON localStoreConsumers CALL ${node.registerConsumerTriggerName}()`;
         try {
             alasql(createNewMsgTriggerSql);
             alasql(createRegisterConsumerSql);
         } catch (e1) {
             sendMessage({
                 debug: e1
-            });
+            }, node);
         }
         notifyAllNorthPeerStoresOnly(); // Register myself with my North Store
         node.reSyncTimerId = reSyncStores(node.reSyncTime); // This is the main call to sync all of the interconnected stores on startup and it also starts the interval timer.
@@ -418,12 +423,12 @@ module.exports.RedLinkStore = function (config) {
     } catch (e) {
         sendMessage({
             debug: e
-        });
+        }, node);
     }
 
     function handleStoreStartError(e) {
         const errorMsg = `redlinkStore ${node.name} Error starting listen server on ${node.listenPort} Exception is ${e}`;
-        sendMessage({debug: {storeName: node.name, action: 'startServer', error: errorMsg}});
+        sendMessage({debug: {storeName: node.name, action: 'startServer', error: errorMsg}}, node);
         clearInterval(node.statusTimerId); // Stop the status data being updated.
         clearInterval(node.reSyncTimerId); // Stop the store joining the mesh
         node.status({fill: "red", shape: "dot", text: 'Error: Listener please check Debug'});
@@ -454,43 +459,6 @@ module.exports.RedLinkStore = function (config) {
         node.status({fill: "green", shape: "dot", text: 'Listen Port in OK'});
     }
 
-    function insertGlobalConsumer(serviceName, consumerId, storeName, direction, storeAddress, storePort, transitAddress, transitPort, hopCount, ttl, ecm, erm, enm, localStoreName) {
-        const existingGlobalConsumerSql = `SELECT * FROM globalStoreConsumers WHERE localStoreName="${localStoreName}" AND serviceName="${serviceName}" AND consumerId="${consumerId}" AND storeName="${storeName}" AND storeAddress = "${storeAddress}" AND storePort = ${storePort}`;
-        const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
-        const insertGlobalConsumersSql = `INSERT INTO globalStoreConsumers("${localStoreName}","${serviceName}","${consumerId}","${storeName}","${direction}","${storeAddress}",${storePort},"${transitAddress}",${transitPort},${hopCount},${ttl},${ecm},${erm},${enm})`;
-        if (!existingGlobalConsumer || existingGlobalConsumer.length === 0) {
-            alasql(insertGlobalConsumersSql);
-        } else {
-            alasql(`UPDATE globalStoreConsumers SET ttl=${ttl}  WHERE localStoreName="${localStoreName}" AND serviceName="${serviceName}" AND consumerId="${consumerId}" AND storeName="${storeName}" AND storeAddress = "${storeAddress}" AND storePort = ${storePort}`);
-            // Possibly Need to add a delete and an insert here for lower hopCount routes, it will reduce the number of notifies on high complexity redlink store layouts.
-        }
-    }
-
-    function updateGlobalConsumerEnm(serviceName, consumerId, storeName, enm, localStoreName) {
-        alasql(`UPDATE globalStoreConsumers SET enm=${enm} WHERE localStoreName="${localStoreName}" AND serviceName="${serviceName}" AND storeName="${storeName}" AND consumerId="${consumerId}"`);
-    }
-
-    function updateGlobalConsumerEcm(serviceName, consumerId, storeName, ecm, localStoreName) {
-        alasql(`UPDATE globalStoreConsumers SET ecm=${ecm} WHERE localStoreName="${localStoreName}" AND serviceName="${serviceName}" AND storeName="${storeName}" AND consumerId="${consumerId}"`);
-    }
-
-    function updateGlobalConsumerErm(serviceName, consumerId, storeName, erm, localStoreName) {
-        const existingGlobalConsumerSql = `SELECT * FROM globalStoreConsumers WHERE localStoreName="${localStoreName}" AND serviceName="${serviceName}" AND storeName="${storeName}"`;
-        const existingGlobalConsumer = alasql(existingGlobalConsumerSql);
-        if (existingGlobalConsumer) {
-            const updateConsumerErm = `UPDATE globalStoreConsumers SET erm=${erm} WHERE localStoreName="${localStoreName}" AND serviceName="${serviceName}" AND storeName="${storeName}"AND consumerId="${consumerId}"`;
-            alasql(updateConsumerErm);
-        }
-    }
-
-    function calculateEnm(serviceName, consumerId, storeName) {
-        const existingLocalConsumerSql = `SELECT * FROM localStoreConsumers   WHERE storeName="${storeName}" AND serviceName="${serviceName}" AND consumerId="${consumerId}"`;
-        const notifyCountSql = `select count(*) nc from (SELECT * FROM notify WHERE storeName="${storeName}" AND serviceName="${serviceName}" AND consumerId="${consumerId}")`;
-        const nc = alasql(notifyCountSql)[0].nc;
-        const itlSql = `select inTransitLimit from (${existingLocalConsumerSql})`;
-        const itl = alasql(itlSql)[0].inTransitLimit;
-        return ((nc) / itl * 100).toFixed(0);
-    }
 
     const app = httpsServer.getExpressApp();
 
@@ -506,7 +474,7 @@ module.exports.RedLinkStore = function (config) {
                         direction: 'inBound',
                         data: req.body
                     }
-                });
+                }, node);
                 const serviceName = consumer.serviceName;
                 const consumerId = consumer.consumerId;
                 const storeName = consumer.storeName;
@@ -648,7 +616,7 @@ module.exports.RedLinkStore = function (config) {
                         direction: 'Received',
                         data: req.body
                     }
-                });
+                }, node);
                 let notifyConsumerId = ''; // Default Notify return, this store doesnt have the capacity to process this notification
                 const existingLocalConsumerSql = `SELECT * FROM localStoreConsumers WHERE storeName="${node.name}" AND serviceName="${req.body.service}"`;
                 const localCons = alasql(existingLocalConsumerSql);
@@ -678,7 +646,7 @@ module.exports.RedLinkStore = function (config) {
                                 direction: 'LocalConsumerNotifyDeniedAlreadyAccepted',
                                 data: req.body
                             }
-                        });
+                        }, node);
                         const enm = calculateEnm(req.body.service, consumer.notifyConsumerId, node.name);
                         res.status(200).send({
                             action: `Return back to producerNotification LocalConsumerNotifyDeniedAlreadyAccepted ${node.name}`,
@@ -700,7 +668,7 @@ module.exports.RedLinkStore = function (config) {
                                     direction: 'LocalConsumerNotifyAccepted',
                                     data: req.body
                                 }
-                            });
+                            }, node);
                             // OK, now check for my consumer's capacity to actually queue this notify by seeing if the total consumers "inTransitLimit" is in limits.
                             //tODO this one is really wonky- need to fix this now!!!
                             // const enmClause =
@@ -770,7 +738,6 @@ module.exports.RedLinkStore = function (config) {
                     try {
                         // This is the interstore notifier
                         req.body.notifyPath = notifyPath;
-                        //console.log('in prodeucerNotification of store', node.name, ' set req.body.notifyPath to', req.body.notifyPath);
                         let remoteStore = remoteMatchingStores[0];
                         let destinationStoreAddress = remoteStore.transitStoreAddress;
                         const options = {
@@ -797,7 +764,6 @@ module.exports.RedLinkStore = function (config) {
                                     status: response.status
                                 });
                             } catch (e) {
-                                // console.log('\n\n\n\n !@#$ 3 in store', node.name,  'got an error here...', e);
                                 res.status(200).send({
                                     action: 'Error producerNotification forward to stores ' + node.name + ' Connection Reset',
                                     status: 404
@@ -843,7 +809,7 @@ module.exports.RedLinkStore = function (config) {
                         direction: 'relayingBackToProducer',
                         data: options
                     }
-                });
+                }, node);
                 request(options, function (error, response) {
                     if (response) {
                         const redlinkMsgMetadata = pick(response.headers, Object.keys(messageFields));
@@ -866,7 +832,7 @@ module.exports.RedLinkStore = function (config) {
                     direction: 'inBound',
                     Data: req.body
                 }
-            });
+            }, node);
             if (!redlinkMsgId) {
                 sendMessage({
                     debug: {
@@ -875,7 +841,7 @@ module.exports.RedLinkStore = function (config) {
                         direction: 'outBound',
                         error: 'redlinkMsgId not specified-400'
                     }
-                });
+                }, node);
                 res.status(200).send({err: 'redlinkMsgId not specified', redlinkProducerId, status: 400});
                 return;
             }
@@ -890,7 +856,7 @@ module.exports.RedLinkStore = function (config) {
                         data: msgs[msgs.length - 1],
                         error: 'none'
                     }
-                });
+                }, node);
                 const message = msgs[0];
                 const headersObj = {};
                 Object.assign(headersObj, message);
@@ -937,7 +903,7 @@ module.exports.RedLinkStore = function (config) {
                         direction: 'outBound',
                         error: msg
                     }
-                });
+                }, node);
                 res.status(200).send({err: msg, redlinkProducerId, redlinkConsumerId, status: 404});
             }
         }
@@ -949,7 +915,6 @@ module.exports.RedLinkStore = function (config) {
         // This function allows path recusion backwards to producer
         if (notifyPath) {
             if (notifyPath.address !== node.listenAddress || notifyPath.port !== node.listenPort) {
-                //console.log('REPLYING - TRANSIT=', req.body);
                 updateGlobalConsumerEnm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.enm, node.name);
                 updateGlobalConsumerErm(req.body.replyingService, req.body.replyingServiceId, req.body.replyingStoreName, req.body.replyDelay, node.name); // Update the is score.
                 const body = req.body;
@@ -967,7 +932,7 @@ module.exports.RedLinkStore = function (config) {
                         direction: 'relayingBackToProducer',
                         data: options
                     }
-                });
+                }, node);
                 request(options, function (error, response) {
                     try {
                         res.status(response.statusCode).send(response.body);
@@ -993,7 +958,7 @@ module.exports.RedLinkStore = function (config) {
                     direction: 'inBound',
                     Data: req.body
                 }
-            });
+            }, node);
             const replyMsgSql = `SELECT DISTINCT * FROM replyMessages WHERE redlinkMsgId="${redlinkMsgId}"`;
             const replyMsg = alasql(replyMsgSql);
             if (replyMsg.length === 0) {
@@ -1027,7 +992,7 @@ module.exports.RedLinkStore = function (config) {
                     data: {record: selectData, time: Math.floor(new Date().getTime() / 1000)},
                     error: 'none'
                 }
-            });
+            }, node);
             alasql(deleteSql);
         }
     }
@@ -1095,74 +1060,33 @@ module.exports.RedLinkStore = function (config) {
     node.on("input", msg => {
         switch (msg.topic) {
             case 'listServices' : {
-                sendMessage({command: {services: getAllVisibleServices()}});
+                sendMessage({command: {services: getAllVisibleServices()}}, node);
                 break;
             }
             case 'listRegistrations' : {
-                sendMessage({command: getAllVisibleConsumers()});
+                sendMessage({command: getAllVisibleConsumers()}, node);
                 break;
             }
             case 'listStore'         : {
-                sendMessage({command: getCurrentStoreData()});
+                sendMessage({command: getCurrentStoreData()}, node);
                 break;
             }
             case 'flushStore'        : {
                 alasql(`DELETE FROM replyMessages WHERE storeName="${node.name}"`);
                 alasql(`DELETE FROM notify WHERE storeName="${node.name}"`);
                 alasql(`DELETE FROM inMessages WHERE storeName="${node.name}"`);
-                sendMessage({command: getCurrentStoreData()});
+                sendMessage({command: getCurrentStoreData()}, node);
                 break;
             }
             default                     : {
-                sendMessage({command: {help: "msg.topic can be listRegistrations listStore flushStore"}});
+                sendMessage({command: {help: "msg.topic can be listRegistrations listStore flushStore"}}, node);
                 break;
             }
         }
     });
 
     node.on('close', (removed, done) => {
-        if (node.listenServer) {
-            node.listenServer.close(() => { //this is asynchronous- callback will be called only when all active connections end https://nodejs.org/api/net.html#net_server_close_callback
-                //waiting for all active connection to end may cause node-red to error with 'Error stopping node: Close timed out'
-            });
-        }
-        clearInterval(node.reSyncTimerId);
-        clearInterval(node.statusTimerId);
-        node.northPeers = config.headers;
-        node.southPeers = [];
-
-        //also delete all associated consumers for this store name
-        // const dropTriggerNewMsg = 'DROP TRIGGER ' + newMsgTriggerName;
-        // alasql(dropTriggerNewMsg);
-        dropTrigger(newMsgTriggerName);
-        // const dropTriggerRegisterConsumer = 'DROP TRIGGER ' + registerConsumerTriggerName;
-        // alasql(dropTriggerRegisterConsumer);
-        dropTrigger(registerConsumerTriggerName);
-
-        const remainingMessages = alasql(`SELECT * FROM inMessages WHERE storeName="${node.name}"`);
-        remainingMessages.forEach(msg => {
-            if (msg.isLargeMessage) {
-                const path = largeMessagesDirectory + msg.redlinkMsgId + '/';
-                fs.remove(path);
-            }
-        });
-        const removeReplySql = `DELETE FROM replyMessages WHERE storeName="${node.name}"`;
-        const removeNotifySql = `DELETE FROM notify WHERE storeName="${node.name}"`;
-        const removeInMessagesSql = `DELETE FROM inMessages WHERE storeName="${node.name}"`;
-        alasql(removeReplySql);
-        alasql(removeNotifySql);
-        alasql(removeInMessagesSql);
-        const removeStoreSql = `DELETE FROM stores WHERE storeName="${node.name}"`;
-        const removeLocalConsumersSql = `DELETE FROM localStoreConsumers WHERE storeName="${node.name}"`;
-        const removeGlobalConsumersSql = `DELETE FROM globalStoreConsumers WHERE localStoreName="${node.name}"`;
-        alasql(removeStoreSql);
-        alasql(removeLocalConsumersSql);
-        alasql(removeGlobalConsumersSql);
-        done();
+        closeStore(node, done);
     });
-
-    function dropTrigger(triggerName) {
-        alasql(`DROP TRIGGER ${triggerName}`);
-    }
 }; // function
 
