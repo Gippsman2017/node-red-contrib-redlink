@@ -340,7 +340,7 @@ module.exports.RedLinkStore = function (config) {
                                 }
                             }, node);
                         }
-                        if(!response){
+                        if (!response) {
                             return;
                         }
                         // Ok, if a consumerId is not empty, then set the message with the consumerId and use the returned path to go directly to the consumer store.
@@ -571,7 +571,27 @@ module.exports.RedLinkStore = function (config) {
                                 json: true
                             };
                             (async function () {
-                                const response = await requestPromise(options);
+                                let response;
+                                try {
+                                    response = await requestPromise(options);
+                                } catch (e) {
+                                    res.status(200).send({
+                                        action: `Error posting to ${options.url} from ${node.name}`,
+                                        consumerId: req.body.consumerId,
+                                        notifyPath: [],
+                                        status: 404
+                                    });
+                                    sendMessage({
+                                        debug: {
+                                            storeName: node.name,
+                                            action: 'notifyRegistrationResult',
+                                            direction: 'outBound',
+                                            notifyData: body,
+                                            error: e
+                                        }
+                                    }, node);
+                                    return;
+                                }
                                 updateGlobalConsumerEnm(response.service, response.consumerId, response.storeName, response.enm, node.name);
                                 res.status(200).send({
                                     action: 'REPLY confirmNotification forward to stores ' + node.name + ' remoteMatchingStores Result =',
@@ -748,7 +768,25 @@ module.exports.RedLinkStore = function (config) {
                         };
                         (async function () {
                             try {
-                                const response = await requestPromise(options);
+                                let response;
+                                try {
+                                    response = await requestPromise(options);
+                                } catch (e) {
+                                    res.status(200).send({
+                                        action: `Error posting to ${options.url} from ${node.name}`,
+                                        status: 404
+                                    });
+                                    sendMessage({
+                                        debug: {
+                                            storeName: node.name,
+                                            action: 'notifyRegistrationResult',
+                                            direction: 'outBound',
+                                            notifyData: body,
+                                            error: e
+                                        }
+                                    }, node);
+                                    return;
+                                }
                                 if (response.consumerId !== "") {
                                     //Set the ecm value here on response for this store
                                     //                                       updateGlobalConsumerEnm(req.body.service, response.consumerId, response.consumerStore, response.enm);
@@ -934,9 +972,19 @@ module.exports.RedLinkStore = function (config) {
                     }
                 }, node);
                 request(options, function (error, response) {
-                    try {
+                    if (response) {
                         res.status(response.statusCode).send(response.body);
-                    } catch (e) { //todo error handling and message
+                    } else {
+                        res.status(404).send({error});
+                        sendMessage({
+                            debug: {
+                                storeName: node.name,
+                                action: 'notifyRegistrationResult',
+                                direction: 'outBound',
+                                notifyData: body,
+                                error
+                            }
+                        }, node);
                     }
                 });
             }
