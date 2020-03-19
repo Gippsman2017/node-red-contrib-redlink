@@ -1,3 +1,5 @@
+v 3.0.2 Refactored comsumer notifies for for manual read and reduced overall notifies to each consumer eg only notify when it has something to process and has completed its last job.
+	Fixed read error messages when due to being notified twice for the same readlinkMsgId in error.
 v 3.0.1 Fixed LB, enm, renotify from producer.
 v 3.0.0 Complete re-write of socket handling.
 	1.All messages are now confirmed with the inMessages store before a notification is sent, this removes wrong notifications to consumers

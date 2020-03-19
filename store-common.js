@@ -16,7 +16,9 @@ module.exports.insertGlobalConsumer = function(serviceName, consumerId, storeNam
     const insertGlobalConsumersSql = `INSERT INTO globalStoreConsumers("${localStoreName}","${serviceName}","${consumerId}","${storeName}","${direction}","${storeAddress}",${storePort},"${transitAddress}",${transitPort},${hopCount},${ttl},${ecm},${erm},${enm})`;
     if (!existingGlobalConsumer || existingGlobalConsumer.length === 0) {
         alasql(insertGlobalConsumersSql);
-    } else {
+    } 
+  else 
+    {
         alasql(`UPDATE globalStoreConsumers SET ttl=${ttl}  WHERE localStoreName="${localStoreName}" AND serviceName="${serviceName}" AND consumerId="${consumerId}" AND storeName="${storeName}" AND storeAddress = "${storeAddress}" AND storePort = ${storePort}`);
         // Possibly Need to add a delete and an insert here for lower hopCount routes, it will reduce the number of notifies on high complexity redlink store layouts.
     }
@@ -24,15 +26,9 @@ module.exports.insertGlobalConsumer = function(serviceName, consumerId, storeNam
 
 module.exports.sendMessage = function(msg, node) { // command, registration, debug //todo add error port?
     const msgs = [];
-    if (node.command) {
-        msgs.push(msg.command);
-    }
-    if (node.registration) {
-        msgs.push(msg.registration);
-    }
-    if (node.debug) {
-        msgs.push(msg.debug);
-    }
+    if (node.command) { msgs.push(msg.command); }
+    if (node.registration) { msgs.push(msg.registration); }
+    if (node.debug) { msgs.push(msg.debug); }
     node.send(msgs);
 };
 

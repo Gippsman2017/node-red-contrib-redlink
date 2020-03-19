@@ -33,20 +33,16 @@ module.exports.RedLinkConsumer = function (config) {
     const newMsgNotifyTrigger = 'onNotify' + msgNotifyTriggerId;
 
     function updateStatusCounter() {
-        const nResult = alasql(`SELECT COUNT(consumerId) as myCount from notify  WHERE storeName="${node.consumerStoreName}" AND serviceName="${node.name}" AND consumerId= "${node.id}" AND read=false`);
+        const nResult = alasql(`SELECT COUNT(consumerId) as myCount from notify  WHERE storeName="${node.consumerStoreName}" AND serviceName="${node.name}" AND consumerId= "${node.id}"  and read=false`);
         node.status({fill: "green", shape: "dot", text: 'N:' + nResult[0].myCount});
         return nResult[0].myCount;
     }
 
     function getNewNotify() {
-        // check if the notify is for this consumer name with the registered store name
-        const notifies = alasql(`SELECT * from notify WHERE storeName="${node.consumerStoreName}" AND serviceName="${node.name}" AND consumerId = "${node.id}" AND notifySent = ""`);
-        let newNotify = null;
-        if (notifies.length > 0) {
-            newNotify = {notify: notifies[0]};
-        }
-        return newNotify;
-    }
+        // check if the notify is for this consumer name with the registered store name and there is NOT a notify that has been read and in progress by this consumer
+        const notifies = alasql(`SELECT count(*) as notifyCount from notify WHERE storeName="${node.consumerStoreName}" AND serviceName="${node.name}" AND consumerId = "${node.id}" and not notifySent = "" `)[0].notifyCount;
+        return Boolean(notifies);
+         }
 
     function updateNotifyTable(newNotify) {
         const existingNotifiedNodes = newNotify.notifySent;
@@ -62,8 +58,9 @@ module.exports.RedLinkConsumer = function (config) {
     function sendOutNotify() {
         const notifyCount = updateStatusCounter();
         if (notifyCount > 0) {
-            const data = alasql(`SELECT * from notify  WHERE read=false and storeName="${node.consumerStoreName}" AND serviceName="${node.name}" AND consumerId="${node.id}"`);
+            const data = alasql(`SELECT * from notify  WHERE read=false and storeName="${node.consumerStoreName}" AND serviceName="${node.name}" AND consumerId="${node.id}" AND  notifySent = "" order by notifyTime limit 1`);
             if (data.length === 1) {
+                updateNotifyTable(data[0]);
                 const notifyMessage = {
                     redlinkMsgId: data[0].redlinkMsgId,
                     notifyType: 'producerNotification',
@@ -78,7 +75,9 @@ module.exports.RedLinkConsumer = function (config) {
                 };
                 if (node.manualRead) {
                     sendMessage({notify: notifyMessage});
-                } else {
+                } 
+              else 
+                {
                     // check inTransitLimit first
                     if (watermark < node.inTransitLimit) {
                         sendMessage({notify: notifyMessage}); // send notify regardless of whether it is manual or auto read
@@ -140,13 +139,9 @@ module.exports.RedLinkConsumer = function (config) {
     // ---------------------------------------------------------------------------------------------------------
     alasql.fn[newMsgNotifyTrigger] = () => {
         // OK, this consumer will now add its own node.id to the notify.notifySent trigger message since it comes in without one, unfortunately alasql does not send data with triggers.
-        // console.log('CONSUMER ',node.id,' NOTIFIED');
-        const notify = getNewNotify();
-        if (notify !== null) {
-            updateNotifyTable(notify.notify);
-            sendOutNotify();
-        }
+       if (!getNewNotify()) { sendOutNotify(); }
     };
+    // ---------------------------------------------------------------------------------------------------------
 
     const createTriggerSql = `CREATE TRIGGER ${msgNotifyTriggerId} AFTER INSERT ON notify CALL ${newMsgNotifyTrigger}()`;
     alasql(createTriggerSql);
@@ -157,13 +152,10 @@ module.exports.RedLinkConsumer = function (config) {
     alasql(insertIntoConsumerSql);
 
     const selectResult = alasql(`SELECT storeName from stores WHERE storeName = "${node.consumerStoreName}"`);
-    if (selectResult.length > 0) {
-        node.status({fill: "green", shape: "dot", text: 'Conn: ' + node.consumerStoreName});
-    } else {
-        node.status({fill: "red", shape: "dot", text: 'Error: No ' + node.consumerStoreName});
-    }
+    if (selectResult.length > 0) { node.status({fill: "green", shape: "dot", text: 'Conn: ' + node.consumerStoreName}); } 
+                            else { node.status({fill: "red", shape: "dot", text: 'Error: No ' + node.consumerStoreName}); }
 
-    node.reSyncTimerId = reSyncStores(node.reSyncTime); // This is the main call to sync this consumer with its store on startup and it also starts the interval timer.
+    node.reSyncTimerId   = reSyncStores(node.reSyncTime); // This is the main call to sync this consumer with its store on startup and it also starts the interval timer.
     node.reNotifyTimerId = reNotifyConsumers(node.reNotifyTime); // This is the main call to sync this consumer with its store on startup and it also starts the interval timer.
 
     node.on('close', (removed, done) => {
@@ -186,11 +178,9 @@ module.exports.RedLinkConsumer = function (config) {
         return setInterval(function () {
             // First get any local consumers that I own and update my own global entries in my own store, this updates ttl.
             const sResult = alasql(`SELECT storeName from stores WHERE storeName = "${node.consumerStoreName}"`);
-            if (sResult.length > 0) {
-                updateStatusCounter();
-            } else {
-                node.status({fill: "red", shape: "dot", text: `Error: Store Not Syncd Yet:${node.consumerStoreName}`});
-            }
+            if (sResult.length > 0) { updateStatusCounter(); } 
+                               else { node.status({fill: "red", shape: "dot", text: `Error: Store Not Syncd Yet:${node.consumerStoreName}`}); }
+
             if (sResult.length === 0) {
                 const deleteFromConsumerSql = `DELETE FROM localStoreConsumers where consumerId = "${node.id}"`;
                 const insertIntoConsumerSql = `INSERT INTO localStoreConsumers ("${node.consumerStoreName}","${node.name}","${node.id}",${node.inTransitLimit})`;
@@ -202,24 +192,9 @@ module.exports.RedLinkConsumer = function (config) {
 
     function reNotifyConsumers(timeOut) {
         return setInterval(function () {
-            const notifyCount = updateStatusCounter();
-            if (notifyCount > 0) {
-                const data = alasql(`SELECT * from notify  WHERE storeName="${node.consumerStoreName}" AND serviceName="${node.name}" and consumerId= "${node.id}" AND read=false`);
-                const notifyMessage = {
-                    redlinkMsgId: data[0].redlinkMsgId,
-                    notifyType: 'producerNotification',
-                    src: {storeName: data[0].storeName, address: data[0].srcStoreAddress + ':' + data[0].srcStorePort,},
-                    dest: {storeName: data[0].storeName, serviceName: data[0].serviceName, consumer: node.id},
-                    path: base64Helper.decode(data[0].notifyPath),
-                    notifyCount: notifyCount
-                };
-                if (node.manualRead) {
-                    sendMessage({notify: notifyMessage});
-                } else {
-                    sendOutNotify();
-                }
-            }
-        }, timeOut);
+                 if (!getNewNotify()) { sendOutNotify(); }
+                 const notifyCount = updateStatusCounter();
+                 }, timeOut);
     }
 
     node.on("input", msg => {
@@ -235,27 +210,29 @@ module.exports.RedLinkConsumer = function (config) {
                 } else {  // should be here for a normal read
                     try {
                         readMessageWithoutId();
-                    } catch (e) {
+                    } 
+                    catch (e) {
                         console.log(e);
                     }  // shouldn't happen
                 }
             } else {
                 sendMessage({failure: getFailureMessage(msg.redlinkMsgId, 'Attempt to manually read message when consumer set to auto read', 'consumerRead')});
             }
-        } else {  // Reply message, this is where the reply is actually sent back to the replyMessages on the Producer.
+        } 
+      else 
+        {  // Reply message, this is where the reply is actually sent back to the replyMessages on the Producer.
             if (msg.redlinkMsgId) {
                 if (msg.sendOnly === 'false') {
                     msg.sendOnly = false;
+                    if (!getNewNotify()) { sendOutNotify(); }
                 }
                 if (!msg.sendOnly) { // todo delete notify if sendOnly
-                    const notifySql = `SELECT * FROM notify WHERE storeName="${node.consumerStoreName}"  and redlinkMsgId="${msg.redlinkMsgId}"and consumerId = "${node.id}"`;
+                    const notifySql = `SELECT * FROM notify WHERE storeName="${node.consumerStoreName}"  and redlinkMsgId="${msg.redlinkMsgId}"and consumerId = "${node.id}" limit 1`;
                     const notifies = alasql(notifySql); // should have only one
                     if (notifies.length > 0) {
                         if (notifies[0].read === false) {// attempt to send reply before reading
                             sendMessage({
-                                debug: {
-                                    error: 'Attempt to reply to redlinkMsgId ' + msg.redlinkMsgId + ' before reading message'
-                                },
+                                debug: { error: 'Attempt to reply to redlinkMsgId ' + msg.redlinkMsgId + ' before reading message' },
                                 failure: getFailureMessage(msg.redlinkMsgId, 'Attempt to reply to message before reading message', 'consumerReply')
                             });
                             return;
@@ -297,22 +274,20 @@ module.exports.RedLinkConsumer = function (config) {
                             enm: calculateEnm(node.name, node.id),
                             cerror: cerror,
                         };
-                        const options = {
-                            method: 'POST',
-                            url: 'https://' + replyAddress + '/reply-message',
-                            body,
-                            json: true
-                        };
-                        request(options, function (error, response) {
-                            body.payload = base64Helper.decode(body.payload);
-                        });
+                        const options = { method: 'POST', url: 'https://' + replyAddress + '/reply-message', body, json: true };
+                        request(options, function (error, response) { body.payload = base64Helper.decode(body.payload); });
+                        if (!getNewNotify()) { sendOutNotify(); }
                     }
                     watermark--;
-                } else {
-                    sendMessage({failure: getFailureMessage(msg.redlinkMsgId, 'Attempt to reply to a sendOnly message', 'consumerReply')});
+                } 
+              else 
+                {
+                  sendMessage({failure: getFailureMessage(msg.redlinkMsgId, 'Attempt to reply to a sendOnly message', 'consumerReply')});
                 }
-            } else {
-                sendMessage({failure: getFailureMessage('', 'Missing redlinkMsgId', 'consumerReply')});
+            } 
+          else 
+            {
+              sendMessage({failure: getFailureMessage('', 'Missing redlinkMsgId', 'consumerReply')});
             }
             updateStatusCounter();
         }
@@ -377,16 +352,14 @@ module.exports.RedLinkConsumer = function (config) {
         return new Promise((resolve, reject) => {
             let notifiesSql;
 
-            if (redlinkMsgId) {
-                notifiesSql = `SELECT * from notify WHERE storeName="${node.consumerStoreName}" AND redlinkMsgId="${redlinkMsgId}" AND consumerId = "${node.id}"`;
-            } else {
-                notifiesSql = `SELECT * from notify WHERE storeName="${node.consumerStoreName}" AND consumerId = "${node.id}"`;
-            }
+            if (redlinkMsgId) { notifiesSql = `SELECT * from notify WHERE storeName="${node.consumerStoreName}" AND redlinkMsgId="${redlinkMsgId}" AND consumerId = "${node.id}" order by notifyTime`; } 
+                         else { notifiesSql = `SELECT * from notify WHERE storeName="${node.consumerStoreName}" AND consumerId = "${node.id}" order by notifyTime`; }
 
             const notifies = alasql(notifiesSql);
             if (notifies.length > 0) {
                 if (notifies[0].sendOnly) { //doing it here to pass an accurate enm
                     deleteNotify(redlinkMsgId);
+                    if (!getNewNotify()) { sendOutNotify(); } //Get some more
                 }
                 const updateNotifyStatus = `UPDATE notify SET read=true WHERE redlinkMsgId="${redlinkMsgId}"  AND consumerId = "${node.id}"`;
                 alasql(updateNotifyStatus);
