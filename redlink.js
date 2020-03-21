@@ -60,9 +60,7 @@ module.exports = function (RED) {
         meshStores.forEach(function (meshStore) {
             const meshStorename = meshStore.storeName;
             const meshName = meshStorename.indexOf(':') !== -1 ? meshStorename.substring(0, meshStorename.indexOf(':')) : '';//todo this shouldnt happen
-            if (meshName) {
-                meshNames.add(meshName);
-            }
+            if (meshName) { meshNames.add(meshName); }
         });
         //log('returning mesh names:', meshNames);
         return Array.from(meshNames);
@@ -88,16 +86,12 @@ module.exports = function (RED) {
     }
 
     function getLocalGlobalConsumers(storeName) {
-        if (!storeName) {
-            return {};
-        }
+        if (!storeName) { return {}; }
         const globalConsumers = alasql(`SELECT distinct serviceName from ( select * from globalStoreConsumers WHERE localStoreName = "${storeName}") order by serviceName ASC`);
         const allConsumers = [...new Set([...globalConsumers])];
         let consumersArray = [];
         consumersArray.push('msg.topic'); //for dynamically specifying destination consumer- specify in msg.topic
-        allConsumers.forEach(consumer => {
-            consumersArray.push(consumer.serviceName);
-        });
+        allConsumers.forEach(consumer => { consumersArray.push(consumer.serviceName); });
         return consumersArray;
     }
 };

@@ -1,7 +1,7 @@
-const alasql = require('alasql');
-const fs = require('fs-extra');
 
-const base64Helper = require('./base64-helper.js');
+const alasql              = require('alasql');
+const fs                  = require('fs-extra');
+const base64Helper        = require('./base64-helper.js');
 const rateLimiterProvider = require('./rateLimiter.js');
 
 let RED;
@@ -60,21 +60,19 @@ module.exports.RedLinkProducer = function (config) {
         let msgsByThisProducerSql;
         let msgsByThisProducer;
         if (node.sendOnly) {
-            //2. if sendonly:  for all unread messages, if lifetime>ett, fail; else if timeSinceNotify>= notify, renotify and reset timeSinceNotify
-            msgsByThisProducerSql = 'SELECT * FROM inMessages WHERE read=' + false + ' AND redlinkProducerId="' + node.id + '"';
-        } else {
-            //3. if !sendOnly, for all messages (read, unread) if lifetime >ett fail; ; else if timeSinceNotify>= notify, renotify and reset timeSinceNotify
-            msgsByThisProducerSql = 'SELECT * FROM inMessages WHERE redlinkProducerId="' + node.id + '"';
+          //2. if sendonly:  for all unread messages, if lifetime>ett, fail; else if timeSinceNotify>= notify, renotify and reset timeSinceNotify
+          msgsByThisProducerSql = 'SELECT * FROM inMessages WHERE read=' + false + ' AND redlinkProducerId="' + node.id + '"';
+        } 
+      else 
+        {
+          //3. if !sendOnly, for all messages (read, unread) if lifetime >ett fail; ; else if timeSinceNotify>= notify, renotify and reset timeSinceNotify
+          msgsByThisProducerSql = 'SELECT * FROM inMessages WHERE redlinkProducerId="' + node.id + '"';
         }
         msgsByThisProducer = alasql(msgsByThisProducerSql);
         msgsByThisProducer.forEach(msg => {
-            if (node.ett !== -1 && msg.lifetime > node.ett) { 
-               failMessageAndRemove(msg.redlinkMsgId); 
-            } 
-          else 
-            if (msg.timeSinceNotify >= node.notify) {
-               reNotify(msg);
-            }
+          if (node.ett !== -1 && msg.lifetime > node.ett) { failMessageAndRemove(msg.redlinkMsgId); } 
+        else 
+          if (msg.timeSinceNotify >= node.notify) { reNotify(msg); }
         });
     }
 
@@ -82,9 +80,7 @@ module.exports.RedLinkProducer = function (config) {
         const vals = Object.values(obj);
         let returnStr = '';
         vals.forEach((val, index)=>{
-            if(typeof val === "string"){
-                val = '"'+val+'"';
-            }
+            if(typeof val === "string") { val = '"'+val+'"'; }
             returnStr += index === 0? val : ','+val;
         });
         return returnStr;
@@ -96,10 +92,10 @@ module.exports.RedLinkProducer = function (config) {
         //Notify Only if a consumer has NOT picked up this message
         const msgsByThisProducerSql = 'SELECT * FROM inMessages WHERE redlinkMsgId = "'+msg.redlinkMsgId+'" AND redlinkProducerId="' + node.id + '" and storeName ="'+node.producerStoreName+'" and consumerId=""';
         if (alasql(msgsByThisProducerSql).length > 0) {
-          deleteMessage(msg.redlinkMsgId);
-          msg.timeSinceNotify = 0;
-          const reinsertMessageSql = "INSERT INTO inMessages ("+getInsertSql(msg)+")";
-          alasql(reinsertMessageSql);
+           deleteMessage(msg.redlinkMsgId);
+           msg.timeSinceNotify = 0;
+           const reinsertMessageSql = "INSERT INTO inMessages ("+getInsertSql(msg)+")";
+           alasql(reinsertMessageSql);
         }
     }
 
@@ -234,36 +230,33 @@ module.exports.RedLinkProducer = function (config) {
         let reply;
         if (origMessage && origMessage.length > 0) {
             if (origMessage[0].isLargeMessage) {
-                // read preserved from file
-                const path = largeMessagesDirectory + daId + '/preserved.txt';
-                preserved = fs.readFileSync(path, 'utf-8');
-            } else {
-                preserved = origMessage[0].preserved;
+               // read preserved from file
+               const path = largeMessagesDirectory + daId + '/preserved.txt';
+               preserved = fs.readFileSync(path, 'utf-8');
+            } 
+          else 
+            {
+               preserved = origMessage[0].preserved;
             }
             reply = {
-                payload: base64Helper.decode(replyMessage),
-                redlinkMsgId: daId,
-                redlinkProducerId: relevantReplies[0].redlinkProducerId,
-                preserved: base64Helper.decode(preserved),
-                cerror: base64Helper.decode(relevantReplies[0].cerror),
+               payload: base64Helper.decode(replyMessage),
+               redlinkMsgId: daId,
+               redlinkProducerId: relevantReplies[0].redlinkProducerId,
+               preserved: base64Helper.decode(preserved),
+               cerror: base64Helper.decode(relevantReplies[0].cerror),
             };
             const deleteReplyMsg = 'DELETE from replyMessages WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId="' + daId + '"';
             const deleteInMsg = 'DELETE from inMessages    WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId="' + daId + '"';
             if (origMessage[0].isLargeMessage || relevantReplies[0].isLargeMessage) {
-                const path = largeMessagesDirectory + daId + '/';
-                fs.removeSync(path);
+               const path = largeMessagesDirectory + daId + '/';
+               fs.removeSync(path);
             }
             alasql(deleteReplyMsg);
             alasql(deleteInMsg);
-        } else {
-            reply = {
-                payload: origMessage[0],
-                redlinkMsgId: daId,
-                redlinkProducerId: node.id,
-                error: 'Producer has timed this message out',
-                preserved: '',
-                cerror: ''
-            }
+        } 
+      else 
+        {
+           reply = { payload: origMessage[0], redlinkMsgId: daId, redlinkProducerId: node.id, error: 'Producer has timed this message out', preserved: '', cerror: ''  }
         }
         return reply;
     }
@@ -294,13 +287,9 @@ module.exports.RedLinkProducer = function (config) {
              if (isLargeMessage) {
                 const msgPath = largeMessagesDirectory + redlinkMsgId +'/message.txt';
                 // read msg from msgPath
-                 const preservedPath = largeMessagesDirectory + redlinkMsgId +'/preserved.txt';
-                 if(fs.pathExistsSync(msgPath)){
-                     msgs[0].message = fs.readFileSync(msgPath, 'utf-8');
-                 }
-                 if(fs.pathExistsSync(preservedPath)){
-                     msgs[0].preserved = fs.readFileSync(preservedPath, 'utf-8');
-                 }
+                const preservedPath = largeMessagesDirectory + redlinkMsgId +'/preserved.txt';
+                if(fs.pathExistsSync(msgPath)){ msgs[0].message = fs.readFileSync(msgPath, 'utf-8'); }
+                if(fs.pathExistsSync(preservedPath)){ msgs[0].preserved = fs.readFileSync(preservedPath, 'utf-8'); }
              }
            }
            const data = msgs[0];
@@ -314,20 +303,13 @@ module.exports.RedLinkProducer = function (config) {
     function sendFailureMessage(redlinkMsgId) {
         let originalMessage = readMessage(redlinkMsgId);
         let replyMessage = getReplyMsgData(redlinkMsgId);
-        if (replyMessage && replyMessage.preserved) {
-            delete replyMessage.preserved;
-        }
+        if (replyMessage && replyMessage.preserved) { delete replyMessage.preserved; }
         let errorMsg;
         if (node.sendOnly) { errorMsg = `Message ${redlinkMsgId} not read in ${node.ett} seconds`; } 
                       else { errorMsg = `Message ${redlinkMsgId} not read and processed in ${node.ett} seconds`; }
         const failureMessage = getFailureMessage('producerTimeout', errorMsg, redlinkMsgId, originalMessage);
-        sendMessage({
-            failure: failureMessage,
-            debug: failureMessage
-        });
-        if (originalMessage.isLargeMessage) {
-            fs.removeSync(largeMessagesDirectory + redlinkMsgId + '/');
-        }
+        sendMessage({ failure: failureMessage, debug: failureMessage });
+        if (originalMessage.isLargeMessage) { fs.removeSync(largeMessagesDirectory + redlinkMsgId + '/'); }
     }
 
     function isLargeMessage(encodedMessage, encodedPreserved) {
@@ -339,7 +321,8 @@ module.exports.RedLinkProducer = function (config) {
             const path = largeMessagesDirectory + redlinkMsgId + '/';
             try {
                 fs.ensureDirSync(largeMessagesDirectory);
-            } catch (e) {
+            } 
+            catch (e) {
                 const errorMsg = `Unable to create directory to store large messages ${largeMessagesDirectory} Exception: ${e.toString()}`;
                 const failureMessage = getFailureMessage('producerSend', errorMsg, redlinkMsgId, originalMessage);
                 sendMessage({failure: failureMessage, debug: failureMessage});
@@ -348,7 +331,8 @@ module.exports.RedLinkProducer = function (config) {
             try {
                 fs.outputFileSync(path + 'message.txt', encodedMessage);
                 fs.outputFileSync(path + 'preserved.txt', encodedPreserved);
-            } catch (e) {
+            } 
+            catch (e) {
                 const errorMsg = `Unable to write large message to file in directory ${path} Exception: ${e.toString()}`;
                 const failureMessage = getFailureMessage('producerSend', errorMsg, redlinkMsgId, originalMessage);
                 sendMessage({failure: failureMessage, debug: failureMessage});
@@ -362,11 +346,8 @@ module.exports.RedLinkProducer = function (config) {
         } 
       else 
         {
-//        console.log('redlinkMsgId=',redlinkMsgId);
             const msgInsertSql = 'INSERT INTO inMessages VALUES ("' + redlinkMsgId + '","' + node.producerStoreName + '","' + service + '","' + encodedMessage +
                 '",' + false + ',' + node.sendOnly + ',"' + node.id + '","' + encodedPreserved + '",' + Date.now() + ',' + node.priority + ',' + false +','+0+','+0+','+node.enforceReversePath+',"")';
-            /*redlinkMsgId STRING, storeName STRING, serviceName STRING, message STRING, ' +
-            'read BOOLEAN, sendOnly BOOLEAN, redlinkProducerId STRING,preserved STRING, timestamp BIGINT, priority INT, ' 'isLargeMessage BOOLEAN, lifetime INT, timeSinceNotify INT, enforceReversePath BOOLEAN, consumerId STRING*/
             alasql(msgInsertSql);
         }
     }
@@ -380,11 +361,8 @@ module.exports.RedLinkProducer = function (config) {
            const mResult = alasql('SELECT count(*) as myCount FROM inMessages    where read=false and storeName ="' + node.producerStoreName + '" and redlinkProducerId="' + node.id + '"');
            const nResult = alasql('SELECT count(*) as myCount FROM notify        where read=false and storeName ="' + node.producerStoreName + '" and redlinkProducerId="' + node.id + '"');
            const rResult = alasql('SELECT count(*) as myCount FROM replyMessages where read=false and storeName ="' + node.producerStoreName + '" and redlinkProducerId="' + node.id + '"');
-           if (sResult.length > 0) {
-             node.status({fill: "green", shape: "dot", text: 'M:'+ mResult[0].myCount +' N:'+nResult[0].myCount+' R:'+rResult[0].myCount});
-        } else{
-            node.status({fill: "red",    shape: "dot", text: 'Error: No Store:'+node.producerStoreName});
-           }
+           if (sResult.length > 0) { node.status({fill: "green", shape: "dot", text: 'M:'+ mResult[0].myCount +' N:'+nResult[0].myCount+' R:'+rResult[0].myCount}); } 
+                              else { node.status({fill: "red",    shape: "dot", text: 'Error: No Store:'+node.producerStoreName}); }
         },timeOut);
     }
 
@@ -403,14 +381,14 @@ module.exports.RedLinkProducer = function (config) {
 
     function getFailureMessage(action, error, redlinkMsgId, originalMessage){
         return {
-            producerName: node.name,
-            producerId: node.id,
-            producerStoreName: node.producerStoreName,
-            consumerName: node.producerConsumer,
-            action,
-            error,
-            redlinkMsgId,
-            originalMessage
+          producerName: node.name,
+          producerId: node.id,
+          producerStoreName: node.producerStoreName,
+          consumerName: node.producerConsumer,
+          action,
+          error,
+          redlinkMsgId,
+          originalMessage
         }
     }
 
@@ -420,12 +398,9 @@ module.exports.RedLinkProducer = function (config) {
                 if (node.manualRead && msg.redlinkMsgId) { // redlinkMsgId specified
                     sendMessage({receive: getReplyMsgData(msg.redlinkMsgId)});
                 } else // No redlinkMsgId given, so assume any message from this Producer
-                if (node.manualRead) {
-                    sendMessage({
-                        receive:
-                            getReplyIdData(msg.redlinkMsgId)
-                    });
-                } else { // send error?
+                if (node.manualRead) { sendMessage({ receive: getReplyIdData(msg.redlinkMsgId) }); } 
+              else 
+                { // send error?
                 }
             }
             return;

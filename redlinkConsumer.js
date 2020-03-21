@@ -1,6 +1,7 @@
-const alasql = require('alasql');
+
+const alasql  = require('alasql');
 const request = require('request').defaults({strictSSL: false});
-const stream = require('stream');
+const stream  = require('stream');
 
 const base64Helper = require('./base64-helper.js');
 const rateLimiterProvider = require('./rateLimiter.js');
@@ -82,14 +83,11 @@ module.exports.RedLinkConsumer = function (config) {
                     if (watermark < node.inTransitLimit) {
                         sendMessage({notify: notifyMessage}); // send notify regardless of whether it is manual or auto read
                         // todo read oldest message first- right now it reads the notifies in random order- see getNewNotifyAndCount() at beginning of trigger
-                        if (limiter === null) {
-                            readMessageAndSendToOutput(notifyMessage.redlinkMsgId);
-                        } else {
-                            limiter.removeTokens(1, function (err, remainingRequests) {
-                                readMessageAndSendToOutput(notifyMessage.redlinkMsgId);
-                            });
-                        }
-                    } else { //This shouldnt happen
+                        if (limiter === null) { readMessageAndSendToOutput(notifyMessage.redlinkMsgId); } 
+                                        else  { limiter.removeTokens(1, function (err, remainingRequests) { readMessageAndSendToOutput(notifyMessage.redlinkMsgId); }); }
+                    } 
+                  else 
+                    { //This shouldnt happen
                         notifyMessage.warning = `inTransitLimit ${node.inTransitLimit} exceeded. Notify for redlinkMsgId ${data[0].redlinkMsgId} will be discarded`;
                         sendMessage({notify: notifyMessage});  // TODO- still send the notify out?
                         deleteNotify(data[0].redlinkMsgId);
@@ -207,15 +205,15 @@ module.exports.RedLinkConsumer = function (config) {
                     }).catch(err => {
                         sendMessage(err);
                     });
-                } else {  // should be here for a normal read
-                    try {
-                        readMessageWithoutId();
-                    } 
-                    catch (e) {
-                        console.log(e);
-                    }  // shouldn't happen
+                } 
+              else 
+                {  // should be here for a normal read
+                    try { readMessageWithoutId(); } 
+                    catch (e) { console.log(e); }  // shouldn't happen
                 }
-            } else {
+            } 
+          else 
+            {
                 sendMessage({failure: getFailureMessage(msg.redlinkMsgId, 'Attempt to manually read message when consumer set to auto read', 'consumerRead')});
             }
         } 
@@ -251,16 +249,16 @@ module.exports.RedLinkConsumer = function (config) {
                         // if (node.enforceReversePath) {
                         if (notifyPathIn[0].enforceReversePath) {
                             notifyPath = notifyPathIn.pop();
-                        } else {
+                        } 
+                      else 
+                        {
                             notifyPath = notifyPathIn[0];
                             notifyPathIn = [];
                         }
                         const replyAddress = notifyPath.address + ':' + notifyPath.port;
                         notifyPathIn = base64Helper.encode(notifyPathIn);
                         var cerror = '';
-                        if (msg.cerror) {
-                            cerror = base64Helper.encode(msg.cerror);
-                        }
+                        if (msg.cerror) { cerror = base64Helper.encode(msg.cerror); }
                         // delete msg.preserved;
                         const body = {
                             redlinkProducerId,
@@ -308,8 +306,10 @@ module.exports.RedLinkConsumer = function (config) {
                 sendMessage({debug: err});
                 readMessageWithoutId();
             })
-        } else {
-            sendMessage({failure: getFailureMessage(null, 'Store ' + node.consumerStoreName + ' does not have notifies for this consumer', 'consumerReadWithoutId')});
+        } 
+      else 
+        {
+          sendMessage({failure: getFailureMessage(null, 'Store ' + node.consumerStoreName + ' does not have notifies for this consumer', 'consumerReadWithoutId')});
         }
     }
 
@@ -321,12 +321,9 @@ module.exports.RedLinkConsumer = function (config) {
     function getMessageMetadataFromHeaders(headers) {
         const metadata = {};
         for (const property in redlinkConstants.messageFields) { //key- lowercase, value- camelCase
-            if (headers[property]) {
-                metadata[redlinkConstants.messageFields[property]] = headers[property];
-            }
+            if (headers[property]) { metadata[redlinkConstants.messageFields[property]] = headers[property]; }
         }
-        if (Object.keys(metadata).length === 0)
-            return undefined;
+        if (Object.keys(metadata).length === 0) return undefined;
         return metadata;
     }
 
@@ -336,13 +333,15 @@ module.exports.RedLinkConsumer = function (config) {
                 let data = "";
                 let timestamp = Date.now();
                 res.on("data", chunk => data += chunk);
-                res.on("end", () => {
-                    timestamp = Date.now();
-                    const decode = base64Helper.decode(data);
-                    resolve(decode);
+                res.on("end", () => { 
+                   timestamp = Date.now(); 
+                   const decode = base64Helper.decode(data);
+                   resolve(decode);
                 });
                 res.on("error", error => reject(error));
-            } else {
+            } 
+          else 
+            {
                 resolve(base64Helper.decode(res));
             }
         });
@@ -368,7 +367,9 @@ module.exports.RedLinkConsumer = function (config) {
                 // The first entry in the notify contains the enforceReversePath
                 if (notifyPathIn[0].enforceReversePath) {
                     notifyPath = notifyPathIn.pop();
-                } else {
+                } 
+              else 
+                {
                     notifyPath = notifyPathIn[0];
                     notifyPathIn = [];
                 }
@@ -400,9 +401,7 @@ module.exports.RedLinkConsumer = function (config) {
                         const msg = getMessageMetadataFromHeaders(response.headers);
                         if (msg) {
                             let retrieveDelay;
-                            if (msg.timestamp) {
-                                retrieveDelay = (Date.now() - msg.timestamp);
-                            }
+                            if (msg.timestamp) { retrieveDelay = (Date.now() - msg.timestamp); }
                             delete msg.preserved;
                             delete msg.message;
                             delete msg.read;
@@ -429,23 +428,24 @@ module.exports.RedLinkConsumer = function (config) {
                                     if (msg.sendOnly === 'false') {
                                         msg.sendOnly = false;
                                     }
-                                    if (msg.sendOnly) {
-                                        deleteNotify(redlinkMsgId);
-                                    } else {
-                                        watermark++;
-                                    }
+                                    if (msg.sendOnly) { deleteNotify(redlinkMsgId); } 
+                                                 else { watermark++; }
                                 }).catch(err => {
                                     const errorDesc = `Error reading payload from store at :${address} ${err}`;
                                     reject({failure: getFailureMessage(redlinkMsgId, errorDesc, 'consumerRead')});
                                     deleteNotify(redlinkMsgId);
                                 });
                             }
-                        } else {
+                        } 
+                      else 
+                        {
                             const errorDesc = 'Message metadata not received';
                             reject({failure: getFailureMessage(redlinkMsgId, errorDesc, 'consumerRead')});
                             deleteNotify(redlinkMsgId);
                         }
-                    } else {
+                    } 
+                  else 
+                    {
                         // not 200- error case
                         //console.log('READ Error = ',error);
                         const failureMessage = getFailureMessage(redlinkMsgId, 'Not 200 Result', 'consumerRead');

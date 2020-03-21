@@ -3,8 +3,10 @@
 ## Redlink V3
 
 ### NOTE : Redlink is now version 3, it is incompatable with the version 2 code set . 
-### Please update all instances of redlink to V3 before using it, otherwise
-### it will not work.
+### Please update all instances of redlink to V3 before using it, otherwise it will NOT work due to:
+#### . Major Producer Notification changes
+#### . The Addition of a Consumer Confirmation messages being sent to the consumer - prior to consumer notifies being sent out.
+#### . Payloads are now sent from the producer to the consumer using streams.
 
 - [What is Redlink](#what-is-redlink)
 - [How does Redlink work](#how-does-redlink-work)

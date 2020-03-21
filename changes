@@ -1,6 +1,8 @@
+v 3.0.3 Removed issue of ECONresets when full deploying under high load.
 v 3.0.2 Refactored comsumer notifies for for manual read and reduced overall notifies to each consumer eg only notify when it has something to process and has completed its last job.
 	Fixed read error messages when due to being notified twice for the same readlinkMsgId in error.
 v 3.0.1 Fixed LB, enm, renotify from producer.
+	When a producer sends a notify, it no longer causes the consumer to send out the notify untile a new "Confirmation" message is sent, this means that the consumer now controls its capability to consume.
 v 3.0.0 Complete re-write of socket handling.
 	1.All messages are now confirmed with the inMessages store before a notification is sent, this removes wrong notifications to consumers
 	2.Loadbalancer now has a different method of determining consumer load using a new parameter called ENM (Expected Noticifaction Metric), each consumer has a % load value based on interansit limit.

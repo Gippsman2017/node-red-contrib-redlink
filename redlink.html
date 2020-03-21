@@ -1,3 +1,4 @@
+
 <script type="text/javascript">
     const outputNames = {
         receive: 'Receive',
@@ -22,10 +23,8 @@
 
     function getStoreName(qualifiedStore){
         let storeName ='';
-        if(qualifiedStore && qualifiedStore.trim().toLowerCase()!=='please select a store'){
-            if(qualifiedStore.indexOf(':')!=-1){
-                storeName = '(' + qualifiedStore.substring(qualifiedStore.indexOf(':')+1, qualifiedStore.length) +')'
-            }
+        if (qualifiedStore && qualifiedStore.trim().toLowerCase()!=='please select a store'){
+            if (qualifiedStore.indexOf(':')!=-1) { storeName = '(' + qualifiedStore.substring(qualifiedStore.indexOf(':')+1, qualifiedStore.length) +')' } 
         }
         return storeName;
     }
@@ -77,9 +76,9 @@
             nodeRedOutputObject[index] = newOutputs.indexOf(existingOutput);
         });
         newOutputs.forEach(function (newOutput, index) { // handle case 4
-            if (existingOutputs.indexOf(newOutput) === -1) { //newly added
-                nodeRedOutputObject[getRandomNumber()] = index;
-            }
+          if (existingOutputs.indexOf(newOutput) === -1) { //newly added
+              nodeRedOutputObject[getRandomNumber()] = index;
+          }
         });
         return nodeRedOutputObject;
     }
@@ -243,7 +242,9 @@
                 $('#userKeyText').val('****');
                 $('#userCertificateText').val('****');
                 $('#userCertificateDiv').show();
-            } else {
+            } 
+          else 
+            {
                 $('#userCertificateDiv').hide();
             }
             $('#node-input-isUserCertificate').click( function () {
@@ -251,7 +252,9 @@
                     $('#userCertificateDiv').show();
                     $('#node-input-userKeyText').val('');
                     $('#node-input-userCertificateText').val('');
-                } else {
+                } 
+              else 
+                {
                     $('#userCertificateDiv').hide();
                 }
             });
@@ -287,17 +290,10 @@
 
             var headerList = $("#node-input-headers-container").css('min-height', '10px').css('min-width', '400px').editableList({
                 addItem: function (container, i, header) {
-                    if (!header.h) {
-                        header.h = 'localhost';
-                    }
-                    if (!header.v) { //todo confirm with John
-                        header.v = '2000';
-                    }
-                    if(typeof header.d === 'undefined'){
-                        header.d = "false";
-                    } else{
-                        header.d = getString(header.d)
-                    }
+                    if (!header.h) { header.h = 'localhost'; }
+                    if (!header.v) { header.v = '2000'; }
+                    if(typeof header.d === 'undefined') { header.d = "false"; } 
+                                                   else { header.d = getString(header.d) }
                     var row = $('<div/>').css({
                         overflow: 'hidden',
                         whiteSpace: 'nowrap'
@@ -435,24 +431,16 @@
                 redistribute = getString(redistribute);
                 var key = keyType;
                 var value = valueType;
-                if (keyType === 'other') {
-                    key = ip;
-                }
-                if (valueType === 'other') {
-                    value = port;
-                }
-                if (key !== '') {
-                    node.headers.push({ip, port, redistribute})
-                }
+                if (keyType === 'other') { key = ip; }
+                if (valueType === 'other') { value = port; }
+                if (key !== '') { node.headers.push({ip, port, redistribute}) }
             });
-            console.log('on save north peers are:', node.headers);
+            //console.log('on save north peers are:', node.headers);
         },
         oneditresize: function (size) {
             var rows = $("#dialog-form>div:not(.node-input-headers-container-row)");
             var height = size.height;
-            for (var i = 0; i < rows.size(); i++) {
-                height -= $(rows[i]).outerHeight(true);
-            }
+            for (var i = 0; i < rows.size(); i++) { height -= $(rows[i]).outerHeight(true); }
             var editorRow = $("#dialog-form>div.node-input-headers-container-row");
             height -= (parseInt(editorRow.css("marginTop")) + parseInt(editorRow.css("marginBottom")));
             height = 240; //Cludge for too many rows John 
@@ -548,7 +536,7 @@
 <script type="text/x-red" data-help-name="redlink producer">
   <p>The Producer node has a number of capabilities that allow you to control the flow of the data to it - in and out.</p>
   <p><b>UI Configuration</b></p>
-  <p><b> Name </b> Producer Name</p>
+  <p><b>Name </b> Producer Name</p>
   <p><b>  Store Name</b> Store this producer is connected to. This determines the consumers that this producer can send messages to</p>
   <p><b>  Destination Service</b> The service to send the message to. Note that this can also be set via msg.topic- see Message Configuration below</p>
   <p><b>  Show Debug</b> Turn on the debug port for extra information. This can be useful when developing and troubleshooting</p>
@@ -572,9 +560,7 @@
     const validateNotifyAndETT = function () {
         const currentNotify = +($('#node-input-notifyInterval').val() ||  this.notifyInterval);
         const currentETT = +($('#node-input-producerETT').val() || this.producerETT);
-        if(currentNotify<0){
-            return false;
-        }
+        if(currentNotify<0) { return false; }
         const valid = currentETT == -1 || currentETT > currentNotify;
         return valid;
     };
@@ -586,21 +572,12 @@
         outputs:  3,
         defaults: {
             name: {value: 'REDLink producer'},
-            producerStoreName:      {
-                value: '',
-                required: true,
-                validate: function (v) {
-                    return v && v.length > 0;
-                }
-            },
+            producerStoreName:      {value: '', required: true, validate: function (v) { return v && v.length > 0; } },
             producerConsumer:       {value: '', required: false},
             producerTTL:            {value: 15, required: true},
-            producerETT:            {value: 5 * 60, required: true, validate: function (v) {
-                    return RED.validators.number(v) && (v >= 0);
-                }
-            },
+            producerETT:            {value: 5 * 60, required: true, validate: function (v) { return RED.validators.number(v) && (v >= 0); } },
             priority:               {value: 0},
-            timeout:                {value: -1},//TODO check with John,
+            timeout:                {value: -1},
             sendOnly:               {value: false},
             manualRead:             {value: false},
             enforceReversePath:     {value: true},
@@ -615,9 +592,7 @@
             tba:                    {value: null},
             showDebug:              {value: false},
             outputs:                {value: 3},
-            notifyInterval:{ value: 15, required: true, validate: function (v) {
-                    return RED.validators.number(v) && (v >= 0);
-                }
+            notifyInterval:{ value: 15, required: true, validate: function (v) { return RED.validators.number(v) && (v >= 0); }
             },
         },
         outputLabels: function (index) {
@@ -630,26 +605,14 @@
         },
         icon: "arrow-in.png",
         align: "right",
-        label: function () {
-            return (this.name || "") + getStoreName(this.producerStoreName);
-        },
-        labelStyle: function () {
-            return this.name ? "node_label_italic" : "";
-        },
+        label: function () { return (this.name || "") + getStoreName(this.producerStoreName); },
+        labelStyle: function () { return this.name ? "node_label_italic" : ""; },
         oneditsave: function () {
             let newSendOnly = $('#node-input-sendOnly').is(":checked");
             let newDebug    = $('#node-input-showDebug').is(":checked");
-            const existingOutputs = getProducerOutputs({
-                sendOnly: this.sendOnly,
-                debug:    this.showDebug,
-                failure:  true
-            });
+            const existingOutputs = getProducerOutputs({ sendOnly: this.sendOnly, debug: this.showDebug, failure: true });
             // getOutputs(!this.sendOnly, this.manualRead, true, this.showStats, this.showDebug);
-            const newOutputs =  getProducerOutputs({
-                sendOnly: newSendOnly,
-                debug:    newDebug,
-                failure:  true
-            });
+            const newOutputs =  getProducerOutputs({ sendOnly: newSendOnly, debug:    newDebug, failure:  true });
             var nodeRedOutputsObject = getNodeRedOutputObject(existingOutputs, newOutputs);
             $("#node-input-outputs").val(JSON.stringify(nodeRedOutputsObject));
         },
@@ -666,14 +629,8 @@
                 $.getJSON('all-store-names', stores => {
                     let selectionSet = false;
                     $.each(stores, function (index, obj) {
-                        if (selectedStore === obj) {
-                            selectionSet = true;
-                        }
-                        storeElement.append($('<option>', {
-                            value: obj,
-                            text: obj,
-                            selected: selectedStore === obj
-                        }));
+                        if (selectedStore === obj) { selectionSet = true; }
+                        storeElement.append($('<option>', { value: obj, text: obj, selected: selectedStore === obj }));
                     });
                     if (!selectionSet) {
                         $('#node-input-producerStoreName option:selected').removeAttr('selected');
@@ -688,19 +645,11 @@
             repopulateStores();
 
             $('#node-input-manualRead').change(function () {
-                if (this.checked) {
-                    $('#rate-limit-send-receive').hide();
-                } else {
-                    $('#rate-limit-send-receive').show();
-                }
+                if (this.checked) { $('#rate-limit-send-receive').hide(); } 
+                             else { $('#rate-limit-send-receive').show(); }
             });
-            if (this.manualReadReceiveSend) {
-                $('#rate-limit-send-receive').hide();
-            } else {
-                $('#rate-limit-send-receive').show();
-            }
-
-
+            if (this.manualReadReceiveSend) { $('#rate-limit-send-receive').hide(); } 
+                                       else { $('#rate-limit-send-receive').show(); }
 
             $('#node-input-rateTypeSendReceive').change(function () {
                 if (this.value === 'none')      { $('#rate-limit-details-send-receive').hide(); }
@@ -715,17 +664,11 @@
                     let consumerElement = $("#node-input-producerConsumer");
                     consumerElement.find('option').remove().end();
                     $.each(stores, function (index, obj) {
-                        consumerElement.append($('<option>', {
-                            value: obj,
-                            text: obj,
-                            selected: selectedConsumer === obj
-                        }));
+                        consumerElement.append($('<option>', { value: obj, text: obj, selected: selectedConsumer === obj }));
                     });
                 });
             }
-            $("#node-input-producerStoreName").change(function () {
-                repopulateConsumers();
-            });
+            $("#node-input-producerStoreName").change(function () { repopulateConsumers(); });
         }
     });
 </script>
@@ -814,28 +757,14 @@
 <script type="text/javascript">
     RED.nodes.registerType('redlink consumer', {
         category: 'redlink',
-        color: "#f56042",
-        inputs: 1,
-        outputs: 3,
+        color:    "#f56042",
+        inputs:   1,
+        outputs:  3,
         defaults: {
             name: {value: '', required: true},
-            reNotifyInterval:{ value: 1, required: false, validate: function (v) {
-                    return RED.validators.number(v) && (v >= 0);
-                }
-            },
-            consumerStoreName: {
-                value: '',
-                required: true,
-                validate: function (v) {
-                    return v && v.length > 0;
-                }
-            },
-            intransit: {
-                value: 1,
-                validate: function (v) {
-                    return RED.validators.number(v) && (v >= 0);
-                }
-            },
+            reNotifyInterval:{ value: 1, required: false, validate: function (v) { return RED.validators.number(v) && (v >= 0); } },
+            consumerStoreName: { value: '', required: true, validate: function (v) { return v && v.length > 0; } },
+            intransit: { value: 1, validate: function (v) { return RED.validators.number(v) && (v >= 0); } },
             manualReadReceiveSend: {value: false},
             rateTypeReceiveSend: {value: "none"},
             rateReceiveSend: {value: 1},
@@ -844,25 +773,14 @@
             topicReceiveSend: {value: ""},
             cmd: {value: "read"},
             showStatsReceiveSend: {value: false},
-            statsFrequencyReceiveSend: {
-                value: 0, validate: function (v) {
-                    return RED.validators.number(v) && (v >= 0);
-                }
-            },
+            statsFrequencyReceiveSend: { value: 0, validate: function (v) { return RED.validators.number(v) && (v >= 0); } },
             showDebugReceiveSend: {value: false},
             outputs: {value: 3}
         },
-        outputLabels: function (index) {
-            var labels = getOutputs(true, true, true, this.showStatsReceiveSend, this.showDebugReceiveSend);
-            return labels[index];
-        },
+        outputLabels: function (index) { var labels = getOutputs(true, true, true, this.showStatsReceiveSend, this.showDebugReceiveSend); return labels[index]; },
         icon: "arrow-in.png",
-        label: function () {
-            return (this.name || "") + getStoreName(this.consumerStoreName);
-        },
-        labelStyle: function () {
-            return this.name ? "node_label_italic" : "";
-        },
+        label: function () { return (this.name || "") + getStoreName(this.consumerStoreName); },
+        labelStyle: function () { return this.name ? "node_label_italic" : ""; },
         oneditprepare: function () {
             const selectedStore = this.consumerStoreName;
             function repopulateStores() { //todo refactor
@@ -870,19 +788,15 @@
                 $.getJSON('all-store-names', stores => {
                     let selectionSet = false;
                     $.each(stores, function (index, obj) {
-                        if (selectedStore === obj) {
-                            selectionSet = true;
-                        }
-                        storeElement.append($('<option>', {
-                            value: obj,
-                            text: obj,
-                            selected: selectedStore === obj
-                        }));
+                        if (selectedStore === obj) { selectionSet = true; }
+                        storeElement.append($('<option>', { value: obj, text: obj, selected: selectedStore === obj }));
                     });
                     if (!selectionSet) {
                         $('#node-input-consumerStoreName option:selected').removeAttr('selected');
                         $('#node-input-consumerStoreName option:nth-child(0)').attr('selected','selected');
-                    }else{
+                    }
+                  else
+                    {
                         $('#node-input-consumerStoreName').removeClass('input-error');
                     }
                 });
@@ -892,31 +806,19 @@
             repopulateStores();
 
             $('#node-input-manualReadReceiveSend').change(function () {
-                if (this.checked) {
-                    $('#rate-limit-receive-send').hide();
-                } else {
-                    $('#rate-limit-receive-send').show();
-                }
+                if (this.checked) { $('#rate-limit-receive-send').hide(); } 
+                             else { $('#rate-limit-receive-send').show(); }
             });
-            if (this.manualReadReceiveSend) {
-                $('#rate-limit-receive-send').hide();
-            } else {
-                $('#rate-limit-receive-send').show();
-            }
-
+            if (this.manualReadReceiveSend) { $('#rate-limit-receive-send').hide(); } 
+                                       else { $('#rate-limit-receive-send').show(); }
 
             $('#node-input-rateTypeReceiveSend').change(function () {
-                if (this.value == 'none') {
-                    $('#rate-limit-details-receive-send').hide();
-                } else if (this.value == 'rateLimit') {
-                    $('#rate-limit-details-receive-send').show();
-                }
+                if (this.value == 'none') { $('#rate-limit-details-receive-send').hide(); } 
+              else 
+                if (this.value == 'rateLimit') { $('#rate-limit-details-receive-send').show(); }
             });
-            if (this.rateTypeReceiveSend) {
-                $('#rate-limit-details-receive-send').show();
-            } else {
-                $('#rate-limit-details-receive-send').hide();
-            }
+            if (this.rateTypeReceiveSend) { $('#rate-limit-details-receive-send').show(); } 
+                                     else { $('#rate-limit-details-receive-send').hide(); }
         },
         oneditsave: function () {
             const newShowStats = false;
