@@ -67,7 +67,7 @@ module.exports.RedLinkConsumer = function (config) {
                     notifyType: 'producerNotification',
                     src: {
                         redlinkProducerId: data[0].redlinkProducerId,
-                        storeName: data[0].storeName,
+                        storeName: data[0].srcStoreName,
                         storeAddress: data[0].srcStoreAddress + ':' + data[0].srcStorePort
                     },
                     dest: {storeName: data[0].storeName, serviceName: data[0].serviceName, consumer: node.id},

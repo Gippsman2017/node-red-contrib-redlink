@@ -89,7 +89,7 @@ module.exports.RedLinkProducer = function (config) {
     function reNotify(msg){
         // simply remove message and reinsert to trigger notification
         //  deleteNotifiesForMessage(msg.redlinkMsgId);
-        //Notify Only if a consumer has NOT picked up this message
+        // Notify Only if a consumer has NOT picked up this message
         const msgsByThisProducerSql = 'SELECT * FROM inMessages WHERE redlinkMsgId = "'+msg.redlinkMsgId+'" AND redlinkProducerId="' + node.id + '" and storeName ="'+node.producerStoreName+'" and consumerId=""';
         if (alasql(msgsByThisProducerSql).length > 0) {
            deleteMessage(msg.redlinkMsgId);
@@ -100,18 +100,15 @@ module.exports.RedLinkProducer = function (config) {
     }
 
     function deleteMessage(redlinkMsgId) {
-        const deleteInMsg = 'DELETE from inMessages WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId="' + redlinkMsgId + '"';
-        alasql(deleteInMsg);
+        alasql('DELETE from inMessages WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId="' + redlinkMsgId + '"');
     }
 
     function deleteNotifiesForMessage(redlinkMsgId) {
-        const deleteNotifyMsg = 'DELETE from notify WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId = "' + redlinkMsgId + '" and redlinkProducerId="' + node.id + '"';
-        alasql(deleteNotifyMsg);
+        alasql('DELETE from notify WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId = "' + redlinkMsgId + '" and redlinkProducerId="' + node.id + '"');
     }
 
     function deleteReplyForMessage(redlinkMsgId) {
-        const deleteReplyMsg = 'DELETE from replyMessages WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId="' + redlinkMsgId + '"';
-        alasql(deleteReplyMsg);
+        alasql('DELETE from replyMessages WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId="' + redlinkMsgId + '"');
     }
 
     function failMessageAndRemove(redlinkMsgId){
@@ -143,15 +140,7 @@ module.exports.RedLinkProducer = function (config) {
         // look up inMessages table to see if this producer actually sent the message
         const unreadRepliesSql = 'SELECT redlinkMsgId FROM replyMessages WHERE  storeName="' + node.producerStoreName + '" AND read=false AND redlinkProducerId="' + node.id + '"';
         const unreadReplies = alasql(unreadRepliesSql);
-        sendMessage({
-            debug: {
-                storeName: node.producerStoreName,
-                consumerName: node.producerConsumer,
-                action: 'producerReplyRead',
-                direction: 'inBound',
-                'unreadReplies': unreadReplies
-            }
-        });
+        sendMessage({ debug: { storeName: node.producerStoreName, consumerName: node.producerConsumer, action: 'producerReplyRead', direction: 'inBound', 'unreadReplies': unreadReplies } });
 
         if (unreadReplies && unreadReplies.length > 0) {
             let unreadMsgIdsStr = '(';
@@ -161,8 +150,7 @@ module.exports.RedLinkProducer = function (config) {
             const msgsByThisProducer = alasql(msgsByThisProducerSql); // should be length one if reply got for message from this producer else zero
             if (msgsByThisProducer && msgsByThisProducer.length === 0) {
                 // Strange problem, If I end up here, the message has already been processed and the reply needs to be removed, its usually caused by multiple high traffic triggers at the same time
-                const deleteReplyMsg = 'DELETE from replyMessages WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId="' + unreadReplies[0].redlinkMsgId + '"';
-                alasql(deleteReplyMsg);
+                alasql('DELETE from replyMessages WHERE storeName="' + node.producerStoreName + '" AND redlinkMsgId="' + unreadReplies[0].redlinkMsgId + '"');
             } 
           else 
             {

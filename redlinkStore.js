@@ -228,6 +228,7 @@ module.exports.RedLinkStore = function (config) {
                         service: newMessage.serviceName,
                         srcStoreAddress: node.listenAddress,
                         srcStorePort: node.listenPort,
+                        srcStoreName: node.name,
                         transitAddress: node.listenAddress,
                         transitPort: node.listenPort,
                         notifyPath: thisPath,
@@ -416,7 +417,8 @@ module.exports.RedLinkStore = function (config) {
                         if (matchingMessage.length > 0) {
                             sendOnly = matchingMessage[0].sendOnly;
                         }
-                        const notifyInsertSql = `INSERT INTO notify VALUES ("${node.name}","${req.body.service}","${req.body.srcStoreAddress}",${req.body.srcStorePort},"${req.body.redlinkMsgId}","",false,"${req.body.redlinkProducerId}","${base64Helper.encode(req.body.notifyPath)}",${Date.now()},"${req.body.consumerId}",true, ${sendOnly})`;
+//                        const notifyInsertSql = `INSERT INTO notify VALUES ("${node.name}","${req.body.service}","${req.body.srcStoreAddress}",${req.body.srcStorePort},"${req.body.redlinkMsgId}","",false,"${req.body.redlinkProducerId}","${base64Helper.encode(req.body.notifyPath)}",${Date.now()},"${req.body.consumerId}",true, ${sendOnly})`;
+                        const notifyInsertSql = `INSERT INTO notify VALUES ("${node.name}","${req.body.service}","${req.body.srcStoreName}","${req.body.srcStoreAddress}",${req.body.srcStorePort},"${req.body.redlinkMsgId}","",false,"${req.body.redlinkProducerId}","${base64Helper.encode(req.body.notifyPath)}",${Date.now()},"${req.body.consumerId}",true, ${sendOnly})`;
                         if (req.body.consumerId !== "") {
                             alasql(notifyInsertSql);
                             updateGlobalConsumerEnm(req.body.service, req.body.consumerId, node.name, calculateEnm(req.body.service, req.body.consumerId, node.name), node.name);

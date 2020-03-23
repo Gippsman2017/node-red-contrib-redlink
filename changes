@@ -1,3 +1,4 @@
+v 3.0.5 Fixed the Consumer notify srcStoreName to the producer's storename, it was actually sending the consumers own store name in error.
 v 3.0.4 Added arm64 CPU type by removing base64-coder-node library, it stopped redlink loading.
 v 3.0.3 Removed issue of ECONresets when full deploying under high load.
 v 3.0.2 Refactored comsumer notifies for for manual read and reduced overall notifies to each consumer eg only notify when it has something to process and has completed its last job.
